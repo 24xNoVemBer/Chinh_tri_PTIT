@@ -40,10 +40,10 @@ export default function AuthProvider({ children }) {
     }
   }, [])
 
-  const login = useCallback(async ({ email, password, role }) => {
+  const login = useCallback(async ({ email, password }) => {
     const authenticatedUser = await apiRequest('/api/auth/login', {
       method: 'POST',
-      body: jsonBody({ email, password, role }),
+      body: jsonBody({ email, password }),
     })
     setUser(authenticatedUser)
     setStatus('authenticated')

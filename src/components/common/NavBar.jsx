@@ -1,4 +1,4 @@
-import { Clock3, LogOut, Search } from 'lucide-react'
+import { Clock3, LogOut, MessageCircle, Search } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/useAuth'
 import './NavBar.css'
@@ -6,6 +6,7 @@ import './NavBar.css'
 const ROLE_LINKS = {
   student: [
     { label: 'Môn học', to: '/student/subjects' },
+    { label: 'Chatbot', to: '/student/chat', icon: MessageCircle },
     { label: 'Tra cứu', to: '/student/search', icon: Search },
     { label: 'Lịch sử', to: '/student/questions', icon: Clock3 },
   ],

@@ -1,29 +1,33 @@
-import { BookOpen, Eye, EyeOff, GraduationCap, LoaderCircle, ShieldCheck } from 'lucide-react'
+import {
+  ArrowLeft,
+  BookOpenCheck,
+  Eye,
+  EyeOff,
+  GraduationCap,
+  LoaderCircle,
+  ShieldCheck,
+} from 'lucide-react'
 import { useRef, useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { ROLES } from '../../features/auth/auth'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/useAuth'
 import './RoleSelector.css'
 
-const ROLE_OPTIONS = [
+const DEMO_ACCOUNTS = [
   {
-    role: ROLES.STUDENT,
-    title: 'Sinh viên',
-    description: 'Tra cứu kiến thức, theo dõi bài học và gửi câu hỏi cho giảng viên.',
-    icon: BookOpen,
+    label: 'Dùng tài khoản sinh viên',
+    description: 'Nguyễn Tuấn Anh',
+    email: 'tuananh@ptit.edu.vn',
+    password: 'Student@123',
+    icon: BookOpenCheck,
   },
   {
-    role: ROLES.LECTURER,
-    title: 'Giảng viên',
-    description: 'Quản lý lớp, học liệu, sinh viên và các câu hỏi cần xử lý.',
+    label: 'Dùng tài khoản giảng viên',
+    description: 'TS. Đào Đức Tú',
+    email: 'ductu@ptit.edu.vn',
+    password: 'Lecturer@123',
     icon: GraduationCap,
   },
 ]
-
-const DEMO_ACCOUNTS = {
-  student: { email: 'tuananh@ptit.edu.vn', password: 'Student@123' },
-  lecturer: { email: 'ductu@ptit.edu.vn', password: 'Lecturer@123' },
-}
 
 function validate(values) {
   const nextErrors = {}
@@ -33,11 +37,14 @@ function validate(values) {
   return nextErrors
 }
 
+function getDestination(user, requestedPath) {
+  return requestedPath?.startsWith(`/${user.role}`) ? requestedPath : `/${user.role}`
+}
+
 export default function RoleSelector() {
   const navigate = useNavigate()
   const location = useLocation()
   const { isLoading, login, user } = useAuth()
-  const [role, setRole] = useState(ROLES.STUDENT)
   const [values, setValues] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState({})
   const [touched, setTouched] = useState({})
@@ -47,7 +54,9 @@ export default function RoleSelector() {
   const emailRef = useRef(null)
   const passwordRef = useRef(null)
 
-  if (!isLoading && user) return <Navigate to={`/${user.role}`} replace />
+  if (!isLoading && user) {
+    return <Navigate to={getDestination(user, location.state?.from)} replace />
+  }
 
   const updateField = (event) => {
     const { name, value } = event.target
@@ -63,16 +72,12 @@ export default function RoleSelector() {
     setErrors(validate(values))
   }
 
-  const selectRole = (nextRole) => {
-    setRole(nextRole)
-    setServerError('')
-  }
-
-  const useDemoAccount = () => {
-    setValues(DEMO_ACCOUNTS[role])
+  const fillDemoAccount = (account) => {
+    setValues({ email: account.email, password: account.password })
     setErrors({})
     setTouched({})
     setServerError('')
+    emailRef.current?.focus()
   }
 
   const handleSubmit = async (event) => {
@@ -89,12 +94,8 @@ export default function RoleSelector() {
     setIsSubmitting(true)
     setServerError('')
     try {
-      const authenticatedUser = await login({ ...values, role })
-      const requestedPath = location.state?.from
-      const destination = requestedPath?.startsWith(`/${authenticatedUser.role}`)
-        ? requestedPath
-        : `/${authenticatedUser.role}`
-      navigate(destination, { replace: true })
+      const authenticatedUser = await login(values)
+      navigate(getDestination(authenticatedUser, location.state?.from), { replace: true })
     } catch (error) {
       setServerError(error.message)
     } finally {
@@ -106,54 +107,36 @@ export default function RoleSelector() {
     <main className="role-selector-container">
       <section className="role-selector-shell" aria-labelledby="login-title">
         <div className="role-selector-intro">
-          <div className="role-selector-brand">
-            <span>PTIT</span> Trợ giảng
-          </div>
+          <Link className="role-selector-brand" to="/">
+            <span>PTIT</span> Chính Trị
+          </Link>
           <div className="role-selector-intro__copy">
-            <p className="role-selector-kicker">Không gian học tập có kiểm chứng</p>
+            <p className="role-selector-kicker">Một tài khoản, đúng không gian</p>
             <h1 id="login-title" className="role-selector-title">
-              Quản lý lớp rõ ràng. Tra cứu kiến thức đúng ngữ cảnh.
+              Đăng nhập rồi bắt đầu đúng vai trò của bạn.
             </h1>
             <p className="role-selector-subtitle">
-              Một cổng chung để giảng viên vận hành lớp học và sinh viên tiếp cận bài giảng, hỏi
-              đáp, lịch sử học tập.
+              Hệ thống tự nhận diện tài khoản sinh viên hoặc giảng viên và chuyển bạn đến đúng luồng
+              làm việc.
             </p>
           </div>
           <div className="role-selector-trust">
             <ShieldCheck aria-hidden="true" size={20} />
             <span>
-              Phiên đăng nhập được bảo vệ bằng cookie HttpOnly và phân quyền theo vai trò.
+              Quyền truy cập được lấy từ tài khoản, không phụ thuộc vào lựa chọn trên giao diện.
             </span>
           </div>
         </div>
 
         <div className="login-panel">
-          <div className="login-panel__header">
-            <p className="role-selector-kicker">Đăng nhập hệ thống</p>
-            <h2>Chào mừng bạn trở lại</h2>
-            <p>Chọn đúng vai trò và dùng tài khoản PTIT của bạn.</p>
-          </div>
+          <Link className="login-panel__back" to="/">
+            <ArrowLeft aria-hidden="true" size={16} />
+            Trang giới thiệu
+          </Link>
 
-          <div className="role-choice" aria-label="Chọn vai trò">
-            {ROLE_OPTIONS.map((option) => {
-              const Icon = option.icon
-              const selected = role === option.role
-              return (
-                <button
-                  key={option.role}
-                  className={`role-choice__item ${selected ? 'role-choice__item--active' : ''}`}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => selectRole(option.role)}
-                >
-                  <Icon aria-hidden="true" size={19} />
-                  <span>
-                    <strong>{option.title}</strong>
-                    <small>{option.description}</small>
-                  </span>
-                </button>
-              )
-            })}
+          <div className="login-panel__header">
+            <h2>Đăng nhập PTIT</h2>
+            <p>Dùng email và mật khẩu của bạn. Hệ thống sẽ tự mở đúng không gian.</p>
           </div>
 
           <form className="login-form" noValidate onSubmit={handleSubmit}>
@@ -165,16 +148,21 @@ export default function RoleSelector() {
                 name="email"
                 type="email"
                 autoComplete="username"
+                required
                 placeholder="tenban@ptit.edu.vn"
                 value={values.email}
                 aria-invalid={Boolean(errors.email)}
-                aria-describedby={errors.email ? 'login-email-error' : undefined}
+                aria-describedby={errors.email ? 'login-email-error' : 'login-email-hint'}
                 onBlur={handleBlur}
                 onChange={updateField}
               />
-              {errors.email && (
+              {errors.email ? (
                 <span className="form-field__error" id="login-email-error" role="alert">
                   {errors.email}
+                </span>
+              ) : (
+                <span className="form-field__hint" id="login-email-hint">
+                  Tài khoản sẽ quyết định quyền sinh viên hoặc giảng viên.
                 </span>
               )}
             </div>
@@ -188,23 +176,31 @@ export default function RoleSelector() {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
+                  required
                   value={values.password}
                   aria-invalid={Boolean(errors.password)}
-                  aria-describedby={errors.password ? 'login-password-error' : undefined}
+                  aria-describedby={
+                    errors.password ? 'login-password-error' : 'login-password-hint'
+                  }
                   onBlur={handleBlur}
                   onChange={updateField}
                 />
                 <button
                   type="button"
                   aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   onClick={() => setShowPassword((current) => !current)}
                 >
                   {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
                 </button>
               </div>
-              {errors.password && (
+              {errors.password ? (
                 <span className="form-field__error" id="login-password-error" role="alert">
                   {errors.password}
+                </span>
+              ) : (
+                <span className="form-field__hint" id="login-password-hint">
+                  Nhập mật khẩu của tài khoản PTIT.
                 </span>
               )}
             </div>
@@ -226,20 +222,37 @@ export default function RoleSelector() {
                   Đang xác thực…
                 </>
               ) : (
-                `Đăng nhập với vai trò ${role === ROLES.STUDENT ? 'sinh viên' : 'giảng viên'}`
+                'Đăng nhập'
               )}
             </button>
           </form>
 
-          <div className="demo-account">
+          <section className="demo-accounts" aria-labelledby="demo-accounts-title">
             <div>
-              <strong>Tài khoản demo cục bộ</strong>
-              <span>{DEMO_ACCOUNTS[role].email}</span>
+              <h3 id="demo-accounts-title">Tài khoản demo</h3>
+              <p>
+                Chọn một tài khoản mẫu để điền thông tin. Vai trò vẫn được xác định sau đăng nhập.
+              </p>
             </div>
-            <button type="button" onClick={useDemoAccount}>
-              Điền tài khoản mẫu
-            </button>
-          </div>
+            <div className="demo-accounts__grid">
+              {DEMO_ACCOUNTS.map((account) => {
+                const Icon = account.icon
+                return (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => fillDemoAccount(account)}
+                  >
+                    <Icon aria-hidden="true" size={18} />
+                    <span>
+                      <strong>{account.label}</strong>
+                      <small>{account.description}</small>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
         </div>
       </section>
     </main>

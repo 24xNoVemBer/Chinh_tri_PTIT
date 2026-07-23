@@ -29,11 +29,11 @@ describe('Phase 4 API', () => {
     db.close()
   })
 
-  async function login(email, password, role) {
+  async function login(email, password) {
     const response = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, role }),
+      body: JSON.stringify({ email, password }),
     })
     expect(response.status).toBe(200)
     return response.headers.get('set-cookie').split(';')[0]
@@ -50,8 +50,8 @@ describe('Phase 4 API', () => {
     })
   }
 
-  it('authenticates a session and blocks the wrong role', async () => {
-    const studentCookie = await login('tuananh@ptit.edu.vn', 'Student@123', 'student')
+  it('infers the account role, authenticates a session, and blocks the wrong role', async () => {
+    const studentCookie = await login('tuananh@ptit.edu.vn', 'Student@123')
 
     const meResponse = await api('/api/auth/me', studentCookie)
     expect(meResponse.status).toBe(200)
@@ -68,8 +68,8 @@ describe('Phase 4 API', () => {
   })
 
   it('connects the student and lecturer vertical slices with audit history', async () => {
-    const studentCookie = await login('tuananh@ptit.edu.vn', 'Student@123', 'student')
-    const lecturerCookie = await login('ductu@ptit.edu.vn', 'Lecturer@123', 'lecturer')
+    const studentCookie = await login('tuananh@ptit.edu.vn', 'Student@123')
+    const lecturerCookie = await login('ductu@ptit.edu.vn', 'Lecturer@123')
 
     const progressResponse = await api('/api/student/lessons/les3/progress', studentCookie, {
       method: 'PATCH',
@@ -125,7 +125,7 @@ describe('Phase 4 API', () => {
   })
 
   it('returns a stable conflict error for duplicate class content', async () => {
-    const lecturerCookie = await login('ductu@ptit.edu.vn', 'Lecturer@123', 'lecturer')
+    const lecturerCookie = await login('ductu@ptit.edu.vn', 'Lecturer@123')
     const availableResponse = await api(
       '/api/lecturer/classes/class1/lessons/available',
       lecturerCookie,
@@ -151,7 +151,7 @@ describe('Phase 4 API', () => {
   })
 
   it('serves cited RAG demo data and persists lecturer review decisions', async () => {
-    const lecturerCookie = await login('ductu@ptit.edu.vn', 'Lecturer@123', 'lecturer')
+    const lecturerCookie = await login('ductu@ptit.edu.vn', 'Lecturer@123')
     const queueResponse = await api('/api/lecturer/rag/reviews', lecturerCookie)
     expect(queueResponse.status).toBe(200)
     const queue = await parseData(queueResponse)

@@ -28,7 +28,7 @@ Không dùng primary làm nền diện tích lớn. Đỏ PTIT dùng cho hành �
 
 ## Typography
 
-- Heading: `Newsreader`, fallback `Georgia`.
+- Heading: `Be Vietnam Pro` với weight 600–700, fallback system sans-serif.
 - Body/UI: `Be Vietnam Pro`, fallback system sans-serif.
 - Body tối thiểu 16 px; helper text tối thiểu 12 px.
 - Màn đọc dùng line-height khoảng 1.8 và chiều rộng tối đa 46rem.

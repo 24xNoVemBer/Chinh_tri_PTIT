@@ -4,6 +4,7 @@ import RoleGuard from './features/auth/RoleGuard'
 
 const LecturerLayout = lazy(() => import('./layouts/LecturerLayout'))
 const StudentLayout = lazy(() => import('./layouts/StudentLayout'))
+const HomePage = lazy(() => import('./pages/common/HomePage'))
 const RoleSelector = lazy(() => import('./pages/auth/RoleSelector'))
 const NotFoundPage = lazy(() => import('./pages/common/NotFoundPage'))
 const ClassPage = lazy(() => import('./pages/lecturer/ClassPage'))
@@ -23,6 +24,7 @@ const QuestionHistoryPage = lazy(() => import('./pages/student/QuestionHistoryPa
 const QuizPage = lazy(() => import('./pages/student/QuizPage'))
 const SearchPage = lazy(() => import('./pages/student/SearchPage'))
 const StudentHome = lazy(() => import('./pages/student/StudentHome'))
+const ChatPage = lazy(() => import('./pages/student/ChatPage'))
 const StudentQuestionDetailPage = lazy(() => import('./pages/student/StudentQuestionDetailPage'))
 const SubjectPage = lazy(() => import('./pages/student/SubjectPage'))
 const SubjectsPage = lazy(() => import('./pages/student/SubjectsPage'))
@@ -49,11 +51,13 @@ export default function App() {
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
-        <Route path="/" element={<RoleSelector />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<RoleSelector />} />
 
         <Route element={<RoleGuard role="student" />}>
           <Route path="/student" element={<StudentLayout />}>
             <Route index element={<StudentHome />} />
+            <Route path="chat" element={<ChatPage />} />
             <Route path="subjects" element={<SubjectsPage />} />
             <Route path="subjects/:subjectId" element={<SubjectPage />} />
             <Route path="subjects/:subjectId/qna" element={<QnAPage />} />

@@ -1,0 +1,48 @@
+{
+  "scannedAt": "2026-07-24",
+  "framework": {
+    "name": "React",
+    "version": "19.2.8",
+    "buildTool": "Vite 8.1.1",
+    "routing": "react-router-dom 7.18.1",
+    "source": "package.json"
+  },
+  "fontStack": {
+    "display": "Be Vietnam Pro",
+    "body": "Be Vietnam Pro",
+    "loading": "Google Fonts CSS import",
+    "source": "src/styles/global.css:1, src/styles/tokens.css:37"
+  },
+  "palette": {
+    "system": "semantic CSS custom properties",
+    "primary": "#B42318",
+    "background": "#F5F3F0",
+    "surface": "#FFFFFF",
+    "foreground": "#201D1A",
+    "source": "src/styles/tokens.css:1"
+  },
+  "motion": {
+    "stance": "motion-cut",
+    "libraries": [],
+    "transitions": "150-220ms CSS transitions with reduced-motion fallback",
+    "source": "package.json, src/styles/tokens.css:74, src/styles/global.css:109"
+  },
+  "spacing": {
+    "system": "4pt semantic CSS custom-property scale",
+    "source": "src/styles/tokens.css:45"
+  },
+  "preserve": [
+    "PTIT red semantic palette",
+    "Be Vietnam Pro typography with weight-led hierarchy",
+    "4pt spacing scale",
+    "Lucide icon family",
+    "React and Vite architecture",
+    "reduced-motion support"
+  ],
+  "introduce": [
+    "public landing-page macrostructure",
+    "student chatbot interaction page",
+    "mobile-first navigation and chat composition",
+    "Hallmark pre-emit critique and slop-test gates"
+  ]
+}

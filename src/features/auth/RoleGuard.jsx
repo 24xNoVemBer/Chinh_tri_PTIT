@@ -13,7 +13,7 @@ export default function RoleGuard({ role }) {
     )
   }
 
-  if (!user) return <Navigate to="/" replace state={{ from: location.pathname }} />
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   if (user.role !== role) return <Navigate to={`/${user.role}`} replace />
 
   return <Outlet />

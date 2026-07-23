@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { ArrowRight, BookOpen, CircleHelp, Gauge, PlayCircle, Search } from 'lucide-react'
+import { ArrowRight, BookOpen, Bot, CircleHelp, Gauge, PlayCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ErrorState, LoadingState } from '../../components/common/AsyncState'
 import PageHeader from '../../components/common/PageHeader'
@@ -35,9 +35,9 @@ export default function StudentHome() {
         title={`Chào ${currentStudent.name.split(' ').at(-1)}`}
         description="Tiếp tục bài học gần đây, tra cứu kiến thức hoặc theo dõi các câu hỏi của bạn."
         actions={
-          <Link className="button button--primary" to="/student/search">
-            <Search aria-hidden="true" size={18} />
-            Tra cứu kiến thức
+          <Link className="button button--primary" to="/student/chat">
+            <Bot aria-hidden="true" size={18} />
+            Hỏi trợ giảng
           </Link>
         }
       />

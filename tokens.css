@@ -1,0 +1,5 @@
+/* Hallmark token bridge.
+ * The application source of truth remains src/styles/tokens.css.
+ * This root export exists for design-tool discovery and must not redefine project tokens.
+ */
+@import url('./src/styles/tokens.css');
