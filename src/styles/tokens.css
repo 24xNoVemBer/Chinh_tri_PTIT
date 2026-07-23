@@ -1,0 +1,90 @@
+:root {
+  color-scheme: light;
+
+  /* Brand and semantic colors */
+  --color-primary: #b42318;
+  --color-primary-hover: #8e1b13;
+  --color-primary-soft: #fff1ef;
+  --color-on-primary: #ffffff;
+  --color-accent: #9a6700;
+  --color-accent-soft: #fff7df;
+  --color-background: #f5f3f0;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #faf9f7;
+  --color-foreground: #201d1a;
+  --color-muted-foreground: #625b56;
+  --color-subtle-foreground: #7b716b;
+  --color-border: #ded8d2;
+  --color-border-strong: #c6bdb6;
+  --color-success: #217a4b;
+  --color-success-soft: #eaf7ef;
+  --color-warning: #9a6700;
+  --color-warning-soft: #fff7df;
+  --color-danger: #b42318;
+  --color-danger-soft: #fff1ef;
+  --color-focus: #b42318;
+  --color-brand-panel: #2f2925;
+  --color-on-brand-panel: #fffaf7;
+  --color-brand-panel-muted: #d9d1cc;
+  --color-brand-panel-accent: #f1a7a0;
+
+  /* Typography */
+  --font-display: 'Newsreader', Georgia, serif;
+  --font-body:
+    'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-utility: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: clamp(1.75rem, 3vw, 2.25rem);
+  --text-3xl: clamp(2.25rem, 5vw, 3.5rem);
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Layout */
+  --content-width: 72rem;
+  --reading-width: 46rem;
+  --sidebar-width: 15rem;
+  --nav-height: 4rem;
+
+  /* Layering */
+  --z-sticky-subnav: 40;
+  --z-sticky-nav: 50;
+  --z-skip-link: 100;
+
+  /* Shape and elevation */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
+  --shadow-sm: 0 1px 2px rgba(32, 29, 26, 0.06);
+  --shadow-md: 0 10px 30px rgba(32, 29, 26, 0.08);
+
+  /* Motion */
+  --transition-fast: 150ms ease;
+  --transition-base: 220ms ease;
+
+  /* Backward-compatible aliases while legacy components are migrated */
+  --muc: var(--color-foreground);
+  --giay: var(--color-background);
+  --son: var(--color-primary);
+  --son-hover: var(--color-primary-hover);
+  --son-tint: var(--color-primary-soft);
+  --vang-dong: var(--color-accent);
+  --vang-dong-tint: var(--color-accent-soft);
+  --da: var(--color-muted-foreground);
+  --bong: var(--color-border);
+  --trang: var(--color-surface);
+}

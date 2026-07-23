@@ -1,0 +1,84 @@
+import { createReadStream, existsSync, statSync } from 'node:fs'
+import { createServer } from 'node:http'
+import { extname, isAbsolute, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { createRequestHandler } from './app.js'
+import { createDatabase, DEFAULT_DATABASE_PATH } from './database.js'
+
+if (existsSync('.env')) process.loadEnvFile('.env')
+
+const port = Number(process.env.PORT ?? 3001)
+const databasePath = process.env.DATABASE_PATH ?? DEFAULT_DATABASE_PATH
+const staticRoot = resolve(fileURLToPath(new URL('../dist', import.meta.url)))
+const indexPath = resolve(staticRoot, 'index.html')
+const db = createDatabase({ databasePath })
+const apiHandler = createRequestHandler({
+  db,
+  secureCookies: process.env.NODE_ENV === 'production',
+})
+
+const mimeTypes = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.woff2': 'font/woff2',
+}
+
+function serveStatic(request, response) {
+  if (!['GET', 'HEAD'].includes(request.method ?? 'GET')) {
+    response.writeHead(405, { Allow: 'GET, HEAD' })
+    response.end()
+    return
+  }
+
+  const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname)
+  const requestedPath = resolve(staticRoot, `.${pathname}`)
+  const relativePath = relative(staticRoot, requestedPath)
+  const isInsideStaticRoot = !relativePath.startsWith('..') && !isAbsolute(relativePath)
+  const safePath = isInsideStaticRoot && existsSync(requestedPath) ? requestedPath : indexPath
+  const finalPath = existsSync(safePath) && statSync(safePath).isFile() ? safePath : indexPath
+
+  if (!existsSync(finalPath)) {
+    response.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' })
+    response.end('Frontend chưa được build. Chạy npm run dev hoặc npm run build trước.')
+    return
+  }
+
+  response.writeHead(200, {
+    'Content-Type': mimeTypes[extname(finalPath)] ?? 'application/octet-stream',
+    'X-Content-Type-Options': 'nosniff',
+  })
+  if (request.method === 'HEAD') {
+    response.end()
+    return
+  }
+  createReadStream(finalPath).pipe(response)
+}
+
+const server = createServer((request, response) => {
+  if (request.url?.startsWith('/api/')) {
+    apiHandler(request, response)
+    return
+  }
+  serveStatic(request, response)
+})
+
+server.listen(port, '127.0.0.1', () => {
+  console.log(`PTIT Teaching Assistant server: http://127.0.0.1:${port}`)
+  console.log(`SQLite database: ${databasePath}`)
+})
+
+function shutdown() {
+  server.close(() => {
+    db.close()
+    process.exit(0)
+  })
+}
+
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)

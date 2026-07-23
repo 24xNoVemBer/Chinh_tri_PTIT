@@ -1,0 +1,21 @@
+.lecturer-layout {
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+.lecturer-layout__body {
+  min-height: calc(100vh - var(--nav-height));
+}
+
+.lecturer-layout__main {
+  min-height: calc(100vh - var(--nav-height));
+  margin-left: var(--sidebar-width);
+  padding: var(--space-8) var(--space-6) var(--space-12);
+}
+
+@media (max-width: 56rem) {
+  .lecturer-layout__main {
+    margin-left: 0;
+    padding: var(--space-6) var(--space-4) var(--space-10);
+  }
+}

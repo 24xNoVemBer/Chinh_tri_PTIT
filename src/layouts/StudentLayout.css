@@ -1,0 +1,14 @@
+.student-layout {
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+.student-layout__main {
+  padding: var(--space-8) var(--space-6) var(--space-12);
+}
+
+@media (max-width: 48rem) {
+  .student-layout__main {
+    padding: var(--space-6) var(--space-4) var(--space-10);
+  }
+}

@@ -1,0 +1,21 @@
+.progressbar {
+  width: 100%;
+  background-color: var(--bong, #e5e5e5);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progressbar--sm {
+  height: 4px;
+}
+
+.progressbar--md {
+  height: 8px;
+}
+
+.progressbar__fill {
+  height: 100%;
+  background-color: var(--son, #c92a2a);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
