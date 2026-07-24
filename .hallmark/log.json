@@ -1,6 +1,18 @@
 [
   {
     "date": "2026-07-24",
+    "macrostructure": "Workbench Authentication",
+    "theme": "Studied DNA: Khanmigo-inspired Home + PTIT",
+    "theme_axes": "playful educational / focused form / navy-red",
+    "enrichment": "Existing PTIT student photography",
+    "nav": "focused auth topbar",
+    "footer": "none",
+    "brief": "Focused login page aligned with the student-first PTIT Chính Trị homepage",
+    "scope": "single-page auth redesign",
+    "studied": true
+  },
+  {
+    "date": "2026-07-24",
     "macrostructure": "Learning Playground · Student Moments",
     "theme": "Studied DNA: MagicSchool + Brilliant + PTIT",
     "theme_axes": "playful educational / use-case led / navy-red",

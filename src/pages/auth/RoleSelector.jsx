@@ -1,6 +1,8 @@
 import {
   ArrowLeft,
+  ArrowRight,
   BookOpenCheck,
+  CheckCircle2,
   Eye,
   EyeOff,
   GraduationCap,
@@ -9,19 +11,20 @@ import {
 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import ptitStudentsImage from '../../assets/ptit-students.jpg'
 import { useAuth } from '../../features/auth/useAuth'
 import './RoleSelector.css'
 
 const DEMO_ACCOUNTS = [
   {
-    label: 'Dùng tài khoản sinh viên',
+    label: 'Tài khoản sinh viên',
     description: 'Nguyễn Tuấn Anh',
     email: 'tuananh@ptit.edu.vn',
     password: 'Student@123',
     icon: BookOpenCheck,
   },
   {
-    label: 'Dùng tài khoản giảng viên',
+    label: 'Tài khoản giảng viên',
     description: 'TS. Đào Đức Tú',
     email: 'ductu@ptit.edu.vn',
     password: 'Lecturer@123',
@@ -53,6 +56,9 @@ export default function RoleSelector() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const emailRef = useRef(null)
   const passwordRef = useRef(null)
+  const selectedDemoAccount = DEMO_ACCOUNTS.find(
+    (account) => account.email === values.email && account.password === values.password,
+  )
 
   if (!isLoading && user) {
     return <Navigate to={getDestination(user, location.state?.from)} replace />
@@ -105,154 +111,213 @@ export default function RoleSelector() {
 
   return (
     <main className="role-selector-container">
+      <a className="role-selector-skip-link" href="#login-form">
+        Đi đến biểu mẫu đăng nhập
+      </a>
+
       <section className="role-selector-shell" aria-labelledby="login-title">
-        <div className="role-selector-intro">
+        <header className="role-selector-topbar">
           <Link className="role-selector-brand" to="/">
-            <span>PTIT</span> Chính Trị
+            <span className="role-selector-brand__mark">PTIT</span>
+            <span>Chính Trị</span>
           </Link>
-          <div className="role-selector-intro__copy">
-            <p className="role-selector-kicker">Một tài khoản, đúng không gian</p>
-            <h1 id="login-title" className="role-selector-title">
-              Đăng nhập rồi bắt đầu đúng vai trò của bạn.
-            </h1>
-            <p className="role-selector-subtitle">
-              Hệ thống tự nhận diện tài khoản sinh viên hoặc giảng viên và chuyển bạn đến đúng luồng
-              làm việc.
-            </p>
-          </div>
-          <div className="role-selector-trust">
-            <ShieldCheck aria-hidden="true" size={20} />
-            <span>
-              Quyền truy cập được lấy từ tài khoản, không phụ thuộc vào lựa chọn trên giao diện.
-            </span>
-          </div>
-        </div>
 
-        <div className="login-panel">
           <Link className="login-panel__back" to="/">
-            <ArrowLeft aria-hidden="true" size={16} />
-            Trang giới thiệu
+            <ArrowLeft aria-hidden="true" size={18} />
+            Về trang chủ
           </Link>
+        </header>
 
-          <div className="login-panel__header">
-            <h2>Đăng nhập PTIT</h2>
-            <p>Dùng email và mật khẩu của bạn. Hệ thống sẽ tự mở đúng không gian.</p>
-          </div>
-
-          <form className="login-form" noValidate onSubmit={handleSubmit}>
-            <div className="form-field">
-              <label htmlFor="login-email">Email PTIT</label>
-              <input
-                id="login-email"
-                ref={emailRef}
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-                placeholder="tenban@ptit.edu.vn"
-                value={values.email}
-                aria-invalid={Boolean(errors.email)}
-                aria-describedby={errors.email ? 'login-email-error' : 'login-email-hint'}
-                onBlur={handleBlur}
-                onChange={updateField}
-              />
-              {errors.email ? (
-                <span className="form-field__error" id="login-email-error" role="alert">
-                  {errors.email}
-                </span>
-              ) : (
-                <span className="form-field__hint" id="login-email-hint">
-                  Tài khoản sẽ quyết định quyền sinh viên hoặc giảng viên.
-                </span>
-              )}
+        <div className="role-selector-layout">
+          <section className="login-panel">
+            <div className="login-panel__header">
+              <p className="login-panel__kicker">Một tài khoản, đúng không gian</p>
+              <h1 id="login-title">Đăng nhập để học tiếp</h1>
+              <p>
+                Hệ thống tự nhận diện tài khoản và mở đúng không gian dành cho sinh viên hoặc giảng
+                viên.
+              </p>
             </div>
 
-            <div className="form-field">
-              <label htmlFor="login-password">Mật khẩu</label>
-              <div className="password-field">
+            <form
+              id="login-form"
+              className="login-form"
+              aria-busy={isSubmitting || isLoading}
+              noValidate
+              onSubmit={handleSubmit}
+            >
+              <div className="form-field">
+                <label htmlFor="login-email">Email PTIT</label>
                 <input
-                  id="login-password"
-                  ref={passwordRef}
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
+                  id="login-email"
+                  ref={emailRef}
+                  name="email"
+                  type="email"
+                  autoComplete="username"
                   required
-                  value={values.password}
-                  aria-invalid={Boolean(errors.password)}
-                  aria-describedby={
-                    errors.password ? 'login-password-error' : 'login-password-hint'
-                  }
+                  placeholder="tenban@ptit.edu.vn"
+                  value={values.email}
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? 'login-email-error' : 'login-email-hint'}
                   onBlur={handleBlur}
                   onChange={updateField}
                 />
-                <button
-                  type="button"
-                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                  title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                  onClick={() => setShowPassword((current) => !current)}
-                >
-                  {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                </button>
+                {errors.email ? (
+                  <span className="form-field__error" id="login-email-error" role="alert">
+                    {errors.email}
+                  </span>
+                ) : (
+                  <span className="form-field__hint" id="login-email-hint">
+                    Tài khoản tự xác định quyền truy cập sau khi đăng nhập.
+                  </span>
+                )}
               </div>
-              {errors.password ? (
-                <span className="form-field__error" id="login-password-error" role="alert">
-                  {errors.password}
-                </span>
-              ) : (
-                <span className="form-field__hint" id="login-password-hint">
-                  Nhập mật khẩu của tài khoản PTIT.
-                </span>
-              )}
-            </div>
 
-            {serverError && (
-              <div className="login-form__error" role="alert">
-                {serverError}
-              </div>
-            )}
-
-            <button
-              className="login-form__submit"
-              type="submit"
-              disabled={isSubmitting || isLoading}
-            >
-              {isSubmitting || isLoading ? (
-                <>
-                  <LoaderCircle className="login-form__spinner" aria-hidden="true" size={18} />
-                  Đang xác thực…
-                </>
-              ) : (
-                'Đăng nhập'
-              )}
-            </button>
-          </form>
-
-          <section className="demo-accounts" aria-labelledby="demo-accounts-title">
-            <div>
-              <h3 id="demo-accounts-title">Tài khoản demo</h3>
-              <p>
-                Chọn một tài khoản mẫu để điền thông tin. Vai trò vẫn được xác định sau đăng nhập.
-              </p>
-            </div>
-            <div className="demo-accounts__grid">
-              {DEMO_ACCOUNTS.map((account) => {
-                const Icon = account.icon
-                return (
+              <div className="form-field">
+                <label htmlFor="login-password">Mật khẩu</label>
+                <div className="password-field">
+                  <input
+                    id="login-password"
+                    ref={passwordRef}
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    required
+                    value={values.password}
+                    aria-invalid={Boolean(errors.password)}
+                    aria-describedby={
+                      errors.password ? 'login-password-error' : 'login-password-hint'
+                    }
+                    onBlur={handleBlur}
+                    onChange={updateField}
+                  />
                   <button
-                    key={account.email}
                     type="button"
-                    onClick={() => fillDemoAccount(account)}
+                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    onClick={() => setShowPassword((current) => !current)}
                   >
-                    <Icon aria-hidden="true" size={18} />
-                    <span>
-                      <strong>{account.label}</strong>
-                      <small>{account.description}</small>
-                    </span>
+                    {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
                   </button>
-                )
-              })}
-            </div>
+                </div>
+                {errors.password ? (
+                  <span className="form-field__error" id="login-password-error" role="alert">
+                    {errors.password}
+                  </span>
+                ) : (
+                  <span className="form-field__hint" id="login-password-hint">
+                    Dùng mật khẩu của tài khoản PTIT.
+                  </span>
+                )}
+              </div>
+
+              {serverError && (
+                <div className="login-form__error" role="alert">
+                  {serverError}
+                </div>
+              )}
+
+              <button
+                className="login-form__submit"
+                type="submit"
+                disabled={isSubmitting || isLoading}
+              >
+                {isSubmitting || isLoading ? (
+                  <>
+                    <LoaderCircle className="login-form__spinner" aria-hidden="true" size={19} />
+                    Đang xác thực…
+                  </>
+                ) : (
+                  <>
+                    Đăng nhập
+                    <ArrowRight aria-hidden="true" size={19} />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <section className="demo-accounts" aria-labelledby="demo-accounts-title">
+              <div className="demo-accounts__heading">
+                <h2 id="demo-accounts-title">Thử nhanh bằng tài khoản demo</h2>
+                <p>Chọn một tài khoản để điền sẵn thông tin.</p>
+              </div>
+              <div className="demo-accounts__grid">
+                {DEMO_ACCOUNTS.map((account) => {
+                  const Icon = account.icon
+                  const isSelected = selectedDemoAccount?.email === account.email
+
+                  return (
+                    <button
+                      key={account.email}
+                      className={isSelected ? 'is-selected' : undefined}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => fillDemoAccount(account)}
+                    >
+                      <span className="demo-account__icon">
+                        <Icon aria-hidden="true" size={20} />
+                      </span>
+                      <span className="demo-account__copy">
+                        <strong>{account.label}</strong>
+                        <small>{account.description}</small>
+                      </span>
+                      {isSelected ? (
+                        <CheckCircle2
+                          className="demo-account__status"
+                          aria-hidden="true"
+                          size={19}
+                        />
+                      ) : (
+                        <ArrowRight className="demo-account__status" aria-hidden="true" size={19} />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              <span className="sr-only" aria-live="polite">
+                {selectedDemoAccount ? `Đã điền ${selectedDemoAccount.label}.` : ''}
+              </span>
+            </section>
           </section>
+
+          <aside className="role-selector-intro" aria-labelledby="login-intro-title">
+            <figure className="role-selector-visual">
+              <img
+                src={ptitStudentsImage}
+                width="500"
+                height="333"
+                fetchPriority="high"
+                alt="Nhóm sinh viên PTIT cùng kết nối trong hoạt động tập thể"
+              />
+            </figure>
+
+            <div className="role-selector-intro__copy">
+              <h2 id="login-intro-title">Học đúng môn. Hỏi đúng ngữ cảnh.</h2>
+              <p>
+                Tra cứu giáo trình, đặt câu hỏi với AI trợ giảng và tiếp tục ôn tập theo từng học
+                phần.
+              </p>
+              <ul>
+                <li>
+                  <BookOpenCheck aria-hidden="true" size={19} />
+                  Hỏi theo học phần đang học
+                </li>
+                <li>
+                  <ShieldCheck aria-hidden="true" size={19} />
+                  Đối chiếu giáo trình và nguồn chính thống
+                </li>
+                <li>
+                  <GraduationCap aria-hidden="true" size={19} />
+                  Tiếp tục lộ trình ôn tập
+                </li>
+              </ul>
+            </div>
+
+            <div className="role-selector-trust">
+              <ShieldCheck aria-hidden="true" size={20} />
+              <span>Quyền truy cập được nhận diện từ tài khoản PTIT.</span>
+            </div>
+          </aside>
         </div>
       </section>
     </main>
