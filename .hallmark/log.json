@@ -1,6 +1,39 @@
 [
   {
     "date": "2026-07-24",
+    "macrostructure": "Learning Playground · Student Moments",
+    "theme": "Studied DNA: MagicSchool + Brilliant + PTIT",
+    "theme_axes": "playful educational / use-case led / navy-red",
+    "enrichment": "A5 student journey previews + B1 PTIT visual poster",
+    "nav": "N1 compact",
+    "footer": "Ft4",
+    "brief": "Student-first feature journeys for asking, sourcing and reviewing, followed by a visual PTIT login poster",
+    "studied": true
+  },
+  {
+    "date": "2026-07-24",
+    "macrostructure": "Learning Playground",
+    "theme": "Studied DNA: khanmigo.ai + PTIT",
+    "theme_axes": "playful educational / centered / warm-red",
+    "enrichment": "Semantic AI learning scene with course photography",
+    "nav": "N1 compact",
+    "footer": "Ft4",
+    "brief": "Student-first PTIT Chính Trị homepage with Khanmigo-inspired full-bleed hero and reduced margins",
+    "studied": true
+  },
+  {
+    "date": "2026-07-24",
+    "macrostructure": "Split Studio",
+    "theme": "Studied DNA: chinhtri.ptitai.org",
+    "theme_axes": "light / heavy-sans / warm-red",
+    "enrichment": "Exact Unsplash course carousel from reference",
+    "nav": "N1",
+    "footer": "Ft4",
+    "brief": "PTIT homepage source-matched hero, kinetic title, autoplay carousel, concrete feature copy, and contact footer",
+    "studied": true
+  },
+  {
+    "date": "2026-07-24",
     "macrostructure": "Bento Grid",
     "theme": "Editorial",
     "theme_axes": "light / roman-serif / warm",
@@ -9,5 +42,16 @@
     "footer": "Ft1",
     "brief": "PTIT teaching assistant public homepage and student chatbot UI demo",
     "studied": false
+  },
+  {
+    "date": "2026-07-24",
+    "macrostructure": "Split Studio",
+    "theme": "Studied DNA: chinhtri.ptitai.org + PTIT",
+    "theme_axes": "light / sans-display / cool-navy",
+    "enrichment": "E8 official PTIT photography course deck",
+    "nav": "N1",
+    "footer": "Ft1",
+    "brief": "PTIT homepage color audit, CTA redesign, and interactive course hero",
+    "studied": true
   }
 ]
