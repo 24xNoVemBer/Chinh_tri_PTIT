@@ -13,7 +13,7 @@ export default function StudentLayout() {
       </a>
       <NavBar role="student" userName={user?.name} />
       <main className="student-layout__main" id="main-content" tabIndex={-1}>
-        <div className="app-content">
+        <div className="app-content app-content--dashboard">
           <Outlet />
         </div>
       </main>

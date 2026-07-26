@@ -131,12 +131,9 @@ export default function RoleSelector() {
         <div className="role-selector-layout">
           <section className="login-panel">
             <div className="login-panel__header">
-              <p className="login-panel__kicker">Một tài khoản, đúng không gian</p>
-              <h1 id="login-title">Đăng nhập để học tiếp</h1>
-              <p>
-                Hệ thống tự nhận diện tài khoản và mở đúng không gian dành cho sinh viên hoặc giảng
-                viên.
-              </p>
+              <p className="login-panel__kicker">Hệ thống học tập PTIT</p>
+              <h1 id="login-title">Đăng nhập</h1>
+              <p>Sử dụng tài khoản PTIT để truy cập không gian học tập phù hợp.</p>
             </div>
 
             <form

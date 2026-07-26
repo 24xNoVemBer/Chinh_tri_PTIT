@@ -18,40 +18,42 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import courseHoChiMinhImage from '../../assets/course-ho-chi-minh-unsplash.jpg'
-import coursePartyHistoryImage from '../../assets/course-party-history-unsplash.jpg'
 import coursePhilosophyImage from '../../assets/course-philosophy-unsplash.jpg'
+import courseShowcaseHoChiMinhImage from '../../assets/course-showcase-ho-chi-minh.jpg'
+import courseShowcaseMarxEngelsImage from '../../assets/course-showcase-marx-engels.jpg'
+import courseShowcaseVietnam1945Image from '../../assets/course-showcase-vietnam-1945.jpg'
 import ptitReadingDayImage from '../../assets/ptit-reading-day.jpg'
 import { useAuth } from '../../features/auth/useAuth'
 import './HomePage.css'
 
 const COURSE_SHOWCASE = [
   {
-    alt: 'Không gian thư viện với kệ sách và đèn đọc dành cho học phần Triết học Mác - Lênin',
+    alt: 'Tượng Karl Marx và Friedrich Engels tại Marx-Engels-Forum, Berlin',
     description: 'Nắm vững thế giới quan và phương pháp luận khoa học của chủ nghĩa Mác - Lênin.',
-    image: coursePhilosophyImage,
-    imageHeight: 924,
-    imagePosition: 'center',
-    imageWidth: 1000,
+    image: courseShowcaseMarxEngelsImage,
+    imageHeight: 853,
+    imagePosition: '76% 44%',
+    imageWidth: 1280,
     tags: ['Chủ nghĩa duy vật biện chứng', 'Chủ nghĩa duy vật lịch sử', 'Phép biện chứng duy vật'],
     title: 'Triết học Mác - Lênin',
   },
   {
-    alt: 'Kệ sách cổ trong thư viện dành cho học phần Tư tưởng Hồ Chí Minh',
+    alt: 'Chân dung Chủ tịch Hồ Chí Minh khoảng năm 1946',
     description: 'Hệ thống quan điểm toàn diện và sâu sắc về cách mạng Việt Nam.',
-    image: courseHoChiMinhImage,
-    imageHeight: 667,
-    imagePosition: 'center',
-    imageWidth: 1000,
+    image: courseShowcaseHoChiMinhImage,
+    imageHeight: 1281,
+    imagePosition: 'center 32%',
+    imageWidth: 960,
     tags: ['Độc lập dân tộc', 'Đại đoàn kết toàn dân tộc', 'Đạo đức cách mạng'],
     title: 'Tư tưởng Hồ Chí Minh',
   },
   {
-    alt: 'Không gian thư viện nhiều tầng dành cho học phần Lịch sử Đảng và Chủ nghĩa xã hội khoa học',
+    alt: 'Cuộc tuần hành ủng hộ độc lập dân tộc tại Hà Nội tháng 8 năm 1945',
     description: 'Đường lối cách mạng của Đảng và con đường đi lên chủ nghĩa xã hội.',
-    image: coursePartyHistoryImage,
-    imageHeight: 667,
+    image: courseShowcaseVietnam1945Image,
+    imageHeight: 629,
     imagePosition: 'center',
-    imageWidth: 1000,
+    imageWidth: 955,
     tags: [
       'Lịch sử Đảng Cộng sản Việt Nam',
       'Chủ nghĩa xã hội khoa học',

@@ -4,7 +4,7 @@
 }
 
 .student-layout__main {
-  padding: var(--space-8) var(--space-6) var(--space-12);
+  padding: var(--space-8) var(--space-6) var(--space-16);
 }
 
 @media (max-width: 48rem) {

@@ -1,5 +1,18 @@
 [
   {
+    "date": "2026-07-26",
+    "macrostructure": "Workbench",
+    "theme": "Studied DNA: PTIT Direction A",
+    "theme_axes": "modern-minimal / task-led / navy-red",
+    "enrichment": "Original course-cover compositions using public-domain Marx and Engels portraits plus an archival image of the 1867 Das Kapital",
+    "nav": "N1b top product navigation",
+    "footer": "none",
+    "brief": "Direction A parity with a compact student resume, integrated lecturer metrics, portrait course covers, real statistics, and restrained motion",
+    "scope": "two authenticated dashboard pages",
+    "studied": true,
+    "motion": "orchestrated reveal / 420ms count-up / hover lift / reduced-motion fallback"
+  },
+  {
     "date": "2026-07-24",
     "macrostructure": "Workbench Authentication",
     "theme": "Studied DNA: Khanmigo-inspired Home + PTIT",
@@ -38,7 +51,7 @@
     "macrostructure": "Split Studio",
     "theme": "Studied DNA: chinhtri.ptitai.org",
     "theme_axes": "light / heavy-sans / warm-red",
-    "enrichment": "Exact Unsplash course carousel from reference",
+    "enrichment": "Subject-specific historical course carousel using licensed and public-domain archive imagery",
     "nav": "N1",
     "footer": "Ft4",
     "brief": "PTIT homepage source-matched hero, kinetic title, autoplay carousel, concrete feature copy, and contact footer",

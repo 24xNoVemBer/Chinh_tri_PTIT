@@ -7,7 +7,7 @@ export default function ProgressBar({ value, size = 'md', label = 'Tiến độ'
     <div className={`progressbar progressbar--${size}`}>
       <div
         className="progressbar__fill"
-        style={{ width: `${clampedValue}%` }}
+        style={{ transform: 'scaleX(' + clampedValue / 100 + ')' }}
         role="progressbar"
         aria-label={label}
         aria-valuenow={clampedValue}

@@ -28,15 +28,14 @@ Không dùng primary làm nền diện tích lớn. Đỏ PTIT dùng cho hành �
 
 ## Typography
 
-- Heading: `Be Vietnam Pro` với weight 600–700, fallback system sans-serif.
-- Body/UI: `Be Vietnam Pro`, fallback system sans-serif.
+- Heading dashboard: `Manrope` với weight 600–800; body/UI: `Be Vietnam Pro`, fallback system sans-serif.
 - Body tối thiểu 16 px; helper text tối thiểu 12 px.
 - Màn đọc dùng line-height khoảng 1.8 và chiều rộng tối đa 46rem.
 
 ## Layout
 
-- Content tối đa 72–78rem.
-- Sidebar giảng viên 15rem ở desktop; chuyển thành thanh ngang ở dưới 56rem.
+- Content dashboard tối đa 82rem; màn nội dung chuyên sâu giữ ở 72–78rem.
+- Điều hướng chính dùng thanh ngang phía trên cho cả hai vai trò; menu thu gọn dưới 64rem.
 - Breakpoint kiểm tra bắt buộc: 375, 768, 1024 và 1440 px.
 - Không cho phép horizontal scroll toàn trang.
 - Mọi vùng click/chạm chính tối thiểu 44×44 px.

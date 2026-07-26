@@ -1,8 +1,8 @@
 .progressbar {
   width: 100%;
-  background-color: var(--bong, #e5e5e5);
-  border-radius: 9999px;
   overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--color-border);
 }
 
 .progressbar--sm {
@@ -15,7 +15,8 @@
 
 .progressbar__fill {
   height: 100%;
-  background-color: var(--son, #c92a2a);
-  border-radius: 9999px;
-  transition: width 0.3s ease;
+  border-radius: inherit;
+  background-color: var(--color-primary);
+  transform-origin: left center;
+  transition: transform var(--dur-long) var(--ease-out);
 }

@@ -27,8 +27,15 @@
   --color-on-brand-panel: #fffaf7;
   --color-brand-panel-muted: #d9d1cc;
   --color-brand-panel-accent: #f1a7a0;
+  --color-heading: oklch(23% 0.07 264);
+  --color-heading-soft: oklch(96% 0.016 264);
+  --color-nav-surface: oklch(99% 0.006 28 / 0.96);
+  --color-overlay: oklch(18% 0.018 35 / 0.42);
 
   /* Typography */
+  --font-heading:
+    'Manrope', 'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
   --font-display:
     'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-body:
@@ -39,6 +46,7 @@
   --text-base: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.375rem;
+  --text-dashboard-title: clamp(1.9rem, 3vw, 2.65rem);
   --text-2xl: clamp(1.75rem, 3vw, 2.25rem);
   --text-3xl: clamp(2.25rem, 5vw, 3.5rem);
 
@@ -56,9 +64,10 @@
 
   /* Layout */
   --content-width: 72rem;
+  --dashboard-content-width: 82rem;
   --reading-width: 46rem;
   --sidebar-width: 15rem;
-  --nav-height: 4rem;
+  --nav-height: 4.5rem;
 
   /* Layering */
   --z-sticky-subnav: 40;
@@ -72,10 +81,17 @@
   --radius-xl: 1.25rem;
   --shadow-sm: 0 1px 2px rgba(32, 29, 26, 0.06);
   --shadow-md: 0 10px 30px rgba(32, 29, 26, 0.08);
+  --shadow-dashboard: 0 1.25rem 3.5rem oklch(24% 0.028 30 / 0.08);
 
   /* Motion */
-  --transition-fast: 150ms ease;
-  --transition-base: 220ms ease;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --transition-fast: var(--dur-micro) var(--ease-out);
+  --transition-base: var(--dur-short) var(--ease-out);
 
   /* Backward-compatible aliases while legacy components are migrated */
   --muc: var(--color-foreground);
