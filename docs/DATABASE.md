@@ -35,10 +35,10 @@ duyệt, đều có citation và `model_version = demo-ui-v1`. Không seed dữ 
 
 - Tiến độ, trạng thái sinh viên, lịch bài, học liệu, câu hỏi, câu trả lời và lịch sử tìm kiếm được
   ghi trực tiếp vào SQLite.
-- Request/response mô phỏng, citation và quyết định kiểm duyệt được lưu tách riêng để UI có đủ trạng
-  thái truy vết.
-- Audit log là append-only cho thao tác quản lý lớp, cập nhật tiến độ, tạo câu hỏi, trả lời và kiểm
-  duyệt RAG.
+- Request/response mô phỏng từ Chat API, citation và quyết định kiểm duyệt được lưu tách riêng để
+  sinh viên và giảng viên dùng chung một luồng có đủ trạng thái truy vết.
+- Audit log là append-only cho thao tác quản lý lớp, cập nhật tiến độ, tạo câu hỏi/chat, trả lời và
+  kiểm duyệt RAG.
 - Test đóng rồi mở lại cùng file database để xác nhận dữ liệu không mất.
 
 ## Migration

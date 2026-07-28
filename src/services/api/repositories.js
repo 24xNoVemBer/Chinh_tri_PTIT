@@ -97,8 +97,8 @@ export const apiQuestionRepository = {
       body: jsonBody({ content: input.content }),
     })
   },
-  listRagReviews(status = 'pending_review') {
-    return apiRequest(withQuery('/api/lecturer/rag/reviews', { status }))
+  listRagReviews(_lecturerId, status = 'pending_review', priority = 'attention') {
+    return apiRequest(withQuery('/api/lecturer/rag/reviews', { priority, status }))
   },
   reviewRagResponse(responseId, input) {
     return apiRequest(`/api/lecturer/rag/responses/${encodeURIComponent(responseId)}/review`, {
@@ -166,5 +166,17 @@ export const apiSearchRepository = {
 export const apiAuditRepository = {
   listForLecturer(limit = 50) {
     return apiRequest(withQuery('/api/lecturer/audit-logs', { limit }))
+  },
+}
+
+export const apiChatRepository = {
+  createMessage(input) {
+    return apiRequest('/api/student/chat', {
+      method: 'POST',
+      body: jsonBody({
+        content: input.content,
+        subjectId: input.subjectId,
+      }),
+    })
   },
 }

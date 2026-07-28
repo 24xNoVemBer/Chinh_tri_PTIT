@@ -109,30 +109,41 @@ Khi có `studentId`, repository chỉ tìm trong môn sinh viên đã ghi danh. 
 ## RAG UI contract — adapter model tích hợp sau
 
 ```ts
-askRag({ question, subjectId, lessonId?, conversationId? }): Promise<RagAnswer>
+chatRepository.createMessage({ content, subjectId }): Promise<RagAnswer>
 ```
 
 `RagAnswer` tối thiểu gồm:
 
 ```ts
 {
-  answerId: string
+  questionId: string
+  requestId: string
+  responseId: string
   content: string
-  confidence?: number
-  status: 'pending_review' | 'approved' | 'rejected' | 'needs_revision'
+  reviewStatus: 'pending_review' | 'approved' | 'rejected' | 'needs_revision'
+  moderation: {
+    priority: 'high' | 'medium' | 'sample'
+    queue: 'attention' | 'sample'
+    requiresReview: boolean
+    reason: string
+  }
   citations: Array<{
-    materialId: string
-    materialVersionId: string
+    id: string
+    title: string
+    author: string
+    location: string
     pageNumber?: number
     quote: string
   }>
-  modelVersion?: string
-  isDemo?: boolean
+  isDemo: boolean
 }
 ```
 
-Trong bản demo, `modelVersion` là `demo-ui-v1` và `isDemo = true`. `askRag` chưa được gọi; dữ liệu
-được seed chỉ để review giao diện và thao tác kiểm duyệt.
+Trong bản demo, repository gọi `POST /api/student/chat`. Backend tạo question, request, response và
+citation trong một transaction với `model_version = demo-chat-api-v1`, sau đó trả response ngay
+với `reviewStatus = pending_review` và `isDemo = true`. Retrieval/model thật sẽ thay bộ sinh nội
+dung demo mà không đổi contract của page. UI hiển thị ngay mọi response; `requiresReview` chỉ điều
+phối hàng đợi giảng viên, không chặn sinh viên chờ duyệt.
 
 ## Quy tắc lỗi
 
