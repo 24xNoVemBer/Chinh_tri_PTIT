@@ -19,6 +19,9 @@ const STATUS_CONFIG = {
   inactive: { label: 'Ít hoạt động', icon: Clock3 },
   published: { label: 'Đã xuất bản', icon: Check },
   draft: { label: 'Bản nháp', icon: Clock3 },
+  risk_high: { label: 'Ưu tiên cao', icon: CircleAlert },
+  risk_medium: { label: 'Cần xem xét', icon: Clock3 },
+  risk_sample: { label: 'Kiểm tra lấy mẫu', icon: Bot },
 }
 
 export default function StatusLabel({ type, lecturerName }) {

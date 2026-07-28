@@ -184,6 +184,69 @@ describe('Phase 4 API', () => {
     const refreshedQueue = await parseData(await api('/api/lecturer/rag/reviews', lecturerCookie))
     expect(refreshedQueue).toHaveLength(0)
   })
+
+  it('connects a student chat message to the lecturer RAG review queue', async () => {
+    const studentCookie = await login('tuananh@ptit.edu.vn', 'Student@123')
+    const lecturerCookie = await login('ductu@ptit.edu.vn', 'Lecturer@123')
+
+    const chatResponse = await api('/api/student/chat', studentCookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        content: 'Vật chất và ý thức có mối quan hệ như thế nào?',
+      }),
+    })
+    expect(chatResponse.status).toBe(201)
+    const chat = await parseData(chatResponse)
+    expect(chat).toMatchObject({
+      reviewStatus: 'pending_review',
+      isDemo: true,
+      moderation: {
+        priority: 'sample',
+        requiresReview: false,
+      },
+    })
+    expect(chat.citations).toHaveLength(1)
+
+    const queue = await parseData(
+      await api('/api/lecturer/rag/reviews?priority=sample', lecturerCookie),
+    )
+    const queuedQuestion = queue.find((question) => question.id === chat.questionId)
+    expect(queuedQuestion).toMatchObject({
+      content: 'Vật chất và ý thức có mối quan hệ như thế nào?',
+      ragResponse: {
+        id: chat.responseId,
+        reviewStatus: 'pending_review',
+        isDemo: true,
+      },
+    })
+    expect(queuedQuestion.ragResponse.citations).toHaveLength(1)
+
+    const attentionQueue = await parseData(
+      await api('/api/lecturer/rag/reviews?priority=attention', lecturerCookie),
+    )
+    expect(attentionQueue.some((question) => question.id === chat.questionId)).toBe(false)
+
+    const crossSubjectResponse = await api('/api/student/chat', studentCookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub2',
+        content: 'Vật chất và ý thức có mối quan hệ như thế nào?',
+      }),
+    })
+    const crossSubjectChat = await parseData(crossSubjectResponse)
+    expect(crossSubjectChat.moderation).toMatchObject({
+      priority: 'high',
+      requiresReview: true,
+    })
+
+    const refreshedAttentionQueue = await parseData(
+      await api('/api/lecturer/rag/reviews?priority=attention', lecturerCookie),
+    )
+    expect(
+      refreshedAttentionQueue.some((question) => question.id === crossSubjectChat.questionId),
+    ).toBe(true)
+  })
 })
 
 describe('SQLite persistence', () => {

@@ -318,6 +318,7 @@ export function createRequestHandler({ db, secureCookies = false, logger = conso
             repositories.ragRepository.listForReview(
               lecturer.id,
               searchParams.get('status') ?? 'pending_review',
+              searchParams.get('priority') ?? 'attention',
             ),
           )
           return
@@ -401,6 +402,12 @@ export function createRequestHandler({ db, secureCookies = false, logger = conso
           const input = await readJson(request)
           requireFields(input, ['subjectId', 'content'])
           sendData(response, repositories.questionRepository.create(input, student.id), 201)
+          return
+        }
+        if (method === 'POST' && pathname === '/api/student/chat') {
+          const input = await readJson(request)
+          requireFields(input, ['subjectId', 'content'])
+          sendData(response, repositories.ragRepository.createDemoChat(input, student.id), 201)
           return
         }
         if (method === 'GET' && questionMatch) {

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { subjectMockResponses } from '../src/data/mock-student-learning.js'
 import { includesNormalized } from '../src/utils/text.js'
+import { buildDemoChatContent, classifyDemoModeration } from './chatDemo.js'
 import { ApiError } from './http.js'
 
 const nowIso = () => new Date().toISOString()
@@ -165,6 +167,7 @@ const QUESTION_SELECT = `
     rag_requests.attempt_count AS rag_attempt_count,
     rag_requests.error_code AS rag_error_code,
     rag_requests.error_message AS rag_error_message,
+    rag_requests.request_json AS rag_request_json,
     rag_requests.created_at AS rag_request_created_at,
     rag_requests.completed_at AS rag_request_completed_at,
     rag_responses.id AS rag_response_id,
@@ -238,6 +241,14 @@ function getRagCitations(db, responseId) {
 }
 
 function mapQuestion(row, db) {
+  const ragRequestMetadata = parseMetadata(row.rag_request_json)
+  const moderation = ragRequestMetadata?.moderation ?? {
+    priority: 'medium',
+    queue: 'attention',
+    requiresReview: true,
+    reason: 'Dữ liệu demo cũ chưa có kết quả phân loại ưu tiên.',
+  }
+
   return {
     id: row.id,
     lessonId: row.lesson_id,
@@ -312,6 +323,7 @@ function mapQuestion(row, db) {
           attemptCount: row.rag_attempt_count,
           errorCode: row.rag_error_code,
           errorMessage: row.rag_error_message,
+          moderation,
           createdAt: row.rag_request_created_at,
           completedAt: row.rag_request_completed_at,
         }
@@ -326,6 +338,7 @@ function mapQuestion(row, db) {
           reviewStatus: row.rag_review_status,
           modelVersion: row.rag_model_version,
           isDemo: row.rag_model_version?.startsWith('demo-') ?? false,
+          moderation,
           reviewedBy: row.rag_reviewed_by,
           reviewedAt: row.rag_reviewed_at,
           createdAt: row.rag_response_created_at,
@@ -988,15 +1001,181 @@ export function createRepositories(db) {
   }
 
   const ragRepository = {
-    listForReview(lecturerId, status = 'pending_review') {
+    createDemoChat(input, studentId) {
+      const content = String(input.content ?? '').trim()
+      if (content.length < 10) {
+        throw new ApiError(400, 'VALIDATION', 'Câu hỏi cần có ít nhất 10 ký tự.')
+      }
+      ensureStudentSubjectAccess(db, studentId, input.subjectId)
+
+      const source = db
+        .prepare(
+          `SELECT
+             materials.id AS material_id,
+             materials.title,
+             materials.author,
+             material_versions.id AS version_id,
+             material_versions.year,
+             rag_citations.quote AS sample_quote,
+             rag_citations.page_number AS sample_page_number
+           FROM materials
+           JOIN approved_sources
+             ON approved_sources.material_id = materials.id
+            AND approved_sources.is_approved = 1
+           JOIN material_versions
+             ON material_versions.id = (
+               SELECT latest_version.id
+               FROM material_versions AS latest_version
+               WHERE latest_version.material_id = materials.id
+               ORDER BY latest_version.year DESC
+               LIMIT 1
+             )
+           LEFT JOIN rag_citations
+             ON rag_citations.id = (
+               SELECT sample_citation.id
+               FROM rag_citations AS sample_citation
+               WHERE sample_citation.material_version_id = material_versions.id
+               ORDER BY sample_citation.citation_order
+               LIMIT 1
+             )
+           WHERE materials.subject_id = ?
+           ORDER BY materials.title
+           LIMIT 1`,
+        )
+        .get(input.subjectId)
+      if (!source) {
+        throw new ApiError(
+          409,
+          'NO_APPROVED_SOURCE',
+          'Môn học này chưa có nguồn được phê duyệt cho trợ giảng.',
+        )
+      }
+
+      const template = subjectMockResponses.find((item) => item.subjectId === input.subjectId)
+      const answerContent = buildDemoChatContent(
+        content,
+        template?.content ??
+          'Trợ giảng chưa có nội dung demo phù hợp cho môn học này. Câu hỏi đã được ghi nhận để giảng viên xem xét.',
+      )
+      const timestamp = nowIso()
+      const questionId = createId('question')
+      const requestId = createId('rag_request')
+      const responseId = createId('rag_response')
+      const citationId = createId('rag_citation')
+      const citationQuote =
+        source.sample_quote ??
+        'Trích đoạn minh họa đang chờ pipeline retrieval trích xuất từ học liệu đã phê duyệt.'
+      const moderation = classifyDemoModeration({
+        question: content,
+        subjectId: input.subjectId,
+        hasPageCitation: Boolean(source.sample_page_number),
+      })
+
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        db.prepare(
+          `INSERT INTO questions
+           (id, lesson_id, subject_id, student_id, content, status, created_at, updated_at)
+           VALUES (?, NULL, ?, ?, ?, 'unanswered', ?, ?)`,
+        ).run(questionId, input.subjectId, studentId, content, timestamp, timestamp)
+        db.prepare(
+          `INSERT INTO rag_requests
+           (id, question_id, student_id, subject_id, lesson_id, status, attempt_count,
+            request_json, started_at, completed_at, created_at)
+           VALUES (?, ?, ?, ?, NULL, 'succeeded', 1, ?, ?, ?, ?)`,
+        ).run(
+          requestId,
+          questionId,
+          studentId,
+          input.subjectId,
+          JSON.stringify({
+            demo: true,
+            questionId,
+            question: content,
+            subjectId: input.subjectId,
+            moderation,
+          }),
+          timestamp,
+          timestamp,
+          timestamp,
+        )
+        db.prepare(
+          `INSERT INTO rag_responses
+           (id, request_id, provider_answer_id, content, original_content, confidence,
+            review_status, model_version, raw_response_json, reviewed_by, reviewed_at,
+            created_at, updated_at)
+           VALUES (?, ?, NULL, ?, ?, 0.5, 'pending_review', 'demo-chat-api-v1', ?, NULL, NULL, ?, ?)`,
+        ).run(
+          responseId,
+          requestId,
+          answerContent,
+          answerContent,
+          JSON.stringify({ demo: true, source: 'chat-api' }),
+          timestamp,
+          timestamp,
+        )
+        db.prepare(
+          `INSERT INTO rag_citations
+           (id, response_id, material_id, material_version_id, page_number, quote,
+            citation_order, retrieval_score)
+           VALUES (?, ?, ?, ?, ?, ?, 0, NULL)`,
+        ).run(
+          citationId,
+          responseId,
+          source.material_id,
+          source.version_id,
+          source.sample_page_number ?? null,
+          citationQuote,
+        )
+        audit(db, studentId, 'rag.chat_created', 'question', questionId, {
+          requestId,
+          responseId,
+          subjectId: input.subjectId,
+        })
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+
+      return {
+        questionId,
+        requestId,
+        responseId,
+        content: answerContent,
+        reviewStatus: 'pending_review',
+        isDemo: true,
+        moderation,
+        citations: [
+          {
+            id: citationId,
+            title: source.title,
+            author: source.author,
+            location: source.sample_page_number
+              ? `Trang ${source.sample_page_number} · phiên bản ${source.year}`
+              : `Phiên bản ${source.year}`,
+            pageNumber: source.sample_page_number ?? null,
+            quote: citationQuote,
+          },
+        ],
+      }
+    },
+
+    listForReview(lecturerId, status = 'pending_review', priority = 'attention') {
       const allowedStatuses = ['pending_review', 'approved', 'rejected', 'needs_revision', 'all']
       const effectiveStatus = allowedStatuses.includes(status) ? status : 'pending_review'
+      const allowedPriorities = ['attention', 'high', 'medium', 'sample', 'all']
+      const effectivePriority = allowedPriorities.includes(priority) ? priority : 'attention'
       return questionRepository
         .listForLecturer(lecturerId)
         .filter(
           (question) =>
             question.ragResponse &&
-            (effectiveStatus === 'all' || question.ragResponse.reviewStatus === effectiveStatus),
+            (effectiveStatus === 'all' || question.ragResponse.reviewStatus === effectiveStatus) &&
+            (effectivePriority === 'all' ||
+              (effectivePriority === 'attention'
+                ? question.ragResponse.moderation.queue === 'attention'
+                : question.ragResponse.moderation.priority === effectivePriority)),
         )
     },
 

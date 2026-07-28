@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { ArrowRight, BookOpenText } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/AsyncState'
@@ -12,9 +12,10 @@ import { formatDateTime } from '../../utils/format'
 
 export default function ReviewQueuePage() {
   const { user: currentLecturer } = useAuth()
+  const [priority, setPriority] = useState('attention')
   const loader = useCallback(
-    () => questionRepository.listRagReviews(currentLecturer.id, 'pending_review'),
-    [currentLecturer.id],
+    () => questionRepository.listRagReviews(currentLecturer.id, 'pending_review', priority),
+    [currentLecturer.id, priority],
   )
   const { data, loading, error, reload } = useAsyncData(loader)
 
@@ -26,19 +27,38 @@ export default function ReviewQueuePage() {
       <PageHeader
         eyebrow="Kiểm duyệt RAG"
         title="Hàng đợi câu trả lời"
-        description="Đối chiếu nội dung với nguồn trích dẫn trước khi phê duyệt cho sinh viên."
+        description="Ưu tiên ngoại lệ và câu trả lời cần chuyên môn; các câu rủi ro thấp chỉ được kiểm tra lấy mẫu."
       />
+      <div className="filter-toolbar">
+        <div className="filter-field">
+          <label htmlFor="review-priority">Mức ưu tiên</label>
+          <select
+            id="review-priority"
+            value={priority}
+            onChange={(event) => setPriority(event.target.value)}
+          >
+            <option value="attention">Cần giảng viên xem</option>
+            <option value="high">Ưu tiên cao</option>
+            <option value="medium">Cần xem xét</option>
+            <option value="sample">Kiểm tra lấy mẫu</option>
+            <option value="all">Tất cả câu trả lời</option>
+          </select>
+        </div>
+      </div>
       {data.length === 0 ? (
         <EmptyState
-          title="Không có câu trả lời chờ duyệt"
-          description="Các bản tổng hợp mới có đủ nguồn sẽ xuất hiện tại đây."
+          title="Không có câu trả lời trong nhóm này"
+          description="Chọn mức ưu tiên khác để xem các câu trả lời đang chờ."
         />
       ) : (
         <div className="question-list">
           {data.map((question) => (
             <article className="question-card question-card--actionable" key={question.id}>
               <div className="question-card__header">
-                <StatusLabel type={question.ragResponse.reviewStatus} />
+                <div className="status-cluster">
+                  <StatusLabel type={question.ragResponse.reviewStatus} />
+                  <StatusLabel type={`risk_${question.ragResponse.moderation.priority}`} />
+                </div>
                 <time dateTime={question.ragResponse.createdAt}>
                   {formatDateTime(question.ragResponse.createdAt)}
                 </time>
@@ -47,6 +67,7 @@ export default function ReviewQueuePage() {
                 {question.courseClass?.name ?? question.subject?.name} · {question.student?.name}
               </p>
               <h2>{question.content}</h2>
+              <p className="question-card__author">{question.ragResponse.moderation.reason}</p>
               <RagAnswerPanel response={question.ragResponse} compact />
               <div className="review-queue__footer">
                 <span>

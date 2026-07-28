@@ -18,11 +18,16 @@ Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục
 - Dashboard sinh viên có bài học gần nhất, tiến độ, thống kê động, danh sách học phần và câu hỏi gần đây.
 - Dashboard giảng viên có công việc cần xử lý, thống kê lớp, mức độ tham gia, tiến độ và hoạt động gần đây.
 - Bìa học phần và hình minh họa theo đúng nội dung Triết học Mác – Lênin, Kinh tế chính trị, Tư tưởng Hồ Chí Minh và Lịch sử Đảng.
-- Chatbot demo có hội thoại theo học phần, câu hỏi gợi ý và vùng hiển thị nguồn trích dẫn.
+- Chatbot demo gửi câu hỏi theo học phần qua backend, lưu request/response/citation vào SQLite và
+  đưa cùng câu trả lời vào hàng đợi kiểm duyệt của giảng viên.
+- Câu trả lời được phân loại minh bạch thành ưu tiên cao, cần xem xét hoặc kiểm tra lấy mẫu để
+  giảng viên tập trung vào ngoại lệ thay vì phải duyệt toàn bộ.
 - Backend Node.js cung cấp JSON API, SQLite persistence, session cookie HttpOnly, RBAC và audit log.
 
 > [!IMPORTANT]
-> **Mô hình RAG chưa được kết nối.** Nội dung AI hiện là fixture có nhãn demo để review giao diện, citation và quy trình kiểm duyệt. Model và endpoint thật sẽ được tích hợp sau.
+> **Mô hình RAG chưa được kết nối.** Chat API hiện tạo nội dung demo có nhãn chưa kiểm duyệt để
+> kiểm tra trọn luồng frontend, backend, SQLite, citation và review queue. Model và retrieval thật
+> sẽ được tích hợp sau.
 
 ## Luồng chức năng
 
@@ -111,7 +116,9 @@ Chạy toàn bộ quy trình kiểm tra:
 npm run check
 ```
 
-Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử hiện có **27 test trong 4 test files**, bao phủ session, RBAC, các vertical slice chính, audit log, SQLite persistence và giao diện chatbot demo.
+Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử hiện có **30 test
+trong 4 test files**, bao phủ session, RBAC, các vertical slice chính, audit log, SQLite
+persistence, luồng chatbot demo sang hàng đợi kiểm duyệt và phân loại ưu tiên.
 
 Có thể chạy riêng từng bước:
 

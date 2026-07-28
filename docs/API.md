@@ -67,18 +67,36 @@ Tất cả endpoint dưới đây yêu cầu role `student`; `studentId` luôn l
 | `PATCH`    | `/api/student/lessons/:id/progress` | Lưu tiến độ 0–100                     |
 | `GET/POST` | `/api/student/questions`            | Lịch sử hoặc tạo câu hỏi              |
 | `GET`      | `/api/student/questions/:id`        | Chi tiết câu hỏi của chính sinh viên  |
+| `POST`     | `/api/student/chat`                 | Tạo câu trả lời demo và citation      |
 | `POST`     | `/api/student/search`               | Tra cứu trong phạm vi môn đã ghi danh |
 | `GET`      | `/api/student/search-history`       | Lịch sử tra cứu                       |
 
 ## RAG UI demo
 
-Checkpoint Phase 5 không gọi model RAG thật. Backend seed fixture có `modelVersion = demo-ui-v1`
-và frontend luôn gắn nhãn `Dữ liệu demo · mô phỏng RAG`.
+Chat API chưa gọi model hoặc retrieval thật. `POST /api/student/chat` kiểm tra môn đã ghi danh, tạo
+question, RAG request/response và citation trong một transaction, rồi trả ngay response có
+`reviewStatus = pending_review` và `isDemo = true`. Frontend gắn nhãn phù hợp với kết quả phân
+loại; cùng response xuất hiện trong review queue.
 
-| Method | Endpoint                                 | Mục đích                                 |
-| ------ | ---------------------------------------- | ---------------------------------------- |
-| `GET`  | `/api/lecturer/rag/reviews?status=...`   | Danh sách bản demo theo trạng thái duyệt |
-| `POST` | `/api/lecturer/rag/responses/:id/review` | Duyệt, loại hoặc yêu cầu chỉnh sửa       |
+Response có thêm `moderation`:
+
+```json
+{
+  "priority": "high | medium | sample",
+  "queue": "attention | sample",
+  "requiresReview": true,
+  "reason": "Lý do phân loại có thể hiển thị cho giảng viên."
+}
+```
+
+Quy tắc demo không dùng confidence giả: sai phạm vi môn hoặc citation thiếu trang được xếp
+`high`; câu hỏi mở là `medium`; câu khớp chủ đề và có citation theo trang là `sample`.
+
+| Method | Endpoint                                            | Mục đích                               |
+| ------ | --------------------------------------------------- | -------------------------------------- |
+| `POST` | `/api/student/chat`                                 | Tạo response demo và phân loại ưu tiên |
+| `GET`  | `/api/lecturer/rag/reviews?status=...&priority=...` | Danh sách theo trạng thái và ưu tiên   |
+| `POST` | `/api/lecturer/rag/responses/:id/review`            | Duyệt, loại hoặc yêu cầu chỉnh sửa     |
 
 Body review gồm `action: approve | reject | needs_revision`, `content?` và `note?`. Model thật sẽ
 được gắn sau qua cùng contract, không nằm trong checkpoint này.

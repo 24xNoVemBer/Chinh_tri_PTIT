@@ -26,7 +26,10 @@ export default function RagAnswerPanel({ response, compact = false }) {
           </p>
           {!compact && <h2 id={`rag-answer-${response.id}`}>Câu trả lời tham khảo</h2>}
         </div>
-        <StatusLabel type={response.reviewStatus} />
+        <div className="status-cluster">
+          <StatusLabel type={response.reviewStatus} />
+          {response.moderation && <StatusLabel type={`risk_${response.moderation.priority}`} />}
+        </div>
       </div>
 
       <p className="rag-answer__content">{response.content}</p>
@@ -35,6 +38,7 @@ export default function RagAnswerPanel({ response, compact = false }) {
         <>
           <p className="rag-answer__disclosure">
             {STATUS_COPY[response.reviewStatus] ?? 'Nội dung do hệ thống RAG tạo.'}
+            {response.moderation?.reason ? ` ${response.moderation.reason}` : ''}
             {response.modelVersion ? ` Mô hình: ${response.modelVersion}.` : ''}
           </p>
 

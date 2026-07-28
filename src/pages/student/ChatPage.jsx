@@ -10,10 +10,11 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../features/auth/useAuth'
-import { buildDemoReply } from './chatDemo'
+import useAsyncData from '../../hooks/useAsyncData'
+import { chatRepository, learningRepository } from '../../services/appRepositories'
 import './ChatPage.css'
 
 const SUGGESTIONS = [
@@ -39,9 +40,19 @@ export default function ChatPage() {
   const [error, setError] = useState('')
   const [isReplying, setIsReplying] = useState(false)
   const [feedback, setFeedback] = useState({})
+  const [selectedSubjectId, setSelectedSubjectId] = useState('')
   const inputRef = useRef(null)
   const threadRef = useRef(null)
-  const replyTimerRef = useRef(null)
+  const subjectLoader = useCallback(
+    () => learningRepository.listSubjectProgress(user.id),
+    [user.id],
+  )
+  const {
+    data: subjects,
+    loading: subjectsLoading,
+    error: subjectsError,
+  } = useAsyncData(subjectLoader)
+  const effectiveSubjectId = selectedSubjectId || subjects?.[0]?.id || ''
 
   const latestCitations = useMemo(
     () => [...messages].reverse().find((message) => message.citations?.length)?.citations ?? [],
@@ -55,13 +66,6 @@ export default function ChatPage() {
       behavior: reduceMotion ? 'auto' : 'smooth',
     })
   }, [messages, isReplying])
-
-  useEffect(
-    () => () => {
-      if (replyTimerRef.current) window.clearTimeout(replyTimerRef.current)
-    },
-    [],
-  )
 
   const selectSuggestion = (suggestion) => {
     setQuestion(suggestion)
@@ -84,24 +88,41 @@ export default function ChatPage() {
       content: trimmedQuestion,
       citations: [],
     }
+    if (!effectiveSubjectId) {
+      setError('Chọn học phần trước khi gửi.')
+      return
+    }
+
     setMessages((current) => [...current, userMessage])
     setQuestion('')
     setError('')
     setIsReplying(true)
 
-    replyTimerRef.current = window.setTimeout(() => {
-      const reply = buildDemoReply(trimmedQuestion)
-      setMessages((current) => [
-        ...current,
-        {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          ...reply,
-        },
-      ])
-      setIsReplying(false)
-      replyTimerRef.current = null
-    }, 650)
+    chatRepository
+      .createMessage({ content: trimmedQuestion, subjectId: effectiveSubjectId })
+      .then((reply) => {
+        const selectedSubject = subjects?.find((subject) => subject.id === effectiveSubjectId)
+        setMessages((current) => [
+          ...current,
+          {
+            id: reply.responseId,
+            role: 'assistant',
+            content: reply.content,
+            citations: reply.citations,
+            reviewStatus: reply.reviewStatus,
+            moderation: reply.moderation,
+            subjectName: selectedSubject?.name,
+          },
+        ])
+      })
+      .catch((requestError) => {
+        setError(requestError.message)
+        setMessages((current) => current.filter((message) => message.id !== userMessage.id))
+        setQuestion(trimmedQuestion)
+      })
+      .finally(() => {
+        setIsReplying(false)
+      })
   }
 
   const handleComposerKeyDown = (event) => {
@@ -131,6 +152,27 @@ export default function ChatPage() {
             <h2 id="chat-context-title">Hỏi có bối cảnh</h2>
             <p>Nêu tên môn, chương hoặc luận điểm để câu trả lời bám sát điều bạn đang học.</p>
           </div>
+
+          <label className="chat-context__field">
+            <span>Học phần đang hỏi</span>
+            <select
+              value={effectiveSubjectId}
+              disabled={subjectsLoading || !subjects?.length}
+              onChange={(event) => {
+                setSelectedSubjectId(event.target.value)
+                setError('')
+              }}
+            >
+              {subjectsLoading && <option value="">Đang tải học phần…</option>}
+              {!subjectsLoading && !subjects?.length && <option value="">Chưa có học phần</option>}
+              {subjects?.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+            {subjectsError && <small>Không thể tải học phần. Hãy tải lại trang.</small>}
+          </label>
 
           <nav aria-label="Công cụ học tập liên quan">
             <Link to="/student/search">
@@ -175,6 +217,14 @@ export default function ChatPage() {
                   <strong>{message.role === 'assistant' ? 'Trợ giảng demo' : 'Bạn'}</strong>
                 </div>
                 <p>{message.content}</p>
+
+                {message.reviewStatus === 'pending_review' && (
+                  <span className="chat-message__review-status">
+                    {message.moderation?.requiresReview
+                      ? 'AI tạo · Đang chờ giảng viên xem xét'
+                      : 'AI tạo · Có thể sử dụng ngay · Kiểm tra lấy mẫu'}
+                  </span>
+                )}
 
                 {message.citations?.length > 0 && (
                   <>
@@ -255,7 +305,7 @@ export default function ChatPage() {
               type="submit"
               aria-label="Gửi câu hỏi"
               title="Gửi câu hỏi"
-              disabled={isReplying || !question.trim()}
+              disabled={isReplying || subjectsLoading || !effectiveSubjectId || !question.trim()}
             >
               <Send aria-hidden="true" size={19} />
             </button>
