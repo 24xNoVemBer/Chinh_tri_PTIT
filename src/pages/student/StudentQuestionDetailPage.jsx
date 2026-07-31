@@ -30,9 +30,8 @@ export default function StudentQuestionDetailPage() {
   if (error) return <ErrorState message={error.message} onRetry={reload} />
   if (!question) return <EmptyState title="Không tìm thấy câu hỏi" />
 
-  const ragResponseVisible =
-    question.ragResponse &&
-    !['rejected', 'needs_revision'].includes(question.ragResponse.reviewStatus)
+  // Only approved answers carry content: the API redacts everything else to a status stub.
+  const ragResponseVisible = question.ragResponse?.reviewStatus === 'approved'
   const ragFailed = ['failed', 'cancelled'].includes(question.ragRequest?.status)
   const hasFinalAnswer =
     question.lecturerAnswer || question.ragResponse?.reviewStatus === 'approved'

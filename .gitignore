@@ -28,3 +28,8 @@ dist-ssr
 data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
+
+# Environment configuration is loaded by server/index.js and must never be committed
+.env
+.env.*
+!.env.example

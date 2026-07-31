@@ -1,10 +1,10 @@
 .lecturer-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--color-background);
 }
 
 .lecturer-layout__main {
-  min-height: calc(100vh - var(--nav-height));
+  min-height: calc(100dvh - var(--nav-height));
   padding: var(--space-8) var(--space-6) var(--space-16);
 }
 

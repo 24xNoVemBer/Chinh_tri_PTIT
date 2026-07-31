@@ -279,14 +279,32 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_rag_citations_response
     ON rag_citations(response_id, citation_order);
   CREATE INDEX IF NOT EXISTS idx_rag_reviews_response
-    ON rag_reviews(response_id, created_at DESC);  CREATE INDEX IF NOT EXISTS idx_search_history_student ON search_history(student_id, created_at DESC);
+    ON rag_reviews(response_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_search_history_student
+    ON search_history(student_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
+  CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
   CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_enrollments_class ON enrollments(class_id);
+  CREATE INDEX IF NOT EXISTS idx_materials_subject ON materials(subject_id);
+  CREATE INDEX IF NOT EXISTS idx_chapters_subject ON chapters(subject_id, chapter_order);
+  CREATE INDEX IF NOT EXISTS idx_lessons_chapter ON lessons(chapter_id, lesson_order);
+  CREATE INDEX IF NOT EXISTS idx_class_lessons_lesson ON class_lessons(lesson_id, status);
+  CREATE INDEX IF NOT EXISTS idx_progress_student ON learning_progress(student_id, lesson_id);
 `
 
 function seedDatabase(db) {
   const existingUsers = db.prepare('SELECT COUNT(*) AS count FROM users').get().count
   if (existingUsers > 0) return
+
+  // The demo accounts share two well-known passwords that are also documented in the
+  // README, so creating them on a production deployment hands out seven usable logins.
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_DATA !== 'true') {
+    console.warn(
+      'Bỏ qua seed dữ liệu demo vì NODE_ENV=production. Đặt SEED_DEMO_DATA=true nếu thực sự cần tài khoản demo.',
+    )
+    return
+  }
 
   const createdAt = '2023-09-01T00:00:00.000Z'
   const studentPasswordHash = hashPassword('Student@123')
@@ -636,10 +654,12 @@ function seedDemoRagData(db) {
         })
 
       if (reviewStatus === 'approved') {
-        db.prepare(`UPDATE questions SET status = 'answered', updated_at = ? WHERE id = ?`).run(
-          aiResponse.createdAt,
-          question.id,
-        )
+        // Only promote questions that are still untouched. Without the status guard this
+        // re-runs on every boot and silently reverts a lecturer's later moderation.
+        db.prepare(
+          `UPDATE questions SET status = 'answered', updated_at = ?
+           WHERE id = ? AND status = 'unanswered'`,
+        ).run(aiResponse.createdAt, question.id)
       }
     }
     db.exec('COMMIT')
@@ -648,17 +668,46 @@ function seedDemoRagData(db) {
     throw error
   }
 }
+export const SCHEMA_VERSION = 2
+
 export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = true } = {}) {
   if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true })
 
   const db = new DatabaseSync(databasePath)
-  db.exec(SCHEMA)
+
+  // Enforce the declared foreign keys (SQLite ignores them by default) and give writers a
+  // chance to wait instead of failing instantly when another connection holds the lock.
+  db.exec('PRAGMA foreign_keys = ON')
+  db.exec('PRAGMA busy_timeout = 5000')
   if (databasePath !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
+
+  // Read the stored version before touching the schema. CREATE TABLE IF NOT EXISTS cannot
+  // alter an existing table, so a database written by a newer/older build would silently
+  // keep its old shape — fail loudly instead of serving half-migrated data.
+  const hasMeta = db
+    .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_meta'`)
+    .get()
+  const storedVersion = hasMeta
+    ? db.prepare(`SELECT value FROM schema_meta WHERE key = 'schema_version'`).get()?.value
+    : undefined
+  const previousVersion = storedVersion === undefined ? null : Number(storedVersion)
+
+  db.exec(SCHEMA)
+
+  if (previousVersion !== null && previousVersion !== SCHEMA_VERSION) {
+    throw new Error(
+      `Schema không khớp: database ở phiên bản ${previousVersion}, mã nguồn cần ${SCHEMA_VERSION}. ` +
+        'Chưa có migration tự động — hãy migrate hoặc xoá database trước khi khởi động.',
+    )
+  }
+
   if (seed) {
     seedDatabase(db)
     seedDemoRagData(db)
   }
-  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '2')`).run()
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', ?)`).run(
+    String(SCHEMA_VERSION),
+  )
   return db
 }
 

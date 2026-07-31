@@ -1,4 +1,11 @@
-import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  scrypt,
+  scryptSync,
+  timingSafeEqual,
+} from 'node:crypto'
 
 const SESSION_COOKIE = 'ptit_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
@@ -8,11 +15,27 @@ export function hashPassword(password, salt = randomBytes(16).toString('hex')) {
   return `scrypt$${salt}$${derivedKey}`
 }
 
-export function verifyPassword(password, storedHash) {
+// A throwaway hash with the same cost as a real one. Verifying against it when the email
+// does not exist keeps the response time flat, so timing no longer reveals which emails
+// are registered.
+export const DUMMY_PASSWORD_HASH = hashPassword(randomBytes(24).toString('hex'))
+
+function scryptAsync(password, salt, keylen) {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, keylen, (error, derivedKey) => {
+      if (error) reject(error)
+      else resolve(derivedKey)
+    })
+  })
+}
+
+// scryptSync costs ~40ms and runs on the event loop, so a burst of login attempts stalls
+// every other request. The async form hands the work to the threadpool instead.
+export async function verifyPassword(password, storedHash) {
   const [algorithm, salt, expectedHex] = String(storedHash).split('$')
   if (algorithm !== 'scrypt' || !salt || !expectedHex) return false
 
-  const actual = scryptSync(password, salt, 64)
+  const actual = await scryptAsync(password, salt, 64)
   const expected = Buffer.from(expectedHex, 'hex')
   return actual.length === expected.length && timingSafeEqual(actual, expected)
 }
@@ -30,7 +53,16 @@ function parseCookies(cookieHeader = '') {
       .map((part) => {
         const separator = part.indexOf('=')
         if (separator < 0) return [part, '']
-        return [part.slice(0, separator), decodeURIComponent(part.slice(separator + 1))]
+        const rawValue = part.slice(separator + 1)
+        // A cookie carrying a broken escape sequence (e.g. `%`) used to throw here and turn
+        // every subsequent API call into a 500 that the user could not clear themselves.
+        let value
+        try {
+          value = decodeURIComponent(rawValue)
+        } catch {
+          value = rawValue
+        }
+        return [part.slice(0, separator), value]
       }),
   )
 }

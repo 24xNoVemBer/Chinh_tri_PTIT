@@ -16,6 +16,10 @@
   --color-subtle-foreground: #7b716b;
   --color-border: #ded8d2;
   --color-border-strong: #c6bdb6;
+  /* Form control boundaries must clear WCAG 1.4.11 (3:1 against the surface). The
+     decorative borders above sit at 1.41:1 and 1.85:1, which is fine for dividers but not
+     for something the user has to locate and click. This one measures 3.14:1 on white. */
+  --color-border-input: #9c8f85;
   --color-success: #217a4b;
   --color-success-soft: #eaf7ef;
   --color-warning: #9a6700;

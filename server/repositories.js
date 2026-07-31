@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { subjectMockResponses } from '../src/data/mock-student-learning.js'
 import { includesNormalized } from '../src/utils/text.js'
 import { buildDemoChatContent, classifyDemoModeration } from './chatDemo.js'
-import { ApiError } from './http.js'
+import { ApiError, requireText } from './http.js'
 
 const nowIso = () => new Date().toISOString()
 const createId = (prefix) => `${prefix}_${randomUUID()}`
@@ -367,7 +367,10 @@ function ensureStudentSubjectAccess(db, studentId, subjectId) {
   }
 }
 
-function getSubjectLessons(db, subjectId) {
+// Students may only ever see lessons a lecturer has published into a class they are
+// enrolled in. Subject-level enrolment alone is not enough: it would expose drafts and
+// lessons never scheduled into any class.
+function getSubjectLessons(db, subjectId, studentId) {
   return db
     .prepare(
       `SELECT
@@ -382,9 +385,17 @@ function getSubjectLessons(db, subjectId) {
        FROM lessons
        JOIN chapters ON chapters.id = lessons.chapter_id
        WHERE chapters.subject_id = ?
+         AND EXISTS (
+           SELECT 1
+           FROM class_lessons
+           JOIN enrollments ON enrollments.class_id = class_lessons.class_id
+           WHERE class_lessons.lesson_id = lessons.id
+             AND class_lessons.status = 'published'
+             AND enrollments.student_id = ?
+         )
        ORDER BY chapters.chapter_order, lessons.lesson_order`,
     )
-    .all(subjectId)
+    .all(subjectId, studentId)
     .map((row) => ({
       id: row.id,
       chapterId: row.chapter_id,
@@ -427,6 +438,40 @@ function getQuestionRows(db) {
     .prepare(`${QUESTION_SELECT} GROUP BY questions.id`)
     .all()
     .map((row) => mapQuestion(row, db))
+}
+
+// The moderation gate has to hold at the API. Serving unapproved RAG text and letting
+// React decide whether to paint it means anyone reading the network tab bypasses review.
+// Non-approved responses collapse to a status-only stub so the UI can still report
+// "awaiting review" without leaking the answer or its citations.
+function redactRagForStudent(question) {
+  const response = question.ragResponse
+  if (!response || response.reviewStatus === 'approved') return question
+  return {
+    ...question,
+    ragResponse: {
+      id: response.id,
+      requestId: response.requestId,
+      reviewStatus: response.reviewStatus,
+      isDemo: response.isDemo,
+      createdAt: response.createdAt,
+      updatedAt: response.updatedAt,
+      content: null,
+      citations: [],
+      confidence: null,
+      modelVersion: null,
+      providerAnswerId: null,
+      reviewedBy: null,
+      reviewedAt: null,
+    },
+  }
+}
+
+function getQuestionRowsForStudent(db, studentId) {
+  return db
+    .prepare(`${QUESTION_SELECT} WHERE questions.student_id = ? GROUP BY questions.id`)
+    .all(studentId)
+    .map((row) => redactRagForStudent(mapQuestion(row, db)))
 }
 
 function getQuestionRowsForLecturer(db, lecturerId) {
@@ -890,9 +935,9 @@ export function createRepositories(db) {
     },
 
     listForStudent(studentId) {
-      return getQuestionRows(db)
-        .filter((question) => question.studentId === studentId)
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      return getQuestionRowsForStudent(db, studentId).sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+      )
     },
 
     getForLecturer(questionId, lecturerId) {
@@ -908,32 +953,30 @@ export function createRepositories(db) {
     },
 
     getForStudent(questionId, studentId) {
-      const question = getQuestionRows(db).find((item) => item.id === questionId)
-      if (!question) return null
-      if (question.studentId !== studentId) {
+      const question = getQuestionRowsForStudent(db, studentId).find(
+        (item) => item.id === questionId,
+      )
+      if (question) return question
+      const exists = db.prepare('SELECT id FROM questions WHERE id = ?').get(questionId)
+      if (exists) {
         throw new ApiError(403, 'FORBIDDEN', 'Bạn không có quyền xem câu hỏi này.')
       }
-      return question
+      return null
     },
 
     create(input, studentId) {
-      const content = String(input.content ?? '').trim()
-      if (content.length < 10) {
-        throw new ApiError(400, 'VALIDATION', 'Câu hỏi cần có ít nhất 10 ký tự.')
-      }
+      const content = requireText(input, 'content', { min: 10, max: 4000, label: 'Câu hỏi' })
       ensureStudentSubjectAccess(db, studentId, input.subjectId)
       if (input.lessonId) {
-        const lesson = db
-          .prepare(
-            `SELECT chapters.subject_id
-             FROM lessons
-             JOIN chapters ON chapters.id = lessons.chapter_id
-             WHERE lessons.id = ?`,
-          )
-          .get(input.lessonId)
-        if (!lesson) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học.')
-        if (lesson.subject_id !== input.subjectId) {
-          throw new ApiError(400, 'VALIDATION', 'Bài học không thuộc môn đã chọn.')
+        // Attach only to a lesson this student can actually see: a draft or unscheduled
+        // lesson must not become referenceable through the question form either.
+        const visible = getSubjectLessons(db, input.subjectId, studentId).some(
+          (lesson) => lesson.id === input.lessonId,
+        )
+        if (!visible) {
+          const exists = db.prepare('SELECT id FROM lessons WHERE id = ?').get(input.lessonId)
+          if (!exists) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học.')
+          throw new ApiError(400, 'VALIDATION', 'Bài học không thuộc môn đã chọn hoặc chưa mở.')
         }
       }
 
@@ -955,10 +998,7 @@ export function createRepositories(db) {
     answer(questionId, input, lecturerId) {
       const question = this.getForLecturer(questionId, lecturerId)
       if (!question) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
-      const content = String(input.content ?? '').trim()
-      if (!content) {
-        throw new ApiError(400, 'VALIDATION', 'Câu trả lời không được để trống.')
-      }
+      const content = requireText(input, 'content', { min: 1, max: 10000, label: 'Câu trả lời' })
 
       const existing = db
         .prepare('SELECT * FROM lecturer_answers WHERE question_id = ?')
@@ -1201,11 +1241,17 @@ export function createRepositories(db) {
       if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu trả lời RAG.')
       questionRepository.getForLecturer(row.question_id, lecturerId)
 
-      const content = String(input.content ?? row.content).trim()
-      if (reviewStatus === 'approved' && content.length < 20) {
-        throw new ApiError(400, 'VALIDATION', 'Câu trả lời được duyệt cần ít nhất 20 ký tự.')
-      }
-      const note = String(input.note ?? '').trim() || null
+      const content = requireText({ content: input.content ?? row.content }, 'content', {
+        min: reviewStatus === 'approved' ? 20 : 1,
+        max: 10000,
+        label: 'Câu trả lời',
+      })
+      const note =
+        requireText({ note: input.note ?? '' }, 'note', {
+          min: 0,
+          max: 2000,
+          label: 'Ghi chú kiểm duyệt',
+        }) || null
       const timestamp = nowIso()
 
       db.exec('BEGIN IMMEDIATE')
@@ -1257,16 +1303,23 @@ export function createRepositories(db) {
       const subjectIds = getStudentSubjectIds(db, studentId)
       const progressMap = getProgressMap(db, studentId)
       const lessons = subjectIds.flatMap((subjectId) =>
-        getSubjectLessons(db, subjectId).map((lesson) => enrichLessonProgress(lesson, progressMap)),
+        getSubjectLessons(db, subjectId, studentId).map((lesson) =>
+          enrichLessonProgress(lesson, progressMap),
+        ),
       )
-      const recentCandidates = lessons.filter(
-        (lesson) => lesson.lastReadAt && lesson.progress < 100,
-      )
+      const incompleteLessons = lessons.filter((lesson) => lesson.progress < 100)
+      const recentlyReadIncomplete = incompleteLessons
+        .filter((lesson) => lesson.lastReadAt)
+        .sort((a, b) => new Date(b.lastReadAt) - new Date(a.lastReadAt))
+      const recentlyReadCompleted = lessons
+        .filter((lesson) => lesson.lastReadAt)
+        .sort((a, b) => new Date(b.lastReadAt) - new Date(a.lastReadAt))
       const recentLesson =
-        (recentCandidates.length
-          ? recentCandidates
-          : lessons.filter((lesson) => lesson.lastReadAt)
-        ).sort((a, b) => new Date(b.lastReadAt) - new Date(a.lastReadAt))[0] ?? null
+        recentlyReadIncomplete[0] ??
+        incompleteLessons[0] ??
+        recentlyReadCompleted[0] ??
+        lessons[0] ??
+        null
       return {
         totalLessons: lessons.length,
         completedLessons: lessons.filter((lesson) => lesson.progress === 100).length,
@@ -1285,9 +1338,18 @@ export function createRepositories(db) {
         .all()
         .filter((subject) => subjectIds.includes(subject.id))
         .map((subject) => {
-          const lessons = getSubjectLessons(db, subject.id).map((lesson) =>
+          const lessons = getSubjectLessons(db, subject.id, studentId).map((lesson) =>
             enrichLessonProgress(lesson, progressMap),
           )
+          const nextLessonEntry = lessons.find((lesson) => lesson.progress < 100) ?? null
+          const nextLesson = nextLessonEntry
+            ? {
+                id: nextLessonEntry.id,
+                title: nextLessonEntry.title,
+                chapterId: nextLessonEntry.chapterId,
+                chapter: nextLessonEntry.chapter,
+              }
+            : null
           return {
             id: subject.id,
             name: subject.name,
@@ -1299,6 +1361,7 @@ export function createRepositories(db) {
                   lessons.reduce((sum, lesson) => sum + lesson.progress, 0) / lessons.length,
                 )
               : 0,
+            nextLesson,
           }
         })
     },
@@ -1308,7 +1371,7 @@ export function createRepositories(db) {
       const subject = db.prepare('SELECT * FROM subjects WHERE id = ?').get(subjectId)
       if (!subject) return null
       const progressMap = getProgressMap(db, studentId)
-      const lessons = getSubjectLessons(db, subjectId).map((lesson) =>
+      const lessons = getSubjectLessons(db, subjectId, studentId).map((lesson) =>
         enrichLessonProgress(lesson, progressMap),
       )
       const chapterRows = db
@@ -1345,7 +1408,7 @@ export function createRepositories(db) {
       if (!chapter) return []
       ensureStudentSubjectAccess(db, studentId, chapter.subject_id)
       const progressMap = getProgressMap(db, studentId)
-      return getSubjectLessons(db, chapter.subject_id)
+      return getSubjectLessons(db, chapter.subject_id, studentId)
         .filter((lesson) => lesson.chapterId === chapterId)
         .map((lesson) => enrichLessonProgress(lesson, progressMap))
     },
@@ -1368,8 +1431,11 @@ export function createRepositories(db) {
         .get(lessonId)
       if (!lessonRow) return null
       ensureStudentSubjectAccess(db, studentId, lessonRow.subject_id)
-      const lessons = getSubjectLessons(db, lessonRow.subject_id)
+      const lessons = getSubjectLessons(db, lessonRow.subject_id, studentId)
       const index = lessons.findIndex((item) => item.id === lessonId)
+      // The lesson exists but is still a draft, or was never scheduled into one of this
+      // student's classes: treat it as not found rather than serving its content.
+      if (index < 0) return null
       const progressMap = getProgressMap(db, studentId)
       return {
         ...enrichLessonProgress(lessons[index], progressMap),
@@ -1421,7 +1487,11 @@ export function createRepositories(db) {
 
   const searchRepository = {
     search(input, studentId) {
-      const query = String(input.query ?? '').trim()
+      const query = requireText({ query: input.query ?? '' }, 'query', {
+        min: 0,
+        max: 200,
+        label: 'Từ khoá tra cứu',
+      })
       if (!query) return []
       const allowedSubjectIds = getStudentSubjectIds(db, studentId)
       let effectiveSubjectId = input.subjectId ?? null
@@ -1529,21 +1599,29 @@ export function createRepositories(db) {
               },
             }))
 
+      // Lecturer-verified answers stay searchable across the subject because that is the
+      // point of the knowledge base, but another student's question is their own writing
+      // and may carry personal context: for questions we do not own, only the lecturer's
+      // answer is matched and surfaced, never the original wording.
       const answerRows = getQuestionRows(db)
         .filter((question) => question.lecturerAnswer)
         .filter((question) => allowedSubjectIds.includes(question.subjectId))
         .filter((question) => !effectiveSubjectId || question.subjectId === effectiveSubjectId)
         .filter((question) => !input.lessonId || question.lessonId === input.lessonId)
-        .filter(
-          (question) =>
-            includesNormalized(question.content, query) ||
-            includesNormalized(question.lecturerAnswer.content, query),
+        .map((question) => ({ question, isOwn: question.studentId === studentId }))
+        .filter(({ question, isOwn }) =>
+          isOwn
+            ? includesNormalized(question.content, query) ||
+              includesNormalized(question.lecturerAnswer.content, query)
+            : includesNormalized(question.lecturerAnswer.content, query),
         )
-        .map((question) => ({
+        .map(({ question, isOwn }) => ({
           id: `answer-${question.lecturerAnswer.id}`,
-          title: question.content,
+          title: isOwn
+            ? question.content
+            : `Giải đáp của giảng viên${question.lesson?.title ? ` · ${question.lesson.title}` : ''}`,
           excerpt: getExcerpt(question.lecturerAnswer.content),
-          questionId: question.id,
+          questionId: isOwn ? question.id : null,
           lessonId: question.lessonId,
           sourceType: 'answer',
           sourceLabel: 'Câu trả lời đã xác nhận của giảng viên',

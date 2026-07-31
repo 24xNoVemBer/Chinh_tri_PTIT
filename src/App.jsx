@@ -21,7 +21,6 @@ const LessonPage = lazy(() => import('./pages/student/LessonPage'))
 const NotificationsPage = lazy(() => import('./pages/student/NotificationsPage'))
 const QnAPage = lazy(() => import('./pages/student/QnAPage'))
 const QuestionHistoryPage = lazy(() => import('./pages/student/QuestionHistoryPage'))
-const QuizPage = lazy(() => import('./pages/student/QuizPage'))
 const SearchPage = lazy(() => import('./pages/student/SearchPage'))
 const StudentHome = lazy(() => import('./pages/student/StudentHome'))
 const ChatPage = lazy(() => import('./pages/student/ChatPage'))
@@ -66,7 +65,6 @@ export default function App() {
             <Route path="questions" element={<QuestionHistoryPage />} />
             <Route path="questions/:questionId" element={<StudentQuestionDetailPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
-            <Route path="quizzes/:quizId" element={<QuizPage />} />
           </Route>
         </Route>
 

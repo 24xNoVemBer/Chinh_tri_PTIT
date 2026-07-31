@@ -55,6 +55,18 @@
   --course-cover-base: color-mix(in oklch, var(--color-success) 72%, var(--color-heading));
 }
 
+.course-cover--indigo {
+  --course-cover-base: color-mix(in oklch, var(--color-heading) 82%, var(--color-primary));
+}
+
+.course-cover--amber {
+  --course-cover-base: color-mix(in oklch, var(--color-accent) 74%, var(--color-heading));
+}
+
+.course-cover--slate {
+  --course-cover-base: color-mix(in oklch, var(--color-brand-panel) 88%, var(--color-primary));
+}
+
 .course-cover__title {
   position: absolute;
   z-index: 2;
@@ -64,11 +76,18 @@
   display: grid;
   color: inherit;
   font-family: var(--font-heading);
-  font-size: 0.56rem;
+  font-size: 0.62rem;
   font-weight: 800;
   line-height: 1.15;
   text-align: center;
   text-transform: uppercase;
+}
+
+/* With no portrait the wordmark is the whole cover, so let it use the full height. */
+.course-cover:not(:has(> img)) .course-cover__title {
+  top: 50%;
+  font-size: 0.78rem;
+  transform: translateY(-50%);
 }
 
 .course-cover > img {

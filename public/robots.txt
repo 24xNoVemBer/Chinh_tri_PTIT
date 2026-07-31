@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /$
+Allow: /login
+
+# Everything behind authentication is per-user and must not be indexed.
+Disallow: /student
+Disallow: /lecturer
+Disallow: /api

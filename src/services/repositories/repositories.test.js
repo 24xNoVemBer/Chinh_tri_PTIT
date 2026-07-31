@@ -9,6 +9,7 @@ import { subjectRepository } from './subjectRepository'
 afterEach(() => {
   classContentRepository.reset()
   classRepository.reset()
+  learningRepository.reset()
   questionRepository.reset()
 })
 
@@ -121,6 +122,32 @@ describe('mock repositories', () => {
     expect(dashboard.completedLessons).toBeGreaterThanOrEqual(3)
   })
 
+  it('returns the next incomplete lesson for each enrolled subject', async () => {
+    const subjects = await learningRepository.listSubjectProgress('s1')
+    const philosophy = subjects.find((subject) => subject.id === 'sub1')
+
+    expect(philosophy.nextLesson).toMatchObject({
+      id: 'les2',
+      title: 'Bài giảng 2: Phân tích chuyên sâu (Chương 1)',
+      chapterId: 'chap1',
+    })
+    expect(philosophy.nextLesson).not.toHaveProperty('contentHtml')
+  })
+  it('falls back to the first unopened lesson after all started lessons are complete', async () => {
+    await Promise.all([
+      learningRepository.updateProgress('s1', 'les2', 100),
+      learningRepository.updateProgress('s1', 'les3', 100),
+      learningRepository.updateProgress('s1', 'les7', 100),
+    ])
+
+    const dashboard = await learningRepository.getDashboard('s1')
+
+    expect(dashboard.recentLesson).toMatchObject({
+      id: 'les4',
+      progress: 0,
+      lastReadAt: null,
+    })
+  })
   it('blocks access to a lesson outside the student enrollment', async () => {
     await expect(learningRepository.getLessonForStudent('s2', 'les7')).rejects.toMatchObject({
       code: 'FORBIDDEN',

@@ -11,7 +11,7 @@ import {
   ThumbsUp,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../features/auth/useAuth'
 import useAsyncData from '../../hooks/useAsyncData'
 import { chatRepository, learningRepository } from '../../services/appRepositories'
@@ -35,6 +35,8 @@ const INITIAL_MESSAGES = [
 
 export default function ChatPage() {
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
+  const subjectContext = searchParams.get('subject')?.trim()
   const [messages, setMessages] = useState(INITIAL_MESSAGES)
   const [question, setQuestion] = useState('')
   const [error, setError] = useState('')
@@ -52,7 +54,11 @@ export default function ChatPage() {
     loading: subjectsLoading,
     error: subjectsError,
   } = useAsyncData(subjectLoader)
-  const effectiveSubjectId = selectedSubjectId || subjects?.[0]?.id || ''
+  const contextSubject = useMemo(
+    () => subjects?.find((subject) => subject.name === subjectContext),
+    [subjectContext, subjects],
+  )
+  const effectiveSubjectId = selectedSubjectId || contextSubject?.id || subjects?.[0]?.id || ''
 
   const latestCitations = useMemo(
     () => [...messages].reverse().find((message) => message.citations?.length)?.citations ?? [],
@@ -137,11 +143,15 @@ export default function ChatPage() {
       <header className="chat-page__header">
         <div>
           <p>Trợ giảng hội thoại</p>
-          <h1>Chào {user?.name.split(' ').at(-1)}, bạn đang học phần nào?</h1>
+          <h1>
+            {subjectContext
+              ? `Hỏi về ${subjectContext}`
+              : `Chào ${user?.name.split(' ').at(-1)}, bạn đang học phần nào?`}
+          </h1>
         </div>
         <span className="chat-demo-badge">
           <Bot aria-hidden="true" size={16} />
-          Demo UI, chưa nối model
+          Demo qua backend, chưa nối model
         </span>
       </header>
 
@@ -190,15 +200,19 @@ export default function ChatPage() {
           <div className="chat-panel__top">
             <div>
               <h2 id="chat-panel-title">Cuộc trò chuyện mới</h2>
-              <p>Nội dung bên dưới là dữ liệu mô phỏng.</p>
+              <p>Nội dung demo được lưu để giảng viên kiểm tra theo mức ưu tiên.</p>
             </div>
             <Clock3 aria-hidden="true" size={20} />
           </div>
 
+          {/* A scrollable region needs to be focusable, otherwise keyboard-only users can
+              never reach the scrollbar to read back earlier messages. */}
           <div
             className="chat-thread"
             ref={threadRef}
             role="log"
+            tabIndex={0}
+            aria-label="Nội dung hội thoại"
             aria-live="polite"
             aria-busy={isReplying}
           >
@@ -222,7 +236,7 @@ export default function ChatPage() {
                   <span className="chat-message__review-status">
                     {message.moderation?.requiresReview
                       ? 'AI tạo · Đang chờ giảng viên xem xét'
-                      : 'AI tạo · Có thể sử dụng ngay · Kiểm tra lấy mẫu'}
+                      : 'AI tạo · Được đưa vào kiểm tra lấy mẫu'}
                   </span>
                 )}
 
@@ -265,7 +279,7 @@ export default function ChatPage() {
             {isReplying && (
               <div className="chat-typing" role="status">
                 <Bot aria-hidden="true" size={17} />
-                <span>Đang chuẩn bị câu trả lời mẫu</span>
+                <span>Đang tạo câu trả lời demo</span>
                 <span className="chat-typing__dots" aria-hidden="true">
                   <i />
                   <i />
@@ -327,7 +341,7 @@ export default function ChatPage() {
           {latestCitations.length ? (
             <ol>
               {latestCitations.map((citation) => (
-                <li key={`${citation.title}-${citation.location}`}>
+                <li key={citation.id ?? `${citation.title}-${citation.location}`}>
                   <strong>{citation.title}</strong>
                   <span>{citation.author}</span>
                   <small>{citation.location}</small>

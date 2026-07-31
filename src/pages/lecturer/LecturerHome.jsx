@@ -222,7 +222,8 @@ export default function LecturerHome() {
                 />
                 <figcaption>{courseClass.semester}</figcaption>
               </figure>
-              <span className="lecturer-class-card__body">
+              {/* div, not span: a span may not contain the h3 below (phrasing vs flow content) */}
+              <div className="lecturer-class-card__body">
                 <span className="lecturer-class-card__topline">
                   <span>{courseClass.subject?.name ?? 'Học phần'}</span>
                   <School aria-hidden="true" size={18} />
@@ -253,7 +254,7 @@ export default function LecturerHome() {
                 <span className="lecturer-class-card__action">
                   Mở lớp <ArrowRight aria-hidden="true" size={16} />
                 </span>
-              </span>
+              </div>
             </Link>
           ))}
         </div>

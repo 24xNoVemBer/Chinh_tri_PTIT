@@ -16,11 +16,22 @@ import { classContentRepository } from '../../services/appRepositories'
 import { classRepository } from '../../services/appRepositories'
 import { formatDate } from '../../utils/format'
 
+// yyyy-mm-dd in local time, which is what <input type="date"> expects. toISOString() would
+// shift the day for anyone east of UTC.
+function todayIsoDate() {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
 export default function ClassLessonsPage() {
   const { user: currentLecturer } = useAuth()
   const { classId } = useParams()
+  const today = todayIsoDate()
   const [lessonId, setLessonId] = useState('')
-  const [date, setDate] = useState('2023-10-03')
+  // Was hardcoded to 2023-10-03, so every unedited submit wrote a date years in the past.
+  const [date, setDate] = useState(today)
   const [submitting, setSubmitting] = useState(false)
   const [updatingId, setUpdatingId] = useState(null)
   const [feedback, setFeedback] = useState('')
@@ -122,6 +133,7 @@ export default function ClassLessonsPage() {
             <input
               id="lesson-date"
               type="date"
+              min={today}
               value={date}
               onChange={(event) => setDate(event.target.value)}
             />

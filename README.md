@@ -15,7 +15,7 @@ Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục
 - Trang giới thiệu theo định hướng PTIT, có motion, khung trình chiếu học phần và hình ảnh lịch sử phù hợp từng môn.
 - Trang đăng nhập tự xác định luồng sinh viên hoặc giảng viên từ loại tài khoản; người dùng không chọn vai trò thủ công.
 - Thanh điều hướng trên cùng, responsive cho cả hai không gian làm việc.
-- Dashboard sinh viên có bài học gần nhất, tiến độ, thống kê động, danh sách học phần và câu hỏi gần đây.
+- Dashboard sinh viên theo hướng Action-first, có việc học ưu tiên, bài tiếp theo theo học phần, phản hồi chính thức và trợ giảng theo ngữ cảnh.
 - Dashboard giảng viên có công việc cần xử lý, thống kê lớp, mức độ tham gia, tiến độ và hoạt động gần đây.
 - Bìa học phần và hình minh họa theo đúng nội dung Triết học Mác – Lênin, Kinh tế chính trị, Tư tưởng Hồ Chí Minh và Lịch sử Đảng.
 - Chatbot demo gửi câu hỏi theo học phần qua backend, lưu request/response/citation vào SQLite và
@@ -74,7 +74,7 @@ npm run dev
 
 `npm run dev` khởi động đồng thời:
 
-- Frontend: `http://127.0.0.1:5173`
+- Frontend: `http://localhost:5173` (Vite bind theo `localhost`; `127.0.0.1:5173` sẽ không kết nối được)
 - API: `http://127.0.0.1:3001/api`
 - SQLite mặc định: `data/ptit-teaching-assistant.sqlite`
 
@@ -87,17 +87,21 @@ Sao chép `.env.example` thành `.env` nếu cần thay đổi cấu hình mặc
 | Sinh viên  | `tuananh@ptit.edu.vn` | `Student@123`  |
 | Giảng viên | `ductu@ptit.edu.vn`   | `Lecturer@123` |
 
-Các tài khoản trên chỉ phục vụ development và review cục bộ.
+Các tài khoản trên chỉ phục vụ development và review cục bộ. Chúng **không** được tạo khi
+`NODE_ENV=production`, và hai nút điền nhanh trên trang đăng nhập bị loại khỏi bundle production.
 
 ## Biến môi trường
 
-| Biến               | Mặc định                              | Mô tả                                                      |
-| ------------------ | ------------------------------------- | ---------------------------------------------------------- |
-| `PORT`             | `3001`                                | Cổng HTTP của backend                                      |
-| `DATABASE_PATH`    | `data/ptit-teaching-assistant.sqlite` | Đường dẫn file SQLite                                      |
-| `NODE_ENV`         | `development`                         | Môi trường chạy                                            |
-| `VITE_DATA_SOURCE` | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng |
-| `RAG_DEMO_DATA`    | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                 |
+| Biến               | Mặc định                              | Mô tả                                                                        |
+| ------------------ | ------------------------------------- | ---------------------------------------------------------------------------- |
+| `PORT`             | `3001`                                | Cổng HTTP của backend                                                        |
+| `HOST`             | `127.0.0.1`                           | Địa chỉ bind; đặt `0.0.0.0` khi chạy trong container                         |
+| `DATABASE_PATH`    | `data/ptit-teaching-assistant.sqlite` | Đường dẫn file SQLite                                                        |
+| `NODE_ENV`         | `development`                         | Môi trường chạy                                                              |
+| `TRUSTED_ORIGINS`  | _(trống)_                             | Danh sách origin được phép đổi dữ liệu, chặn CSRF. **Bắt buộc ở production** |
+| `VITE_DATA_SOURCE` | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                   |
+| `RAG_DEMO_DATA`    | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                   |
+| `SEED_DEMO_DATA`   | _(trống)_                             | Chỉ đặt `true` nếu cố ý tạo tài khoản demo trên production                   |
 
 ## Build production cục bộ
 
@@ -108,6 +112,21 @@ npm start
 
 Backend phục vụ API và thư mục `dist` tại `http://127.0.0.1:3001`.
 
+## Triển khai production
+
+```bash
+NODE_ENV=production TRUSTED_ORIGINS=https://ten-mien-cua-ban npm start
+```
+
+`TRUSTED_ORIGINS` là bắt buộc và server sẽ **từ chối khởi động** nếu thiếu. Lý do: khi đứng
+sau reverse proxy, header `Host` mà backend nhận được là địa chỉ upstream chứ không phải tên
+miền người dùng truy cập, nên nếu suy ra origin từ `Host` thì mọi request thay đổi dữ liệu sẽ
+bị chặn — hỏng toàn bộ ứng dụng với nguyên nhân rất khó lần ra. Ghi đủ scheme, không có dấu
+`/` ở cuối, nhiều origin thì phân tách bằng dấu phẩy.
+
+Ở development có thể để trống: mọi origin loopback (`localhost`, `127.0.0.1`) được tin cậy để
+Vite dev server proxy được sang API.
+
 ## Kiểm tra chất lượng
 
 Chạy toàn bộ quy trình kiểm tra:
@@ -116,9 +135,7 @@ Chạy toàn bộ quy trình kiểm tra:
 npm run check
 ```
 
-Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử hiện có **30 test
-trong 4 test files**, bao phủ session, RBAC, các vertical slice chính, audit log, SQLite
-persistence, luồng chatbot demo sang hàng đợi kiểm duyệt và phân loại ưu tiên.
+Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử hiện có **55 test trong 9 test files**, bao phủ session, RBAC, các vertical slice chính, audit log, SQLite persistence, giao diện chatbot demo, luồng chatbot sang hàng đợi kiểm duyệt, phân loại ưu tiên, cùng các test hồi quy cho phân quyền nội dung (bài học nháp, cổng kiểm duyệt RAG, phạm vi câu hỏi), giao diện lịch sử hỏi đáp và chống lạm dụng (rate limit đăng nhập, CSRF, giới hạn độ dài input).
 
 Có thể chạy riêng từng bước:
 
@@ -150,6 +167,7 @@ docs/                    API, database và frontend contracts
 
 ## Tài liệu
 
+- [Ý tưởng và cơ sở định hướng sản phẩm](./IDEA.md)
 - [Kế hoạch dự án](./PROJECT_PLAN.md)
 - [API](./docs/API.md)
 - [SQLite schema](./docs/DATABASE.md)

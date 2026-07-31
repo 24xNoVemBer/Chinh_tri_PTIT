@@ -240,6 +240,7 @@ export default function HomePage() {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
   const [activeHeroMessageIndex, setActiveHeroMessageIndex] = useState(0)
   const [isHeroInteracting, setIsHeroInteracting] = useState(false)
+  const [isHeroPaused, setIsHeroPaused] = useState(false)
 
   const workspacePath = user ? `/${user.role}` : '/login'
   const workspaceLabel = user ? 'Vào không gian học tập' : 'Đăng nhập'
@@ -255,7 +256,7 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    if (prefersReducedMotion || isHeroInteracting) {
+    if (prefersReducedMotion || isHeroInteracting || isHeroPaused) {
       return undefined
     }
 
@@ -264,7 +265,7 @@ export default function HomePage() {
     }, 2800)
 
     return () => window.clearInterval(timer)
-  }, [isHeroInteracting, prefersReducedMotion])
+  }, [isHeroInteracting, isHeroPaused, prefersReducedMotion])
 
   useEffect(() => {
     if (isCarouselPaused || isCarouselInteracting || prefersReducedMotion) {
@@ -377,6 +378,28 @@ export default function HomePage() {
                 ))}
               </span>
             </h1>
+            {/* WCAG 2.2.2: text that moves on its own for more than 5s needs a real pause
+                control. Hover/focus pausing alone leaves touch users with no way out. */}
+            <button
+              type="button"
+              className="home-title-message-toggle"
+              disabled={prefersReducedMotion}
+              aria-label={
+                prefersReducedMotion
+                  ? 'Hiệu ứng tiêu đề đã tắt theo cài đặt chuyển động'
+                  : isHeroPaused
+                    ? 'Tiếp tục hiệu ứng tiêu đề'
+                    : 'Tạm dừng hiệu ứng tiêu đề'
+              }
+              onClick={() => setIsHeroPaused((paused) => !paused)}
+            >
+              {isHeroPaused || prefersReducedMotion ? (
+                <Play size={16} aria-hidden="true" />
+              ) : (
+                <Pause size={16} aria-hidden="true" />
+              )}
+              <span>{isHeroPaused || prefersReducedMotion ? 'Chạy tiêu đề' : 'Dừng tiêu đề'}</span>
+            </button>
             <p className="home-hero__lede">
               Tra cứu giáo trình, đặt câu hỏi và ôn tập năm học phần chính trị cùng AI trợ giảng.
             </p>
@@ -467,9 +490,12 @@ export default function HomePage() {
               tập luôn đi cùng nhau.
             </p>
           </div>
+          {/* aria-label and aria-roledescription are dropped on a role=generic element, so
+              the carousel needs an explicit landmark role to carry its name. */}
           <div
             className="home-course-showcase home-reveal"
             data-home-reveal
+            role="group"
             aria-label="Các học phần chính trị tiêu biểu"
             aria-roledescription="băng chuyền"
             onMouseEnter={() => setIsCarouselInteracting(true)}

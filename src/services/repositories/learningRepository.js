@@ -54,12 +54,19 @@ export const learningRepository = {
       getSubjectLessons(subjectId).map((lesson) => enrichLesson(studentId, lesson)),
     )
     const totalProgress = lessons.reduce((sum, lesson) => sum + lesson.progress, 0)
-    const recentCandidates = lessons.filter((lesson) => lesson.lastReadAt && lesson.progress < 100)
+    const incompleteLessons = lessons.filter((lesson) => lesson.progress < 100)
+    const recentlyReadIncomplete = incompleteLessons
+      .filter((lesson) => lesson.lastReadAt)
+      .sort((a, b) => new Date(b.lastReadAt) - new Date(a.lastReadAt))
+    const recentlyReadCompleted = lessons
+      .filter((lesson) => lesson.lastReadAt)
+      .sort((a, b) => new Date(b.lastReadAt) - new Date(a.lastReadAt))
     const recentLesson =
-      (recentCandidates.length
-        ? recentCandidates
-        : lessons.filter((lesson) => lesson.lastReadAt)
-      ).sort((a, b) => new Date(b.lastReadAt) - new Date(a.lastReadAt))[0] ?? null
+      recentlyReadIncomplete[0] ??
+      incompleteLessons[0] ??
+      recentlyReadCompleted[0] ??
+      lessons[0] ??
+      null
 
     return clone({
       totalLessons: lessons.length,
@@ -79,11 +86,21 @@ export const learningRepository = {
             enrichLesson(studentId, lesson),
           )
           const totalProgress = lessons.reduce((sum, lesson) => sum + lesson.progress, 0)
+          const nextLessonEntry = lessons.find((lesson) => lesson.progress < 100) ?? null
+          const nextLesson = nextLessonEntry
+            ? {
+                id: nextLessonEntry.id,
+                title: nextLessonEntry.title,
+                chapterId: nextLessonEntry.chapterId,
+                chapter: nextLessonEntry.chapter,
+              }
+            : null
           return {
             ...subject,
             lessonCount: lessons.length,
             completedLessons: lessons.filter((lesson) => lesson.progress === 100).length,
             progress: lessons.length ? Math.round(totalProgress / lessons.length) : 0,
+            nextLesson,
           }
         }),
     )

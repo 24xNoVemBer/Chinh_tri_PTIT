@@ -9,7 +9,8 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ['server/**/*.js', 'scripts/**/*.mjs'],
+    // Build config runs in Node, not the browser, so it needs the Node globals too.
+    files: ['server/**/*.js', 'scripts/**/*.mjs', 'vite.config.js', 'vitest.config.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: globals.node,
@@ -19,7 +20,7 @@ export default [
     },
   },
   {
-    files: ['src/**/*.{js,jsx}', 'vite.config.js', 'vitest.config.js'],
+    files: ['src/**/*.{js,jsx}'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: globals.browser,

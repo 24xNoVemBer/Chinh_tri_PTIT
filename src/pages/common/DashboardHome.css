@@ -399,6 +399,15 @@
   -webkit-line-clamp: 2;
 }
 
+.dashboard-empty-note {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-muted-foreground);
+  font-size: var(--text-sm);
+}
+
 .dashboard-status {
   display: inline-flex;
   width: fit-content;
@@ -763,7 +772,8 @@
   .dashboard-question-row:hover,
   .lecturer-queue__row:hover,
   .lecturer-activity-list__item:hover {
-    background: var(--color-muted);
+    /* --color-muted was never declared, so these rows had no hover feedback at all. */
+    background: var(--color-surface-subtle);
   }
 
   .lecturer-class-card:hover {
@@ -915,8 +925,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* `animation: none` resets animation-name, so the reveal keyframes never run and
+     the base `opacity: 0` would hide the whole dashboard. Land on the end state. */
   .dashboard-reveal {
     animation: none;
+    opacity: 1;
+    transform: none;
   }
 
   .lecturer-class-card,

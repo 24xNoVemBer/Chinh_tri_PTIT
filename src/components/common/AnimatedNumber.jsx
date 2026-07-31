@@ -38,8 +38,12 @@ export default function AnimatedNumber({ value, suffix = '' }) {
     return () => cancelFrame(frameId)
   }, [reduceMotion, target])
 
+  // aria-label is ignored on a plain span (role=generic), so with the digits marked
+  // aria-hidden the value was announced as nothing at all. Expose the real number as text
+  // in a visually hidden node instead, and keep the animated copy decorative.
   return (
-    <span className="animated-number" aria-label={`${target}${suffix}`}>
+    <span className="animated-number">
+      <span className="sr-only">{`${target}${suffix}`}</span>
       <span aria-hidden="true">
         {reduceMotion ? target : displayValue}
         {suffix}

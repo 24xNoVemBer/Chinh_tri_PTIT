@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # server/ depends on node:sqlite and process.loadEnvFile.
+          node-version: '22.x'
+          cache: npm
+
+      - run: npm ci
+
+      # Same gate as the local `npm run check`: format, lint, test, build.
+      - run: npm run check

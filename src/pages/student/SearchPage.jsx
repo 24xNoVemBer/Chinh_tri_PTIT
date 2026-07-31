@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Clock3, FileText, MessageCircle, Search } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/AsyncState'
@@ -23,6 +23,8 @@ export default function SearchPage() {
   const [results, setResults] = useState([])
   const [status, setStatus] = useState('idle')
   const [searchError, setSearchError] = useState('')
+  const lastDeepLinkRef = useRef('')
+  const searchRequestRef = useRef(0)
 
   const loader = useCallback(async () => {
     const subjects = await subjectRepository.listForStudent(currentStudent.id)
@@ -50,34 +52,89 @@ export default function SearchPage() {
   }, [data, subjectId])
 
   const executeSearch = useCallback(
-    async (recordHistory = true) => {
-      if (!query.trim()) return
+    async (recordHistory = true, criteria = {}) => {
+      const effectiveQuery = String(criteria.query ?? query).trim()
+      const effectiveSubjectId = criteria.subjectId ?? subjectId
+      const effectiveLessonId = criteria.lessonId ?? lessonId
+      const requestId = searchRequestRef.current + 1
+      searchRequestRef.current = requestId
+
+      if (!effectiveQuery) {
+        setResults([])
+        setSearchError('')
+        setStatus('idle')
+        if (recordHistory) {
+          setSearchParams((current) => {
+            const next = new URLSearchParams(current)
+            next.delete('q')
+            lastDeepLinkRef.current = next.toString()
+            return next
+          })
+        }
+        return
+      }
+
       setStatus('loading')
       setSearchError('')
       try {
         const nextResults = await searchRepository.search({
-          query,
+          query: effectiveQuery,
           studentId: currentStudent.id,
-          subjectId: subjectId || undefined,
-          lessonId: lessonId || undefined,
+          subjectId: effectiveSubjectId || undefined,
+          lessonId: effectiveLessonId || undefined,
           recordHistory,
         })
+        if (searchRequestRef.current !== requestId) return
+
         setResults(nextResults)
-        setSearchParams((current) => {
-          const next = new URLSearchParams(current)
-          next.set('q', query.trim())
-          subjectId ? next.set('subject', subjectId) : next.delete('subject')
-          lessonId ? next.set('lesson', lessonId) : next.delete('lesson')
-          return next
-        })
+        if (recordHistory) {
+          setSearchParams((current) => {
+            const next = new URLSearchParams(current)
+            next.set('q', effectiveQuery)
+            effectiveSubjectId ? next.set('subject', effectiveSubjectId) : next.delete('subject')
+            effectiveLessonId ? next.set('lesson', effectiveLessonId) : next.delete('lesson')
+            lastDeepLinkRef.current = next.toString()
+            return next
+          })
+        }
         setStatus('done')
       } catch (nextError) {
+        if (searchRequestRef.current !== requestId) return
         setSearchError(nextError.message)
         setStatus('error')
       }
     },
     [lessonId, query, setSearchParams, subjectId, currentStudent.id],
   )
+  // Keep the form and result set synchronized with every deep-link change. This also
+  // handles a second navbar search while SearchPage is already mounted.
+  useEffect(() => {
+    if (loading || error) return
+    const deepLinkKey = searchParams.toString()
+    if (lastDeepLinkRef.current === deepLinkKey) return
+    lastDeepLinkRef.current = deepLinkKey
+
+    const nextQuery = searchParams.get('q') ?? ''
+    const nextSubjectId = searchParams.get('subject') ?? ''
+    const nextLessonId = searchParams.get('lesson') ?? ''
+
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setQuery(nextQuery)
+    setSubjectId(nextSubjectId)
+    setLessonId(nextLessonId)
+    if (!nextQuery.trim()) {
+      setResults([])
+      setStatus('idle')
+      return
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+
+    void executeSearch(false, {
+      query: nextQuery,
+      subjectId: nextSubjectId,
+      lessonId: nextLessonId,
+    })
+  }, [loading, error, searchParams, executeSearch])
 
   if (loading) return <LoadingState label="Đang chuẩn bị bộ lọc tra cứu…" />
   if (error) return <ErrorState message={error.message} onRetry={reload} />
@@ -85,6 +142,23 @@ export default function SearchPage() {
   const handleSubmit = (event) => {
     event.preventDefault()
     void executeSearch(true)
+  }
+
+  const handleQueryChange = (event) => {
+    const nextQuery = event.target.value
+    setQuery(nextQuery)
+    if (nextQuery.trim()) return
+
+    searchRequestRef.current += 1
+    setResults([])
+    setSearchError('')
+    setStatus('idle')
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('q')
+      lastDeepLinkRef.current = next.toString()
+      return next
+    })
   }
 
   const handleSubjectChange = (event) => {
@@ -112,7 +186,12 @@ export default function SearchPage() {
         }
       />
 
-      <form className="knowledge-search-form" onSubmit={handleSubmit} role="search">
+      <form
+        className="knowledge-search-form"
+        onSubmit={handleSubmit}
+        role="search"
+        aria-label="Tra cứu học liệu"
+      >
         <div className="field-group knowledge-search-form__query">
           <label htmlFor="knowledge-query">Từ khóa tra cứu</label>
           <div className="filter-field__control">
@@ -121,7 +200,7 @@ export default function SearchPage() {
               id="knowledge-query"
               type="search"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={handleQueryChange}
               placeholder="Ví dụ: chủ nghĩa duy vật biện chứng"
             />
           </div>
@@ -182,6 +261,18 @@ export default function SearchPage() {
           <p>{searchError}</p>
         </div>
       )}
+
+      {/* Results replace themselves in place, so a screen reader gets no signal that the
+          page changed unless the outcome is announced explicitly. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {status === 'loading'
+          ? 'Đang tra cứu…'
+          : status === 'done'
+            ? results.length === 0
+              ? 'Không tìm thấy kết quả nào.'
+              : `Tìm thấy ${results.length} kết quả.`
+            : ''}
+      </p>
 
       {status === 'done' && results.length === 0 && (
         <EmptyState

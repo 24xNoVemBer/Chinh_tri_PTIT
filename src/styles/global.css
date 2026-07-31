@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
+/* The font request lives in index.html with preconnect so it no longer blocks the first
+   paint from inside the CSS entry. Weights available: 400/500/600/700 (Be Vietnam Pro) and
+   600/700/800 (Manrope) — do not author weights outside those, they silently round. */
 
 *,
 *::before,
@@ -16,7 +18,6 @@ body {
   margin: 0;
   overflow-x: clip;
   min-width: 20rem;
-  min-height: 100vh;
   min-height: 100dvh;
   font-family: var(--font-body);
   font-size: var(--text-base);
@@ -96,7 +97,6 @@ h3 {
 
 .not-found {
   display: grid;
-  min-height: 100vh;
   min-height: 100dvh;
   place-content: center;
   justify-items: start;
@@ -122,12 +122,53 @@ h3 {
 }
 
 .route-loader {
-  min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  color: var(--text-secondary);
+  /* --text-secondary does not exist in the token set; this is its intended counterpart. */
+  color: var(--color-muted-foreground);
   font-weight: 700;
+}
+
+.error-boundary {
+  display: grid;
+  gap: var(--space-4);
+  align-content: center;
+  justify-items: start;
+  min-height: 100dvh;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--space-6);
+}
+
+.error-boundary h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+}
+
+.error-boundary p {
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
+.error-boundary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.error-boundary__detail {
+  width: 100%;
+  max-height: 16rem;
+  overflow: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-muted-foreground);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
 }
 
 .skip-link {

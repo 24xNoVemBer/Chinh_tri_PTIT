@@ -11,7 +11,7 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/useAuth'
 import './NavBar.css'
@@ -33,16 +33,50 @@ const ROLE_LINKS = {
 
 export default function NavBar({ role, userName }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
   const { logout } = useAuth()
   const links = ROLE_LINKS[role] ?? []
+  const desktopLinks =
+    role === 'student' ? links.filter((link) => link.to !== '/student/search') : links
   const initial = userName ? userName.charAt(0).toUpperCase() : 'U'
   const roleLabel = role === 'student' ? 'Sinh viên' : 'Giảng viên'
+  const menuToggleRef = useRef(null)
 
   const handleLogout = async () => {
     await logout()
     navigate('/')
   }
+
+  const handleSearchSubmit = (event) => {
+    event.preventDefault()
+    const query = searchQuery.trim()
+    navigate(query ? `/student/search?q=${encodeURIComponent(query)}` : '/student/search')
+    setMenuOpen(false)
+  }
+
+  // Escape must dismiss the menu, and focus has to return to the control that opened it —
+  // otherwise keyboard users are left with focus on a node that no longer exists.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined
+    const desktopViewport = window.matchMedia('(min-width: 60.01rem)')
+    const closeMobileMenu = (event) => {
+      if (event.matches) setMenuOpen(false)
+    }
+
+    desktopViewport.addEventListener?.('change', closeMobileMenu)
+    return () => desktopViewport.removeEventListener?.('change', closeMobileMenu)
+  }, [])
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return
+      setMenuOpen(false)
+      menuToggleRef.current?.focus()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [menuOpen])
 
   return (
     <header className={`navbar ${menuOpen ? 'navbar--open' : ''}`}>
@@ -55,7 +89,7 @@ export default function NavBar({ role, userName }) {
         </NavLink>
 
         <nav className="navbar__nav" aria-label="Điều hướng chính">
-          {links.map((link) => (
+          {desktopLinks.map((link) => (
             <NavLink
               end={link.end}
               key={link.to}
@@ -70,9 +104,44 @@ export default function NavBar({ role, userName }) {
         <div className="navbar__account">
           {role === 'student' && (
             <>
-              <NavLink className="navbar__assistant" to="/student/chat">
+              <form
+                className="navbar__search"
+                role="search"
+                aria-label="Tra cứu nhanh"
+                onSubmit={handleSearchSubmit}
+              >
+                <label className="sr-only" htmlFor="student-navbar-search">
+                  Tra cứu học liệu
+                </label>
+                <button type="submit" aria-label="Tra cứu">
+                  <Search aria-hidden="true" size={17} />
+                </button>
+                <input
+                  id="student-navbar-search"
+                  name="q"
+                  type="search"
+                  value={searchQuery}
+                  placeholder="Tra cứu học liệu"
+                  autoComplete="off"
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                />
+              </form>
+              <NavLink
+                className="navbar__icon-button navbar__mobile-search"
+                to="/student/search"
+                aria-label="Tra cứu học liệu"
+                title="Tra cứu học liệu"
+              >
+                <Search aria-hidden="true" size={19} />
+              </NavLink>
+              <NavLink
+                className="navbar__assistant"
+                to="/student/chat"
+                aria-label="Hỏi trợ giảng"
+                title="Hỏi trợ giảng"
+              >
                 <Bot aria-hidden="true" size={17} />
-                Hỏi trợ giảng
+                <span>Hỏi trợ giảng</span>
               </NavLink>
               <NavLink
                 className="navbar__icon-button"
@@ -101,9 +170,12 @@ export default function NavBar({ role, userName }) {
             <LogOut aria-hidden="true" size={18} />
           </button>
           <button
+            ref={menuToggleRef}
             className="navbar__icon-button navbar__menu-toggle"
             type="button"
-            aria-controls="mobile-navigation"
+            // aria-controls may only reference an element that exists, and the menu is
+            // unmounted while closed.
+            aria-controls={menuOpen ? 'mobile-navigation' : undefined}
             aria-expanded={menuOpen}
             aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}
             onClick={() => setMenuOpen((open) => !open)}

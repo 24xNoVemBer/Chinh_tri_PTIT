@@ -303,13 +303,15 @@
   align-items: center;
   gap: var(--space-3);
   padding-left: var(--space-4);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
 
 .search-panel__control:focus-within {
   border-color: var(--color-primary);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
   box-shadow: 0 0 0 3px var(--color-primary-soft);
 }
 
@@ -531,18 +533,21 @@
 .field-group select {
   width: 100%;
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
   color: var(--color-foreground);
   background: var(--color-surface);
   resize: vertical;
 }
 
-.field-group textarea:focus,
-.field-group input:focus,
-.field-group select:focus {
+/* The soft halo alone measures 1.10:1 against white, so it cannot be the only focus
+   indicator. Keep it as decoration and carry the actual signal in a real outline. */
+.field-group textarea:focus-visible,
+.field-group input:focus-visible,
+.field-group select:focus-visible {
   border-color: var(--color-primary);
-  outline: 0;
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
   box-shadow: 0 0 0 3px var(--color-primary-soft);
 }
 
@@ -755,7 +760,7 @@ tbody tr:last-child td {
   width: 100%;
   min-height: 2.75rem;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
   color: var(--color-foreground);
   background: var(--color-surface);
@@ -766,17 +771,18 @@ tbody tr:last-child td {
   align-items: center;
   gap: var(--space-2);
   padding-left: var(--space-3);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
 
 .filter-field__control:focus-within,
-.filter-field input:focus,
-.filter-field select:focus,
-.table-select:focus {
+.filter-field input:focus-visible,
+.filter-field select:focus-visible,
+.table-select:focus-visible {
   border-color: var(--color-primary);
-  outline: 0;
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
   box-shadow: 0 0 0 3px var(--color-primary-soft);
 }
 

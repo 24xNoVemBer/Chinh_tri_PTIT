@@ -5,26 +5,103 @@ import {
   createSession,
   createSessionCookie,
   destroySession,
+  DUMMY_PASSWORD_HASH,
   getSessionToken,
   verifyPassword,
 } from './auth.js'
-import { ApiError, readJson, requireFields, requireRole, sendJson, serializeError } from './http.js'
+import {
+  ApiError,
+  readJson,
+  requireFields,
+  requireRole,
+  requireSameOrigin,
+  sendJson,
+  serializeError,
+} from './http.js'
 import { createRepositories } from './repositories.js'
+
+const LOGIN_MAX_ATTEMPTS = 8
+const LOGIN_WINDOW_MS = 15 * 60 * 1000
+
+// Login throttling, keyed per client+email. In-memory is enough for a single-process
+// deployment; a multi-instance rollout would need to move this into SQLite or a cache.
+function createLoginThrottle() {
+  const attempts = new Map()
+
+  function prune(now) {
+    for (const [key, entry] of attempts) {
+      if (entry.resetAt <= now) attempts.delete(key)
+    }
+  }
+
+  return {
+    check(key) {
+      const now = Date.now()
+      prune(now)
+      const entry = attempts.get(key)
+      if (entry && entry.count >= LOGIN_MAX_ATTEMPTS) {
+        const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
+        throw new ApiError(
+          429,
+          'TOO_MANY_ATTEMPTS',
+          `Bạn đã thử đăng nhập quá nhiều lần. Vui lòng chờ ${retryAfter} giây.`,
+          true,
+        )
+      }
+    },
+    fail(key) {
+      const now = Date.now()
+      const entry = attempts.get(key)
+      if (entry && entry.resetAt > now) entry.count += 1
+      else attempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS })
+    },
+    succeed(key) {
+      attempts.delete(key)
+    },
+  }
+}
+
+function clientKey(request) {
+  const forwarded = request.headers['x-forwarded-for']
+  if (typeof forwarded === 'string' && forwarded.length) return forwarded.split(',')[0].trim()
+  return request.socket?.remoteAddress ?? 'unknown'
+}
 
 const decode = (value) => decodeURIComponent(value)
 
 function matchPath(pathname, pattern) {
   const match = pathname.match(pattern)
-  return match ? match.slice(1).map(decode) : null
+  if (!match) return null
+  // A path segment with a broken escape sequence must be a client error, not a 500.
+  try {
+    return match.slice(1).map(decode)
+  } catch {
+    throw new ApiError(400, 'INVALID_PATH', 'Đường dẫn chứa ký tự không hợp lệ.')
+  }
 }
 
 function sendData(response, data, status = 200, headers = {}) {
+  // Repositories return null only when the requested record does not exist (or is not
+  // visible to this caller). Answering 200 with `data: null` made every client hand-roll
+  // its own not-found check, so translate it into a real 404 here.
+  if (data === null || data === undefined) {
+    sendJson(
+      response,
+      404,
+      {
+        error: { code: 'NOT_FOUND', message: 'Không tìm thấy dữ liệu yêu cầu.', retryable: false },
+      },
+      headers,
+    )
+    return
+  }
   sendJson(response, status, { data }, headers)
 }
 
 export function createRequestHandler({ db, secureCookies = false, logger = console } = {}) {
   if (!db) throw new Error('createRequestHandler requires a database connection.')
   const repositories = createRepositories(db)
+  const loginThrottle = createLoginThrottle()
 
   return async function handleRequest(request, response) {
     const url = new URL(request.url, `http://${request.headers.host ?? 'localhost'}`)
@@ -32,6 +109,8 @@ export function createRequestHandler({ db, secureCookies = false, logger = conso
     const method = request.method ?? 'GET'
 
     try {
+      requireSameOrigin(request)
+
       if (method === 'GET' && pathname === '/api/health') {
         sendData(response, { status: 'ok', database: 'connected' })
         return
@@ -41,6 +120,9 @@ export function createRequestHandler({ db, secureCookies = false, logger = conso
         const input = await readJson(request)
         requireFields(input, ['email', 'password'])
         const email = String(input.email).trim().toLowerCase()
+        const throttleKey = `${clientKey(request)}|${email}`
+        loginThrottle.check(throttleKey)
+
         const user = db
           .prepare(
             `SELECT id, name, email, role, password_hash
@@ -49,9 +131,16 @@ export function createRequestHandler({ db, secureCookies = false, logger = conso
           )
           .get(email)
 
-        const credentialsValid = user && verifyPassword(String(input.password), user.password_hash)
+        // Always run a verification, even for an unknown email, so the response time does
+        // not disclose whether the account exists.
+        const passwordMatches = await verifyPassword(
+          String(input.password),
+          user?.password_hash ?? DUMMY_PASSWORD_HASH,
+        )
+        const credentialsValid = Boolean(user) && passwordMatches
         const roleValid = !input.role || input.role === user?.role
         if (!credentialsValid || !roleValid) {
+          loginThrottle.fail(throttleKey)
           throw new ApiError(
             401,
             'INVALID_CREDENTIALS',
@@ -59,6 +148,7 @@ export function createRequestHandler({ db, secureCookies = false, logger = conso
           )
         }
 
+        loginThrottle.succeed(throttleKey)
         const session = createSession(db, user.id)
         repositories.audit(db, user.id, 'auth.login', 'session', null, {
           role: user.role,

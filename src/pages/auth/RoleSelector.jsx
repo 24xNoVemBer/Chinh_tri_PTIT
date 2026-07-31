@@ -15,22 +15,26 @@ import ptitStudentsImage from '../../assets/ptit-students.jpg'
 import { useAuth } from '../../features/auth/useAuth'
 import './RoleSelector.css'
 
-const DEMO_ACCOUNTS = [
-  {
-    label: 'Tài khoản sinh viên',
-    description: 'Nguyễn Tuấn Anh',
-    email: 'tuananh@ptit.edu.vn',
-    password: 'Student@123',
-    icon: BookOpenCheck,
-  },
-  {
-    label: 'Tài khoản giảng viên',
-    description: 'TS. Đào Đức Tú',
-    email: 'ductu@ptit.edu.vn',
-    password: 'Lecturer@123',
-    icon: GraduationCap,
-  },
-]
+// `import.meta.env.DEV` is statically replaced at build time, so the credentials below are
+// dead code in a production bundle and get dropped instead of shipped to every visitor.
+const DEMO_ACCOUNTS = import.meta.env.DEV
+  ? [
+      {
+        label: 'Tài khoản sinh viên',
+        description: 'Nguyễn Tuấn Anh',
+        email: 'tuananh@ptit.edu.vn',
+        password: 'Student@123',
+        icon: BookOpenCheck,
+      },
+      {
+        label: 'Tài khoản giảng viên',
+        description: 'TS. Đào Đức Tú',
+        email: 'ductu@ptit.edu.vn',
+        password: 'Lecturer@123',
+        icon: GraduationCap,
+      },
+    ]
+  : []
 
 function validate(values) {
   const nextErrors = {}
@@ -233,48 +237,54 @@ export default function RoleSelector() {
               </button>
             </form>
 
-            <section className="demo-accounts" aria-labelledby="demo-accounts-title">
-              <div className="demo-accounts__heading">
-                <h2 id="demo-accounts-title">Thử nhanh bằng tài khoản demo</h2>
-                <p>Chọn một tài khoản để điền sẵn thông tin.</p>
-              </div>
-              <div className="demo-accounts__grid">
-                {DEMO_ACCOUNTS.map((account) => {
-                  const Icon = account.icon
-                  const isSelected = selectedDemoAccount?.email === account.email
+            {DEMO_ACCOUNTS.length > 0 && (
+              <section className="demo-accounts" aria-labelledby="demo-accounts-title">
+                <div className="demo-accounts__heading">
+                  <h2 id="demo-accounts-title">Thử nhanh bằng tài khoản demo</h2>
+                  <p>Chọn một tài khoản để điền sẵn thông tin.</p>
+                </div>
+                <div className="demo-accounts__grid">
+                  {DEMO_ACCOUNTS.map((account) => {
+                    const Icon = account.icon
+                    const isSelected = selectedDemoAccount?.email === account.email
 
-                  return (
-                    <button
-                      key={account.email}
-                      className={isSelected ? 'is-selected' : undefined}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => fillDemoAccount(account)}
-                    >
-                      <span className="demo-account__icon">
-                        <Icon aria-hidden="true" size={20} />
-                      </span>
-                      <span className="demo-account__copy">
-                        <strong>{account.label}</strong>
-                        <small>{account.description}</small>
-                      </span>
-                      {isSelected ? (
-                        <CheckCircle2
-                          className="demo-account__status"
-                          aria-hidden="true"
-                          size={19}
-                        />
-                      ) : (
-                        <ArrowRight className="demo-account__status" aria-hidden="true" size={19} />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-              <span className="sr-only" aria-live="polite">
-                {selectedDemoAccount ? `Đã điền ${selectedDemoAccount.label}.` : ''}
-              </span>
-            </section>
+                    return (
+                      <button
+                        key={account.email}
+                        className={isSelected ? 'is-selected' : undefined}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => fillDemoAccount(account)}
+                      >
+                        <span className="demo-account__icon">
+                          <Icon aria-hidden="true" size={20} />
+                        </span>
+                        <span className="demo-account__copy">
+                          <strong>{account.label}</strong>
+                          <small>{account.description}</small>
+                        </span>
+                        {isSelected ? (
+                          <CheckCircle2
+                            className="demo-account__status"
+                            aria-hidden="true"
+                            size={19}
+                          />
+                        ) : (
+                          <ArrowRight
+                            className="demo-account__status"
+                            aria-hidden="true"
+                            size={19}
+                          />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+                <span className="sr-only" aria-live="polite">
+                  {selectedDemoAccount ? `Đã điền ${selectedDemoAccount.label}.` : ''}
+                </span>
+              </section>
+            )}
           </section>
 
           <aside className="role-selector-intro" aria-labelledby="login-intro-title">
