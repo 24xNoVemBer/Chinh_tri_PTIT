@@ -3,18 +3,23 @@ import { createServer } from 'node:http'
 import { extname, isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequestHandler } from './app.js'
+import { createRuntimeConfig } from './runtimeConfig.js'
+import { createRagClient } from './rag/client.js'
 import { createDatabase, DEFAULT_DATABASE_PATH } from './database.js'
 
 if (existsSync('.env')) process.loadEnvFile('.env')
 
-const port = Number(process.env.PORT ?? 3001)
-const databasePath = process.env.DATABASE_PATH ?? DEFAULT_DATABASE_PATH
+const runtimeConfig = createRuntimeConfig()
+const port = runtimeConfig.port
+const databasePath = runtimeConfig.databasePath ?? DEFAULT_DATABASE_PATH
+const ragClient = runtimeConfig.rag.enabled ? createRagClient(runtimeConfig.rag) : undefined
 const staticRoot = resolve(fileURLToPath(new URL('../dist', import.meta.url)))
 const indexPath = resolve(staticRoot, 'index.html')
 const db = createDatabase({ databasePath })
 const apiHandler = createRequestHandler({
   db,
-  secureCookies: process.env.NODE_ENV === 'production',
+  secureCookies: runtimeConfig.nodeEnv === 'production',
+  ragClient,
 })
 
 const mimeTypes = {

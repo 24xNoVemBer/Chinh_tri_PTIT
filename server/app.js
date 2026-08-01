@@ -22,7 +22,12 @@ function sendData(response, data, status = 200, headers = {}) {
   sendJson(response, status, { data }, headers)
 }
 
-export function createRequestHandler({ db, secureCookies = false, logger = console } = {}) {
+export function createRequestHandler({
+  db,
+  secureCookies = false,
+  logger = console,
+  ragClient,
+} = {}) {
   if (!db) throw new Error('createRequestHandler requires a database connection.')
   const repositories = createRepositories(db)
 
@@ -34,6 +39,22 @@ export function createRequestHandler({ db, secureCookies = false, logger = conso
     try {
       if (method === 'GET' && pathname === '/api/health') {
         sendData(response, { status: 'ok', database: 'connected' })
+        return
+      }
+
+      if (method === 'GET' && pathname === '/api/ready') {
+        const readiness = { status: 'ready', database: 'connected', rag: 'disabled' }
+        if (ragClient) {
+          try {
+            await ragClient.readiness()
+            readiness.rag = 'ready'
+          } catch (error) {
+            readiness.status = 'degraded'
+            readiness.rag = 'unavailable'
+            logger.warn?.(error)
+          }
+        }
+        sendData(response, readiness, readiness.status === 'ready' ? 200 : 503)
         return
       }
 

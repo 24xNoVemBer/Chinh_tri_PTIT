@@ -156,6 +156,7 @@ docs/                    API, database và frontend contracts
 - [Frontend contracts](./docs/FRONTEND_CONTRACTS.md)
 - [Chatbot/backend integration contract](./docs/CHATBOT_BACKEND_INTEGRATION.md)
 - [Phase 0 executable contracts](./contracts/README.md)
+- [Phase 4 backend foundation](./docs/PHASE_4_BACKEND_FOUNDATION.md)
 - [Design system](./design-system/ptit-teaching-assistant/MASTER.md)
 
 ## Nguồn hình ảnh
