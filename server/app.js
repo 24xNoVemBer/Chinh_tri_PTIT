@@ -10,6 +10,7 @@ import {
 } from './auth.js'
 import { ApiError, readJson, requireFields, requireRole, sendJson, serializeError } from './http.js'
 import { createRepositories } from './repositories.js'
+import { createLiveRagRepository } from './rag/liveRepository.js'
 
 const decode = (value) => decodeURIComponent(value)
 
@@ -30,6 +31,13 @@ export function createRequestHandler({
 } = {}) {
   if (!db) throw new Error('createRequestHandler requires a database connection.')
   const repositories = createRepositories(db)
+  const liveRagRepository = ragClient
+    ? createLiveRagRepository({
+        db,
+        ragClient,
+        questionRepository: repositories.questionRepository,
+      })
+    : null
 
   return async function handleRequest(request, response) {
     const url = new URL(request.url, `http://${request.headers.host ?? 'localhost'}`)
@@ -428,7 +436,10 @@ export function createRequestHandler({
         if (method === 'POST' && pathname === '/api/student/chat') {
           const input = await readJson(request)
           requireFields(input, ['subjectId', 'content'])
-          sendData(response, repositories.ragRepository.createDemoChat(input, student.id), 201)
+          const result = liveRagRepository
+            ? await liveRagRepository.createChat(input, student.id)
+            : repositories.ragRepository.createDemoChat(input, student.id)
+          sendData(response, result, 201)
           return
         }
         if (method === 'GET' && questionMatch) {
