@@ -1,0 +1,83 @@
+openapi: 3.1.0
+info:
+  title: PTIT RAG Internal Service API
+  version: 1.0.0
+  description: Private service-to-service boundary. The service receives an already-authorized source scope.
+servers:
+  - url: http://rag.internal
+security:
+  - serviceToken: []
+paths:
+  /internal/v1/answers:
+    post:
+      operationId: generateAnswer
+      summary: Retrieve approved context and generate a grounded answer
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 160 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/chat/create-chat-request.schema.json'
+      responses:
+        '200':
+          description: Terminal answer
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/chat/terminal-answer.schema.json'
+        '202': { description: Accepted for asynchronous processing }
+        '400': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /internal/v1/health:
+    get:
+      operationId: health
+      security: []
+      responses:
+        '200': { description: Process is alive }
+  /internal/v1/readiness:
+    get:
+      operationId: readiness
+      responses:
+        '200': { description: Service can accept work }
+        '503': { description: Service is not ready }
+  /internal/v1/capabilities:
+    get:
+      operationId: capabilities
+      responses:
+        '200':
+          description: Supported contract and provider capabilities
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  [schemaVersion, service, supportedSchemaVersions, streaming, maxContextTokens]
+                properties:
+                  schemaVersion: { const: '1.0' }
+                  service: { const: rag }
+                  supportedSchemaVersions: { type: array, items: { type: string } }
+                  streaming: { type: boolean }
+                  maxContextTokens: { type: integer, minimum: 1 }
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+  responses:
+    Error:
+      description: RAG service error
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/common/error.schema.json'

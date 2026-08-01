@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "11111111-1111-4111-8111-111111111111",
+  "tenantId": "ptit",
+  "query": {
+    "text": "Phân biệt vật chất và ý thức theo triết học Mác – Lênin.",
+    "language": "vi-VN"
+  },
+  "conversation": {
+    "conversationId": "conversation-001",
+    "messageId": "message-001",
+    "history": []
+  },
+  "scope": {
+    "subjectId": "triethoc-mac-lenin",
+    "classIds": ["CT2301A"],
+    "lessonId": "lesson-02",
+    "allowedMaterialVersionIds": ["material-version-triet-hoc-2026"]
+  },
+  "policy": {
+    "publicationMode": "provisional",
+    "citationRequired": true,
+    "maxOutputTokens": 800,
+    "safetyPolicyVersion": "ptit-safety-1"
+  },
+  "limits": { "deadlineMs": 30000, "maxRetrievedChunks": 8, "maxContextTokens": 6000 },
+  "client": { "name": "ptit-student-web", "version": "0.1.0" }
+}

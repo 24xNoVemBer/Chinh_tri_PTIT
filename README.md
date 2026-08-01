@@ -154,6 +154,8 @@ docs/                    API, database và frontend contracts
 - [API](./docs/API.md)
 - [SQLite schema](./docs/DATABASE.md)
 - [Frontend contracts](./docs/FRONTEND_CONTRACTS.md)
+- [Chatbot/backend integration contract](./docs/CHATBOT_BACKEND_INTEGRATION.md)
+- [Phase 0 executable contracts](./contracts/README.md)
 - [Design system](./design-system/ptit-teaching-assistant/MASTER.md)
 
 ## Nguồn hình ảnh

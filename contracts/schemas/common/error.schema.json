@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/common/error.schema.json",
+  "title": "ApiError",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message", "retryable"],
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "VALIDATION",
+        "UNAUTHENTICATED",
+        "FORBIDDEN_SCOPE",
+        "NOT_FOUND",
+        "IDEMPOTENCY_CONFLICT",
+        "SOURCE_NOT_INDEXED",
+        "INVALID_CITATION",
+        "SAFETY_BLOCKED",
+        "RATE_LIMITED",
+        "OVER_CAPACITY",
+        "PROVIDER_TIMEOUT",
+        "PROVIDER_UNAVAILABLE",
+        "MALFORMED_PROVIDER_RESPONSE",
+        "CANCELLED",
+        "INTERNAL"
+      ]
+    },
+    "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "retryable": { "type": "boolean" },
+    "requestId": { "type": "string", "format": "uuid" },
+    "details": { "type": "object", "additionalProperties": true }
+  }
+}

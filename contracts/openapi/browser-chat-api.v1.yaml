@@ -1,0 +1,158 @@
+openapi: 3.1.0
+info:
+  title: PTIT Chính trị Browser Chat API
+  version: 1.0.0
+  description: Backend-for-frontend contract used by the student and lecturer web clients.
+servers:
+  - url: https://api.example.ptit.edu.vn
+security:
+  - sessionCookie: []
+paths:
+  /api/v1/chat/requests:
+    post:
+      operationId: createChatRequest
+      summary: Create an idempotent RAG request
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/chat/create-chat-request.schema.json'
+      responses:
+        '202':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedChatRequest'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/chat/requests/{requestId}:
+    get:
+      operationId: getChatRequest
+      summary: Read current request status or terminal answer
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatRequestStatus'
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/chat/requests/{requestId}/events:
+    get:
+      operationId: streamChatEvents
+      summary: Stream ordered request events
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - name: Last-Event-ID
+          in: header
+          schema: { type: string }
+      responses:
+        '200':
+          description: Server-sent events; each data payload is a ChatEvent.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/chat/requests/{requestId}/cancel:
+    post:
+      operationId: cancelChatRequest
+      summary: Cancel a queued or processing request
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '202':
+          description: Cancellation accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcceptedChatRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/chat/responses/{responseId}/feedback:
+    post:
+      operationId: submitAnswerFeedback
+      summary: Record student feedback on an answer
+      parameters:
+        - name: responseId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/chat/feedback.schema.json'
+      responses:
+        '201': { description: Feedback recorded }
+        '400': { $ref: '#/components/responses/ValidationError' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ptit_session
+  parameters:
+    RequestId:
+      name: requestId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 160 }
+  schemas:
+    AcceptedChatRequest:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, requestId, providerJobId, status, createdAt]
+      properties:
+        schemaVersion: { const: '1.0' }
+        requestId: { type: string, format: uuid }
+        providerJobId: { type: string }
+        status: { enum: [queued, processing, succeeded, failed, cancelled] }
+        createdAt: { type: string, format: date-time }
+    ChatRequestStatus:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, requestId, status]
+      properties:
+        schemaVersion: { const: '1.0' }
+        requestId: { type: string, format: uuid }
+        status: { enum: [queued, processing, succeeded, failed, cancelled] }
+        answer:
+          $ref: '../schemas/chat/terminal-answer.schema.json'
+        error:
+          $ref: '../schemas/common/error.schema.json'
+    ApiError:
+      $ref: '../schemas/common/error.schema.json'
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/ApiError' } }
+    IdempotencyConflict:
+      description: Idempotency key reused with a different payload
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/ApiError' } }
+    RateLimited:
+      description: Request rate limit exceeded
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/ApiError' } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/ApiError' } }
+    Conflict:
+      description: State conflict
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/ApiError' } }

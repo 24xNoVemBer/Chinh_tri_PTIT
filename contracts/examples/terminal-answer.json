@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "11111111-1111-4111-8111-111111111111",
+  "providerJobId": "rag-job-001",
+  "outcome": "answered",
+  "answer": {
+    "text": "Vật chất là phạm trù chỉ thực tại khách quan; ý thức là sự phản ánh hiện thực khách quan vào bộ óc người trong hoạt động xã hội.",
+    "language": "vi-VN",
+    "finishReason": "stop"
+  },
+  "citations": [
+    {
+      "materialId": "material-triet-hoc",
+      "materialVersionId": "material-version-triet-hoc-2026",
+      "chunkId": "chunk-0001",
+      "page": 12,
+      "section": "Vật chất và ý thức",
+      "quote": "Vật chất là thực tại khách quan được đem lại cho con người trong cảm giác.",
+      "rank": 1,
+      "retrievalScore": 0.94,
+      "rerankScore": 0.91,
+      "chunkSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "safety": { "decision": "allow", "policyVersion": "ptit-safety-1" },
+  "review": { "required": false, "status": "not_required" },
+  "provenance": {
+    "provider": "ptit-rag",
+    "model": "external-provider-model",
+    "modelRevision": "2026-07",
+    "promptVersion": "answer-grounded-v1",
+    "embeddingVersion": "embed-v1",
+    "retrieverVersion": "retrieve-v1",
+    "rerankerVersion": "rerank-v1",
+    "indexVersion": "index-2026-08-01"
+  },
+  "usage": { "inputTokens": 620, "outputTokens": 74, "retrievedChunks": 1 },
+  "timing": {
+    "queueMs": 12,
+    "retrievalMs": 45,
+    "firstTokenMs": 180,
+    "generationMs": 230,
+    "totalMs": 287
+  }
+}

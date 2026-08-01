@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/ingestion/ingestion-job.schema.json",
+  "title": "IngestionJob",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "jobId", "materialVersionId", "status", "createdAt"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "jobId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "materialVersionId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "status": { "enum": ["queued", "processing", "succeeded", "failed", "cancelled"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "error": { "$ref": "https://contracts.ptit-chinh-tri.local/schemas/common/error.schema.json" },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chunkCount": { "type": "integer", "minimum": 0 },
+        "indexVersion": { "type": "string", "maxLength": 120 }
+      }
+    }
+  }
+}

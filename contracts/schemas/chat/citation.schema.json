@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/chat/citation.schema.json",
+  "title": "Citation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["materialId", "materialVersionId", "chunkId", "quote", "rank", "chunkSha256"],
+  "properties": {
+    "materialId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,120}$" },
+    "materialVersionId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,120}$" },
+    "chunkId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,160}$" },
+    "page": { "type": "integer", "minimum": 1 },
+    "section": { "type": "string", "maxLength": 200 },
+    "quote": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "rank": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "retrievalScore": { "type": "number", "minimum": 0, "maximum": 1 },
+    "rerankScore": { "type": "number", "minimum": 0, "maximum": 1 },
+    "chunkSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

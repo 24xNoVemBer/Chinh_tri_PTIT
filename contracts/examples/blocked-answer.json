@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "22222222-2222-4222-8222-222222222222",
+  "providerJobId": "rag-job-blocked",
+  "outcome": "blocked",
+  "answer": { "text": "", "language": "vi-VN", "finishReason": "safety" },
+  "citations": [],
+  "safety": {
+    "decision": "block",
+    "category": "unsafe_request",
+    "reason": "Nội dung không phù hợp chính sách an toàn.",
+    "policyVersion": "ptit-safety-1"
+  },
+  "review": {
+    "required": true,
+    "status": "pending",
+    "priority": "high",
+    "reasonCodes": ["SAFETY_BLOCK"]
+  },
+  "provenance": {
+    "provider": "ptit-rag",
+    "model": "external-provider-model",
+    "modelRevision": "2026-07",
+    "promptVersion": "answer-grounded-v1",
+    "embeddingVersion": "embed-v1",
+    "retrieverVersion": "retrieve-v1",
+    "rerankerVersion": "rerank-v1",
+    "indexVersion": "index-2026-08-01"
+  },
+  "usage": { "inputTokens": 40, "outputTokens": 0, "retrievedChunks": 0 },
+  "timing": { "queueMs": 5, "retrievalMs": 0, "generationMs": 10, "totalMs": 15 }
+}

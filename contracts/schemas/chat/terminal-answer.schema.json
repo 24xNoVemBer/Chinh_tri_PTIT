@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/chat/terminal-answer.schema.json",
+  "title": "TerminalAnswer",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "providerJobId",
+    "outcome",
+    "answer",
+    "citations",
+    "safety",
+    "review",
+    "provenance",
+    "usage",
+    "timing"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "requestId": { "type": "string", "format": "uuid" },
+    "providerJobId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "outcome": { "enum": ["answered", "abstained", "blocked"] },
+    "answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "language", "finishReason"],
+      "properties": {
+        "text": { "type": "string", "maxLength": 20000 },
+        "language": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+        "finishReason": { "enum": ["stop", "length", "safety", "no_source"] }
+      }
+    },
+    "citations": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "https://contracts.ptit-chinh-tri.local/schemas/chat/citation.schema.json"
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "policyVersion"],
+      "properties": {
+        "decision": { "enum": ["allow", "review", "block"] },
+        "category": { "type": "string", "maxLength": 80 },
+        "reason": { "type": "string", "maxLength": 500 },
+        "policyVersion": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "status"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "status": { "enum": ["not_required", "pending", "approved", "rejected", "needs_revision"] },
+        "priority": { "enum": ["low", "normal", "high"] },
+        "reasonCodes": { "type": "array", "items": { "type": "string", "maxLength": 80 } }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model",
+        "modelRevision",
+        "promptVersion",
+        "embeddingVersion",
+        "retrieverVersion",
+        "rerankerVersion",
+        "indexVersion"
+      ],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "model": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "modelRevision": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "promptVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "embeddingVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "retrieverVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "rerankerVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "indexVersion": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputTokens", "outputTokens", "retrievedChunks"],
+      "properties": {
+        "inputTokens": { "type": "integer", "minimum": 0 },
+        "outputTokens": { "type": "integer", "minimum": 0 },
+        "retrievedChunks": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["queueMs", "retrievalMs", "generationMs", "totalMs"],
+      "properties": {
+        "queueMs": { "type": "integer", "minimum": 0 },
+        "retrievalMs": { "type": "integer", "minimum": 0 },
+        "firstTokenMs": { "type": "integer", "minimum": 0 },
+        "generationMs": { "type": "integer", "minimum": 0 },
+        "totalMs": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

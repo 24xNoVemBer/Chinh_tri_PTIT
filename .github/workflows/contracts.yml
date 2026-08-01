@@ -1,0 +1,20 @@
+name: Contract checks
+
+on:
+  pull_request:
+  push:
+    branches: [main, sinh_vien, giang_vien]
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - run: npm run contract:validate
+      - run: npm run contract:test

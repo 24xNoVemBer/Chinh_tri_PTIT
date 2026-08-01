@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/chat/chat-event.schema.json",
+  "title": "ChatEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "eventId", "requestId", "sequence", "type", "occurredAt"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "eventId": { "type": "string", "format": "uuid" },
+    "requestId": { "type": "string", "format": "uuid" },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "type": { "enum": ["queued", "processing", "retrieval", "delta", "terminal", "error"] },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "data": { "type": "object", "additionalProperties": true }
+  }
+}

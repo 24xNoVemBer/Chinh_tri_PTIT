@@ -1,0 +1,58 @@
+openapi: 3.1.0
+info:
+  title: PTIT Material Ingestion API
+  version: 1.0.0
+  description: Private contract for approving, indexing and retiring source material versions.
+servers:
+  - url: http://rag.internal
+security:
+  - serviceToken: []
+paths:
+  /internal/v1/ingestions:
+    post:
+      operationId: createIngestion
+      summary: Start ingestion for an approved material manifest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ingestion/material-manifest.schema.json'
+      responses:
+        '202':
+          description: Ingestion queued
+          content:
+            application/json:
+              schema: { $ref: '../schemas/ingestion/ingestion-job.schema.json' }
+  /internal/v1/ingestions/{jobId}:
+    get:
+      operationId: getIngestion
+      summary: Read ingestion status
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Ingestion status
+          content:
+            application/json:
+              schema: { $ref: '../schemas/ingestion/ingestion-job.schema.json' }
+  /internal/v1/material-versions/{materialVersionId}/retire:
+    post:
+      operationId: retireMaterialVersion
+      summary: Remove a source version from future retrieval
+      parameters:
+        - name: materialVersionId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '202': { description: Retirement queued }
+        '404': { description: Material version not found }
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/ingestion/material-manifest.schema.json",
+  "title": "MaterialManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "materialId",
+    "materialVersionId",
+    "title",
+    "subjectId",
+    "sourceUri",
+    "sha256",
+    "language",
+    "approval"
+  ],
+  "properties": {
+    "materialId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "materialVersionId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "subjectId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "sourceUri": { "type": "string", "pattern": "^https://" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "language": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "approvedAt"],
+      "properties": {
+        "status": { "enum": ["pending", "approved", "retired"] },
+        "approvedAt": { "type": "string", "format": "date-time" },
+        "approvedBy": { "type": "string", "maxLength": 120 }
+      }
+    }
+  }
+}

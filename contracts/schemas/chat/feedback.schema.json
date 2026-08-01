@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/chat/feedback.schema.json",
+  "title": "AnswerFeedback",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rating"],
+  "properties": {
+    "rating": { "enum": ["helpful", "not_helpful"] },
+    "reason": { "type": "string", "maxLength": 500 },
+    "comment": { "type": "string", "maxLength": 2000 }
+  }
+}

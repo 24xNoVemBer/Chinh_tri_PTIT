@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/ingestion/ingestion-result.schema.json",
+  "title": "IngestionResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "jobId",
+    "status",
+    "materialVersionId",
+    "chunkCount",
+    "indexVersion"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "jobId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "status": { "const": "succeeded" },
+    "materialVersionId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "chunkCount": { "type": "integer", "minimum": 1 },
+    "indexVersion": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "warnings": { "type": "array", "items": { "type": "string", "maxLength": 300 } }
+  }
+}

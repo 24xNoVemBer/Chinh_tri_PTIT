@@ -1,0 +1,14 @@
+{
+  "materialId": "material-triet-hoc",
+  "materialVersionId": "material-version-triet-hoc-2026",
+  "title": "Giáo trình Triết học Mác – Lênin",
+  "subjectId": "triethoc-mac-lenin",
+  "sourceUri": "https://materials.ptit.edu.vn/triet-hoc/2026.pdf",
+  "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "language": "vi-VN",
+  "approval": {
+    "status": "approved",
+    "approvedAt": "2026-08-01T08:00:00Z",
+    "approvedBy": "curriculum-admin"
+  }
+}
