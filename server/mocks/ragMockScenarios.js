@@ -16,8 +16,12 @@ export const RAG_SCENARIOS = Object.freeze([
   'out-of-order-event',
 ])
 
-const baseCitation = (version = 'material-version-triet-hoc-2026', rank = 1) => ({
-  materialId: 'material-triet-hoc',
+const baseCitation = (
+  version = 'material-version-triet-hoc-2026',
+  rank = 1,
+  materialId = 'material-triet-hoc',
+) => ({
+  materialId,
   materialVersionId: version,
   chunkId: `chunk-000${rank}`,
   page: 12 + rank,
@@ -34,10 +38,14 @@ const baseCitation = (version = 'material-version-triet-hoc-2026', rank = 1) => 
 
 export function createTerminalAnswer(request, scenario = 'answered-single-citation') {
   const now = Date.now()
+  const version = request.scope.allowedMaterialVersionIds[0] ?? 'material-version-triet-hoc-2026'
+  const materialId =
+    { mv1: 'mat1', mv2: 'mat2', mv3: 'mat3', mv4: 'mat4', mv5: 'mat5', mv6: 'mat6' }[version] ??
+    (version === 'material-version-triet-hoc-2026' ? 'material-triet-hoc' : 'mock-material')
   const citations =
     scenario === 'answered-multiple-citations'
-      ? [baseCitation(undefined, 1), baseCitation(undefined, 2)]
-      : [baseCitation()]
+      ? [baseCitation(version, 1, materialId), baseCitation(version, 2, materialId)]
+      : [baseCitation(version, 1, materialId)]
   const answer = {
     schemaVersion: '1.0',
     requestId: request.requestId,

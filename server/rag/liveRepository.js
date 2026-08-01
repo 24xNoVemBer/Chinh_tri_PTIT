@@ -223,6 +223,8 @@ export function createLiveRagRepository({ db, ragClient, questionRepository }) {
         isDemo: false,
         citations: question.ragResponse.citations.map((citation) => ({
           id: citation.id,
+          materialId: citation.materialId,
+          materialVersionId: citation.materialVersionId,
           title: citation.material.title,
           author: citation.material.author,
           location: citation.pageNumber ? 'Trang ' + citation.pageNumber : 'Học liệu đã phê duyệt',
