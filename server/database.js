@@ -20,6 +20,7 @@ import {
 } from '../src/data/mock-sources.js'
 import { lecturers, students } from '../src/data/mock-users.js'
 import { hashPassword } from './auth.js'
+import { createSqliteClient } from './db/client.js'
 
 const DEFAULT_DATABASE_PATH = resolve('data', 'ptit-teaching-assistant.sqlite')
 
@@ -651,7 +652,7 @@ function seedDemoRagData(db) {
 export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = true } = {}) {
   if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true })
 
-  const db = new DatabaseSync(databasePath)
+  const db = createSqliteClient(new DatabaseSync(databasePath))
   db.exec(SCHEMA)
   if (databasePath !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
   if (seed) {

@@ -13,6 +13,13 @@ const asInteger = (value, fallback, { min, max }) => {
 
 export function createRuntimeConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'development'
+  const databaseDriver = env.DATABASE_DRIVER ?? 'sqlite'
+  if (!['sqlite', 'postgres'].includes(databaseDriver)) {
+    throw new Error('DATABASE_DRIVER must be sqlite or postgres.')
+  }
+  if (databaseDriver === 'postgres' && !env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is required when DATABASE_DRIVER=postgres.')
+  }
   const ragEnabled = asBoolean(env.RAG_ENABLED, false)
   const ragBaseUrl = env.RAG_BASE_URL ?? 'http://127.0.0.1:8787'
   let parsedUrl
@@ -34,7 +41,14 @@ export function createRuntimeConfig(env = process.env) {
     nodeEnv,
     port: asInteger(env.PORT, 3001, { min: 1, max: 65535 }),
     databasePath: env.DATABASE_PATH ?? 'data/ptit-teaching-assistant.sqlite',
+    database: Object.freeze({
+      driver: databaseDriver,
+      url: env.DATABASE_URL ?? '',
+      poolMax: asInteger(env.DATABASE_POOL_MAX, 10, { min: 1, max: 100 }),
+      idleTimeoutMs: asInteger(env.DATABASE_IDLE_TIMEOUT_MS, 10_000, { min: 0, max: 300_000 }),
+    }),
     rag: Object.freeze({
+      demoData: asBoolean(env.RAG_DEMO_DATA, nodeEnv !== 'production'),
       enabled: ragEnabled,
       baseUrl: parsedUrl.toString().replace(/\/$/, ''),
       serviceToken: env.RAG_SERVICE_TOKEN ?? '',

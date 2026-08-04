@@ -18,7 +18,14 @@
     "check": "npm run format:check && npm run lint && npm run contract:validate && npm run contract:test && npm run test && npm run build",
     "contract:validate": "node scripts/validate-contracts.mjs && node scripts/validate-openapi.mjs",
     "contract:test": "vitest run server/contract-tests",
-    "mock:rag": "node --no-warnings scripts/start-rag-mock.mjs"
+    "mock:rag": "node --no-warnings scripts/start-rag-mock.mjs",
+    "db:baseline": "node scripts/db-baseline.mjs",
+    "db:migrate": "node --no-warnings scripts/db-migrate.mjs",
+    "db:export": "node --no-warnings scripts/db-export.mjs",
+    "db:import": "node --no-warnings scripts/db-import.mjs",
+    "db:validate:staging": "node --no-warnings scripts/db-validate-staging.mjs",
+    "api:parity": "node --no-warnings scripts/api-parity.mjs",
+    "load:test": "node --no-warnings scripts/load-test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -39,6 +46,7 @@
   "dependencies": {
     "@vitejs/plugin-react": "^6.0.4",
     "lucide-react": "^1.26.0",
+    "pg": "^8.22.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.1"

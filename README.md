@@ -91,13 +91,17 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 
 ## Biến môi trường
 
-| Biến               | Mặc định                              | Mô tả                                                      |
-| ------------------ | ------------------------------------- | ---------------------------------------------------------- |
-| `PORT`             | `3001`                                | Cổng HTTP của backend                                      |
-| `DATABASE_PATH`    | `data/ptit-teaching-assistant.sqlite` | Đường dẫn file SQLite                                      |
-| `NODE_ENV`         | `development`                         | Môi trường chạy                                            |
-| `VITE_DATA_SOURCE` | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng |
-| `RAG_DEMO_DATA`    | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                 |
+| Biến                       | Mặc định                              | Mô tả                                                                            |
+| -------------------------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| `PORT`                     | `3001`                                | Cổng HTTP của backend                                                            |
+| `DATABASE_PATH`            | `data/ptit-teaching-assistant.sqlite` | Đường dẫn file SQLite                                                            |
+| `DATABASE_DRIVER`          | `sqlite`                              | Adapter: `sqlite` hoặc `postgres`; PostgreSQL cần migrate schema trước khi start |
+| `DATABASE_URL`             | _(trống)_                             | PostgreSQL connection string khi dùng adapter postgres                           |
+| `DATABASE_POOL_MAX`        | `10`                                  | Số connection tối đa cho PostgreSQL pool                                         |
+| `DATABASE_IDLE_TIMEOUT_MS` | `10000`                               | Thời gian connection PostgreSQL idle trước khi đóng (ms)                         |
+| `NODE_ENV`                 | `development`                         | Môi trường chạy                                                                  |
+| `VITE_DATA_SOURCE`         | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                       |
+| `RAG_DEMO_DATA`            | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                       |
 
 ## Build production cục bộ
 
@@ -116,9 +120,7 @@ Chạy toàn bộ quy trình kiểm tra:
 npm run check
 ```
 
-Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử hiện có **30 test
-trong 4 test files**, bao phủ session, RBAC, các vertical slice chính, audit log, SQLite
-persistence, luồng chatbot demo sang hàng đợi kiểm duyệt và phân loại ưu tiên.
+Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử bao phủ session, RBAC, các vertical slice chính, audit log, SQLite persistence, chatbot demo và async database boundary.
 
 Có thể chạy riêng từng bước:
 
@@ -157,6 +159,10 @@ docs/                    API, database và frontend contracts
 - [Chatbot/backend integration contract](./docs/CHATBOT_BACKEND_INTEGRATION.md)
 - [Phase 0 executable contracts](./contracts/README.md)
 - [Phase 4 backend foundation](./docs/PHASE_4_BACKEND_FOUNDATION.md)
+- [DB-3 PostgreSQL migration](./docs/PHASE_DB3_POSTGRES_MIGRATION.md)
+- [DB-4B async repositories và runtime](./docs/PHASE_DB4B_ASYNC_REPOSITORIES.md)
+- [API parity staging check](./docs/API_PARITY.md)
+- [API load test](./docs/LOAD_TEST.md)
 - [Design system](./design-system/ptit-teaching-assistant/MASTER.md)
 
 ## Nguồn hình ảnh

@@ -111,3 +111,58 @@ export function clearSessionCookie({ secure = false } = {}) {
   if (secure) attributes.push('Secure')
   return attributes.join('; ')
 }
+
+export async function createSessionAsync(client, userId) {
+  const token = randomBytes(32).toString('base64url')
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000)
+
+  await client.execute(
+    `INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [randomUUID(), userId, hashToken(token), expiresAt.toISOString(), now.toISOString()],
+  )
+
+  return { token, expiresAt }
+}
+
+export async function authenticateRequestAsync(client, request) {
+  const token = getSessionToken(request)
+  if (!token) return null
+
+  const now = new Date().toISOString()
+  const session = await client.one(
+    `SELECT
+       sessions.id AS session_id,
+       sessions.expires_at,
+       users.id,
+       users.name,
+       users.email,
+       users.role
+     FROM sessions
+     JOIN users ON users.id = sessions.user_id
+     WHERE sessions.token_hash = ?`,
+    [hashToken(token)],
+  )
+
+  if (!session) return null
+  if (session.expires_at <= now) {
+    await client.execute('DELETE FROM sessions WHERE id = ?', [session.session_id])
+    return null
+  }
+
+  return {
+    sessionId: session.session_id,
+    user: {
+      id: session.id,
+      name: session.name,
+      email: session.email,
+      role: session.role,
+    },
+  }
+}
+
+export async function destroySessionAsync(client, token) {
+  if (!token) return
+  await client.execute('DELETE FROM sessions WHERE token_hash = ?', [hashToken(token)])
+}

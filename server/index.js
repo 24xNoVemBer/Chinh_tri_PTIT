@@ -5,21 +5,21 @@ import { fileURLToPath } from 'node:url'
 import { createRequestHandler } from './app.js'
 import { createRuntimeConfig } from './runtimeConfig.js'
 import { createRagClient } from './rag/client.js'
-import { createDatabase, DEFAULT_DATABASE_PATH } from './database.js'
+import { createRuntimeDatabase } from './db/runtime.js'
 
 if (existsSync('.env')) process.loadEnvFile('.env')
 
 const runtimeConfig = createRuntimeConfig()
 const port = runtimeConfig.port
-const databasePath = runtimeConfig.databasePath ?? DEFAULT_DATABASE_PATH
 const ragClient = runtimeConfig.rag.enabled ? createRagClient(runtimeConfig.rag) : undefined
 const staticRoot = resolve(fileURLToPath(new URL('../dist', import.meta.url)))
 const indexPath = resolve(staticRoot, 'index.html')
-const db = createDatabase({ databasePath })
+const db = createRuntimeDatabase(runtimeConfig)
 const apiHandler = createRequestHandler({
   db,
   secureCookies: runtimeConfig.nodeEnv === 'production',
   ragClient,
+  allowDemoRag: runtimeConfig.rag.demoData,
 })
 
 const mimeTypes = {
@@ -75,12 +75,12 @@ const server = createServer((request, response) => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`PTIT Teaching Assistant server: http://127.0.0.1:${port}`)
-  console.log(`SQLite database: ${databasePath}`)
+  console.log(`Database driver: ${runtimeConfig.database.driver}`)
 })
 
 function shutdown() {
-  server.close(() => {
-    db.close()
+  server.close(async () => {
+    await db.close()
     process.exit(0)
   })
 }

@@ -1,16 +1,17 @@
 import { createServer } from 'node:http'
 import {
-  authenticateRequest,
+  authenticateRequestAsync,
   clearSessionCookie,
-  createSession,
+  createSessionAsync,
   createSessionCookie,
-  destroySession,
+  destroySessionAsync,
   getSessionToken,
   verifyPassword,
 } from './auth.js'
 import { ApiError, readJson, requireFields, requireRole, sendJson, serializeError } from './http.js'
-import { createRepositories } from './repositories.js'
+import { createAsyncRepositories } from './repositoriesAsync.js'
 import { createLiveRagRepository } from './rag/liveRepository.js'
+import { writeAudit } from './db/audit.js'
 
 const decode = (value) => decodeURIComponent(value)
 
@@ -28,9 +29,10 @@ export function createRequestHandler({
   secureCookies = false,
   logger = console,
   ragClient,
+  allowDemoRag = true,
 } = {}) {
   if (!db) throw new Error('createRequestHandler requires a database connection.')
-  const repositories = createRepositories(db)
+  const repositories = createAsyncRepositories(db)
   const liveRagRepository = ragClient
     ? createLiveRagRepository({
         db,
@@ -52,6 +54,18 @@ export function createRequestHandler({
 
       if (method === 'GET' && pathname === '/api/ready') {
         const readiness = { status: 'ready', database: 'connected', rag: 'disabled' }
+        try {
+          await db.one('SELECT 1 AS ok')
+          if (db.dialect === 'postgres') {
+            await db.one('SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1')
+          }
+        } catch (error) {
+          readiness.status = 'degraded'
+          readiness.database = 'unavailable'
+          logger.warn?.(error)
+          sendData(response, readiness, 503)
+          return
+        }
         if (ragClient) {
           try {
             await ragClient.readiness()
@@ -70,13 +84,12 @@ export function createRequestHandler({
         const input = await readJson(request)
         requireFields(input, ['email', 'password'])
         const email = String(input.email).trim().toLowerCase()
-        const user = db
-          .prepare(
-            `SELECT id, name, email, role, password_hash
-             FROM users
-             WHERE lower(email) = ?`,
-          )
-          .get(email)
+        const user = await db.one(
+          `SELECT id, name, email, role, password_hash
+           FROM users
+           WHERE lower(email) = ?`,
+          [email],
+        )
 
         const credentialsValid = user && verifyPassword(String(input.password), user.password_hash)
         const roleValid = !input.role || input.role === user?.role
@@ -88,8 +101,8 @@ export function createRequestHandler({
           )
         }
 
-        const session = createSession(db, user.id)
-        repositories.audit(db, user.id, 'auth.login', 'session', null, {
+        const session = await createSessionAsync(db, user.id)
+        await writeAudit(db, user.id, 'auth.login', 'session', null, {
           role: user.role,
         })
         sendData(
@@ -101,7 +114,7 @@ export function createRequestHandler({
         return
       }
 
-      const auth = authenticateRequest(db, request)
+      const auth = await authenticateRequestAsync(db, request)
 
       if (method === 'GET' && pathname === '/api/auth/me') {
         const user = requireRole(auth, ['student', 'lecturer'])
@@ -111,9 +124,9 @@ export function createRequestHandler({
 
       if (method === 'POST' && pathname === '/api/auth/logout') {
         if (auth) {
-          repositories.audit(db, auth.user.id, 'auth.logout', 'session', auth.sessionId)
+          await writeAudit(db, auth.user.id, 'auth.logout', 'session', auth.sessionId)
         }
-        destroySession(db, getSessionToken(request))
+        await destroySessionAsync(db, getSessionToken(request))
         sendData(response, { success: true }, 200, {
           'Set-Cookie': clearSessionCookie({ secure: secureCookies }),
         })
@@ -171,17 +184,20 @@ export function createRequestHandler({
         )
 
         if (method === 'GET' && pathname === '/api/lecturer/classes') {
-          sendData(response, repositories.classRepository.listForLecturer(lecturer.id))
+          sendData(response, await repositories.classRepository.listForLecturer(lecturer.id))
           return
         }
         if (method === 'GET' && classIdMatch) {
-          sendData(response, repositories.classRepository.getById(classIdMatch[0], lecturer.id))
+          sendData(
+            response,
+            await repositories.classRepository.getById(classIdMatch[0], lecturer.id),
+          )
           return
         }
         if (method === 'GET' && classStudentsMatch) {
           sendData(
             response,
-            repositories.classRepository.listStudents(classStudentsMatch[0], lecturer.id, {
+            await repositories.classRepository.listStudents(classStudentsMatch[0], lecturer.id, {
               query: searchParams.get('query') ?? '',
               status: searchParams.get('status') ?? 'all',
             }),
@@ -193,7 +209,7 @@ export function createRequestHandler({
           requireFields(input, ['status'])
           sendData(
             response,
-            repositories.classRepository.updateStudentStatus(
+            await repositories.classRepository.updateStudentStatus(
               classStudentMatch[0],
               classStudentMatch[1],
               input.status,
@@ -205,21 +221,24 @@ export function createRequestHandler({
         if (method === 'GET' && classMetricsMatch) {
           sendData(
             response,
-            repositories.classRepository.getMetrics(classMetricsMatch[0], lecturer.id),
+            await repositories.classRepository.getMetrics(classMetricsMatch[0], lecturer.id),
           )
           return
         }
         if (method === 'GET' && classLessonsMatch) {
           sendData(
             response,
-            repositories.classContentRepository.listLessons(classLessonsMatch[0], lecturer.id),
+            await repositories.classContentRepository.listLessons(
+              classLessonsMatch[0],
+              lecturer.id,
+            ),
           )
           return
         }
         if (method === 'GET' && availableLessonsMatch) {
           sendData(
             response,
-            repositories.classContentRepository.listAvailableLessons(
+            await repositories.classContentRepository.listAvailableLessons(
               availableLessonsMatch[0],
               lecturer.id,
             ),
@@ -231,7 +250,7 @@ export function createRequestHandler({
           requireFields(input, ['lessonId', 'date'])
           sendData(
             response,
-            repositories.classContentRepository.scheduleLesson(
+            await repositories.classContentRepository.scheduleLesson(
               classLessonsMatch[0],
               input,
               lecturer.id,
@@ -245,7 +264,7 @@ export function createRequestHandler({
           requireFields(input, ['status'])
           sendData(
             response,
-            repositories.classContentRepository.updateLessonStatus(
+            await repositories.classContentRepository.updateLessonStatus(
               classLessonMatch[0],
               classLessonMatch[1],
               input.status,
@@ -257,14 +276,17 @@ export function createRequestHandler({
         if (method === 'GET' && classMaterialsMatch) {
           sendData(
             response,
-            repositories.classContentRepository.listMaterials(classMaterialsMatch[0], lecturer.id),
+            await repositories.classContentRepository.listMaterials(
+              classMaterialsMatch[0],
+              lecturer.id,
+            ),
           )
           return
         }
         if (method === 'GET' && availableMaterialsMatch) {
           sendData(
             response,
-            repositories.classContentRepository.listAvailableMaterials(
+            await repositories.classContentRepository.listAvailableMaterials(
               availableMaterialsMatch[0],
               lecturer.id,
             ),
@@ -276,7 +298,7 @@ export function createRequestHandler({
           requireFields(input, ['materialId'])
           sendData(
             response,
-            repositories.classContentRepository.attachMaterial(
+            await repositories.classContentRepository.attachMaterial(
               classMaterialsMatch[0],
               input,
               lecturer.id,
@@ -290,7 +312,7 @@ export function createRequestHandler({
           requireFields(input, ['status'])
           sendData(
             response,
-            repositories.classContentRepository.updateMaterialStatus(
+            await repositories.classContentRepository.updateMaterialStatus(
               classMaterialMatch[0],
               classMaterialMatch[1],
               input.status,
@@ -304,7 +326,7 @@ export function createRequestHandler({
           requireFields(input, ['year', 'fileUrl'])
           sendData(
             response,
-            repositories.classContentRepository.addMaterialVersion(
+            await repositories.classContentRepository.addMaterialVersion(
               materialVersionMatch[0],
               input,
               lecturer.id,
@@ -316,7 +338,7 @@ export function createRequestHandler({
         if (method === 'GET' && pathname === '/api/lecturer/questions') {
           sendData(
             response,
-            repositories.questionRepository.listForLecturer(lecturer.id, {
+            await repositories.questionRepository.listForLecturer(lecturer.id, {
               classId: searchParams.get('classId') ?? '',
               subjectId: searchParams.get('subjectId') ?? '',
               status: searchParams.get('status') ?? 'all',
@@ -328,7 +350,7 @@ export function createRequestHandler({
         if (method === 'GET' && questionMatch) {
           sendData(
             response,
-            repositories.questionRepository.getForLecturer(questionMatch[0], lecturer.id),
+            await repositories.questionRepository.getForLecturer(questionMatch[0], lecturer.id),
           )
           return
         }
@@ -337,14 +359,14 @@ export function createRequestHandler({
           requireFields(input, ['content'])
           sendData(
             response,
-            repositories.questionRepository.answer(answerMatch[0], input, lecturer.id),
+            await repositories.questionRepository.answer(answerMatch[0], input, lecturer.id),
           )
           return
         }
         if (method === 'GET' && pathname === '/api/lecturer/rag/reviews') {
           sendData(
             response,
-            repositories.ragRepository.listForReview(
+            await repositories.ragRepository.listForReview(
               lecturer.id,
               searchParams.get('status') ?? 'pending_review',
               searchParams.get('priority') ?? 'attention',
@@ -357,14 +379,17 @@ export function createRequestHandler({
           requireFields(input, ['action'])
           sendData(
             response,
-            repositories.ragRepository.review(ragReviewMatch[0], input, lecturer.id),
+            await repositories.ragRepository.review(ragReviewMatch[0], input, lecturer.id),
           )
           return
         }
         if (method === 'GET' && pathname === '/api/lecturer/audit-logs') {
           sendData(
             response,
-            repositories.auditRepository.listForLecturer(lecturer.id, searchParams.get('limit')),
+            await repositories.auditRepository.listForLecturer(
+              lecturer.id,
+              searchParams.get('limit'),
+            ),
           )
           return
         }
@@ -382,31 +407,34 @@ export function createRequestHandler({
         const questionMatch = matchPath(pathname, /^\/api\/student\/questions\/([^/]+)$/)
 
         if (method === 'GET' && pathname === '/api/student/dashboard') {
-          sendData(response, repositories.learningRepository.getDashboard(student.id))
+          sendData(response, await repositories.learningRepository.getDashboard(student.id))
           return
         }
         if (method === 'GET' && pathname === '/api/student/subjects') {
-          sendData(response, repositories.learningRepository.listSubjectProgress(student.id))
+          sendData(response, await repositories.learningRepository.listSubjectProgress(student.id))
           return
         }
         if (method === 'GET' && subjectMatch) {
           sendData(
             response,
-            repositories.learningRepository.getSubjectOverview(student.id, subjectMatch[0]),
+            await repositories.learningRepository.getSubjectOverview(student.id, subjectMatch[0]),
           )
           return
         }
         if (method === 'GET' && chapterLessonsMatch) {
           sendData(
             response,
-            repositories.learningRepository.getChapterLessons(student.id, chapterLessonsMatch[0]),
+            await repositories.learningRepository.getChapterLessons(
+              student.id,
+              chapterLessonsMatch[0],
+            ),
           )
           return
         }
         if (method === 'GET' && lessonMatch) {
           sendData(
             response,
-            repositories.learningRepository.getLessonForStudent(student.id, lessonMatch[0]),
+            await repositories.learningRepository.getLessonForStudent(student.id, lessonMatch[0]),
           )
           return
         }
@@ -415,7 +443,7 @@ export function createRequestHandler({
           requireFields(input, ['progress'])
           sendData(
             response,
-            repositories.learningRepository.updateProgress(
+            await repositories.learningRepository.updateProgress(
               student.id,
               progressMatch[0],
               input.progress,
@@ -424,39 +452,42 @@ export function createRequestHandler({
           return
         }
         if (method === 'GET' && pathname === '/api/student/questions') {
-          sendData(response, repositories.questionRepository.listForStudent(student.id))
+          sendData(response, await repositories.questionRepository.listForStudent(student.id))
           return
         }
         if (method === 'POST' && pathname === '/api/student/questions') {
           const input = await readJson(request)
           requireFields(input, ['subjectId', 'content'])
-          sendData(response, repositories.questionRepository.create(input, student.id), 201)
+          sendData(response, await repositories.questionRepository.create(input, student.id), 201)
           return
         }
         if (method === 'POST' && pathname === '/api/student/chat') {
           const input = await readJson(request)
           requireFields(input, ['subjectId', 'content'])
+          if (!liveRagRepository && !allowDemoRag) {
+            throw new ApiError(503, 'RAG_UNAVAILABLE', 'Trợ giảng AI hiện chưa được kết nối.')
+          }
           const result = liveRagRepository
             ? await liveRagRepository.createChat(input, student.id)
-            : repositories.ragRepository.createDemoChat(input, student.id)
+            : await repositories.ragRepository.createDemoChat(input, student.id)
           sendData(response, result, 201)
           return
         }
         if (method === 'GET' && questionMatch) {
           sendData(
             response,
-            repositories.questionRepository.getForStudent(questionMatch[0], student.id),
+            await repositories.questionRepository.getForStudent(questionMatch[0], student.id),
           )
           return
         }
         if (method === 'POST' && pathname === '/api/student/search') {
           const input = await readJson(request)
           requireFields(input, ['query'])
-          sendData(response, repositories.searchRepository.search(input, student.id))
+          sendData(response, await repositories.searchRepository.search(input, student.id))
           return
         }
         if (method === 'GET' && pathname === '/api/student/search-history') {
-          sendData(response, repositories.searchRepository.listHistory(student.id))
+          sendData(response, await repositories.searchRepository.listHistory(student.id))
           return
         }
       }

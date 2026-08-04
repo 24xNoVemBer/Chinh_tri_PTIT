@@ -28,7 +28,7 @@ export default function QuestionHistoryPage() {
   if (error) return <ErrorState message={error.message} onRetry={reload} />
 
   return (
-    <div className="page-stack">
+    <div className="page-stack question-history-page">
       <PageHeader
         eyebrow="Sinh viên"
         title="Lịch sử hỏi đáp và tra cứu"

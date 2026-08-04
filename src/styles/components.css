@@ -14,6 +14,39 @@
   margin-inline: auto;
 }
 
+/* Keep the question/search history readable inside the wider dashboard shell. */
+.question-history-page {
+  width: min(100%, 72rem);
+  margin-inline: auto;
+}
+
+.question-history-page .page-header__copy {
+  max-width: 44rem;
+}
+
+.question-history-page .question-list,
+.question-history-page .history-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.question-history-page .question-card,
+.question-history-page .history-item {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.question-history-page .question-card h3,
+.question-history-page .question-card h3 a,
+.question-history-page .history-item h3,
+.question-history-page .answer-panel p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.question-history-page .answer-panel {
+  min-width: 0;
+}
 .page-header {
   display: flex;
   align-items: end;
@@ -695,6 +728,15 @@ tbody tr:last-child td {
   .section-heading {
     align-items: start;
     flex-direction: column;
+  }
+
+  .question-history-page {
+    width: 100%;
+  }
+
+  .question-history-page .question-card,
+  .question-history-page .history-item {
+    padding: var(--space-4);
   }
 }
 

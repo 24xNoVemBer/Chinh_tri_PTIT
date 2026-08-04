@@ -481,3 +481,27 @@ Trong đó, phần frontend-first trước khi tích hợp RAG khoảng **7–11
 5. Demo UI/UX RAG bằng fixture; tích hợp model thật sau khi review.
 6. Hardening, kiểm thử và phát hành.
 7. Chỉ bổ sung quiz hoặc tính năng LMS nâng cao sau khi hai mục đích chính hoạt động ổn định.
+
+## 13. Database production hardening progress — 2026-08-04
+
+- **DB-0:** baseline schema, seed inventory và rollback notes đã ghi nhận.
+- **DB-1:** tách database client/transaction boundary khỏi repository.
+- **DB-2:** bổ sung neutral query API và PostgreSQL pool adapter.
+- **DB-3:** có PostgreSQL migration runner, checksum drift detection và data snapshot import/export.
+- **DB-4A:** auth/session/audit chuyển qua async query API.
+- **DB-4B:** toàn bộ repository nghiệp vụ, live RAG và runtime database wiring chuyển sang async; SQLite vẫn là default.
+
+### Điều kiện để hoàn tất production cutover
+
+1. Chạy migration và import trên PostgreSQL staging của PTIT.
+2. Chạy API parity với dữ liệu staging, không seed dữ liệu demo.
+3. Chạy load test 1.000 concurrent sessions và đợt cao điểm 2.000–3.000 người dùng.
+4. Đo p95/p99 latency, pool saturation, error rate và kiểm thử rollback.
+5. Có checklist vận hành, backup/restore và phê duyệt cutover.
+
+### Công cụ chuẩn bị cho staging
+
+- `npm run api:parity`: smoke test read-only cho health/readiness và route đọc
+  của hai vai trò bằng credential staging.
+- `npm run load:test`: đo latency/error rate ở HTTP boundary sau khi parity
+  đạt.

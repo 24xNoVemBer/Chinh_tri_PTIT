@@ -3,10 +3,8 @@ import { subjectMockResponses } from '../src/data/mock-student-learning.js'
 import { includesNormalized } from '../src/utils/text.js'
 import { buildDemoChatContent, classifyDemoModeration } from './chatDemo.js'
 import { ApiError } from './http.js'
-
 const nowIso = () => new Date().toISOString()
 const createId = (prefix) => `${prefix}_${randomUUID()}`
-
 function getExcerpt(value, maxLength = 240) {
   const plainText = String(value ?? '')
     .replace(/<[^>]+>/g, ' ')
@@ -14,7 +12,6 @@ function getExcerpt(value, maxLength = 240) {
     .trim()
   return plainText.length > maxLength ? `${plainText.slice(0, maxLength).trim()}…` : plainText
 }
-
 function isUniqueConstraint(error) {
   return (
     error?.errcode === 2067 ||
@@ -22,7 +19,6 @@ function isUniqueConstraint(error) {
     String(error?.message).includes('UNIQUE constraint failed')
   )
 }
-
 function parseMetadata(value) {
   if (!value) return null
   try {
@@ -31,42 +27,39 @@ function parseMetadata(value) {
     return null
   }
 }
-
-function audit(db, actorId, action, entityType, entityId, metadata = null) {
-  db.prepare(
+async function audit(db, actorId, action, entityType, entityId, metadata = null) {
+  await db.execute(
     `INSERT INTO audit_logs
      (id, actor_id, action, entity_type, entity_id, metadata_json, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    createId('audit'),
-    actorId ?? null,
-    action,
-    entityType,
-    entityId ?? null,
-    metadata ? JSON.stringify(metadata) : null,
-    nowIso(),
+    [
+      createId('audit'),
+      actorId ?? null,
+      action,
+      entityType,
+      entityId ?? null,
+      metadata ? JSON.stringify(metadata) : null,
+      nowIso(),
+    ],
   )
 }
-
-function getOwnedClass(db, classId, lecturerId) {
-  const row = db
-    .prepare(
-      `SELECT
+async function getOwnedClass(db, classId, lecturerId) {
+  const row = await db.one(
+    `SELECT
          course_classes.*,
          subjects.name AS subject_name,
          subjects.credits AS subject_credits
        FROM course_classes
        JOIN subjects ON subjects.id = course_classes.subject_id
        WHERE course_classes.id = ?`,
-    )
-    .get(classId)
+    [classId],
+  )
   if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy lớp học.')
   if (row.lecturer_id !== lecturerId) {
     throw new ApiError(403, 'FORBIDDEN', 'Bạn không có quyền quản lý lớp học này.')
   }
   return row
 }
-
 function mapClass(row) {
   return {
     id: row.id,
@@ -84,7 +77,6 @@ function mapClass(row) {
     unansweredCount: Number(row.unanswered_count ?? 0),
   }
 }
-
 function mapScheduledLesson(row) {
   return {
     id: row.id,
@@ -107,7 +99,6 @@ function mapScheduledLesson(row) {
     },
   }
 }
-
 function mapClassMaterial(row) {
   return {
     id: row.id,
@@ -131,7 +122,6 @@ function mapClassMaterial(row) {
     },
   }
 }
-
 const QUESTION_SELECT = `
   SELECT
     questions.id,
@@ -206,11 +196,10 @@ const QUESTION_SELECT = `
     ON course_classes.id = enrollments.class_id
    AND course_classes.subject_id = questions.subject_id
 `
-
-function getRagCitations(db, responseId) {
+async function getRagCitations(db, responseId) {
   if (!responseId) return []
-  return db
-    .prepare(
+  return (
+    await db.many(
       `SELECT
          rag_citations.*,
          materials.title AS material_title,
@@ -222,29 +211,28 @@ function getRagCitations(db, responseId) {
        JOIN material_versions ON material_versions.id = rag_citations.material_version_id
        WHERE rag_citations.response_id = ?
        ORDER BY rag_citations.citation_order`,
+      [responseId],
     )
-    .all(responseId)
-    .map((citation) => ({
-      id: citation.id,
-      materialId: citation.material_id,
-      materialVersionId: citation.material_version_id,
-      pageNumber: citation.page_number,
-      quote: citation.quote,
-      retrievalScore: citation.retrieval_score,
-      material: {
-        id: citation.material_id,
-        title: citation.material_title,
-        author: citation.material_author,
-      },
-      version: {
-        id: citation.material_version_id,
-        year: citation.material_year,
-        fileUrl: citation.file_url,
-      },
-    }))
+  ).map((citation) => ({
+    id: citation.id,
+    materialId: citation.material_id,
+    materialVersionId: citation.material_version_id,
+    pageNumber: citation.page_number,
+    quote: citation.quote,
+    retrievalScore: citation.retrieval_score,
+    material: {
+      id: citation.material_id,
+      title: citation.material_title,
+      author: citation.material_author,
+    },
+    version: {
+      id: citation.material_version_id,
+      year: citation.material_year,
+      fileUrl: citation.file_url,
+    },
+  }))
 }
-
-function mapQuestion(row, db) {
+async function mapQuestion(row, db) {
   const ragRequestMetadata = parseMetadata(row.rag_request_json)
   const moderation = ragRequestMetadata?.moderation ?? {
     priority: 'medium',
@@ -252,7 +240,6 @@ function mapQuestion(row, db) {
     requiresReview: true,
     reason: 'Dữ liệu demo cũ chưa có kết quả phân loại ưu tiên.',
   }
-
   return {
     id: row.id,
     lessonId: row.lesson_id,
@@ -347,33 +334,30 @@ function mapQuestion(row, db) {
           reviewedAt: row.rag_reviewed_at,
           createdAt: row.rag_response_created_at,
           updatedAt: row.rag_response_updated_at,
-          citations: getRagCitations(db, row.rag_response_id),
+          citations: await getRagCitations(db, row.rag_response_id),
         }
       : null,
   }
 }
-
-function getStudentSubjectIds(db, studentId) {
-  return db
-    .prepare(
+async function getStudentSubjectIds(db, studentId) {
+  return (
+    await db.many(
       `SELECT DISTINCT course_classes.subject_id
        FROM enrollments
        JOIN course_classes ON course_classes.id = enrollments.class_id
        WHERE enrollments.student_id = ?`,
+      [studentId],
     )
-    .all(studentId)
-    .map((row) => row.subject_id)
+  ).map((row) => row.subject_id)
 }
-
-function ensureStudentSubjectAccess(db, studentId, subjectId) {
-  if (!getStudentSubjectIds(db, studentId).includes(subjectId)) {
+async function ensureStudentSubjectAccess(db, studentId, subjectId) {
+  if (!(await getStudentSubjectIds(db, studentId)).includes(subjectId)) {
     throw new ApiError(403, 'FORBIDDEN', 'Bạn chưa được ghi danh vào môn học này.')
   }
 }
-
-function getSubjectLessons(db, subjectId) {
-  return db
-    .prepare(
+async function getSubjectLessons(db, subjectId) {
+  return (
+    await db.many(
       `SELECT
          lessons.id,
          lessons.chapter_id,
@@ -387,36 +371,40 @@ function getSubjectLessons(db, subjectId) {
        JOIN chapters ON chapters.id = lessons.chapter_id
        WHERE chapters.subject_id = ?
        ORDER BY chapters.chapter_order, lessons.lesson_order`,
+      [subjectId],
     )
-    .all(subjectId)
-    .map((row) => ({
-      id: row.id,
-      chapterId: row.chapter_id,
-      order: row.lesson_order,
-      title: row.title,
-      contentHtml: row.content_html,
-      chapter: {
-        id: row.chapter_id,
-        subjectId: row.subject_id,
-        order: row.chapter_order,
-        title: row.chapter_title,
-      },
-    }))
+  ).map((row) => ({
+    id: row.id,
+    chapterId: row.chapter_id,
+    order: row.lesson_order,
+    title: row.title,
+    contentHtml: row.content_html,
+    chapter: {
+      id: row.chapter_id,
+      subjectId: row.subject_id,
+      order: row.chapter_order,
+      title: row.chapter_title,
+    },
+  }))
 }
-
-function getProgressMap(db, studentId) {
+async function getProgressMap(db, studentId) {
   return new Map(
-    db
-      .prepare(
+    (
+      await db.many(
         `SELECT lesson_id, progress, last_read_at
          FROM learning_progress
          WHERE student_id = ?`,
+        [studentId],
       )
-      .all(studentId)
-      .map((row) => [row.lesson_id, { progress: row.progress, lastReadAt: row.last_read_at }]),
+    ).map((row) => [
+      row.lesson_id,
+      {
+        progress: row.progress,
+        lastReadAt: row.last_read_at,
+      },
+    ]),
   )
 }
-
 function enrichLessonProgress(lesson, progressMap) {
   const progress = progressMap.get(lesson.id)
   return {
@@ -425,26 +413,26 @@ function enrichLessonProgress(lesson, progressMap) {
     lastReadAt: progress?.lastReadAt ?? null,
   }
 }
-
-function getQuestionRows(db) {
-  return db
-    .prepare(`${QUESTION_SELECT} GROUP BY questions.id`)
-    .all()
-    .map((row) => mapQuestion(row, db))
+async function getQuestionRows(db) {
+  const rows = await db.many(`${QUESTION_SELECT} GROUP BY questions.id`, [])
+  const questions = []
+  for (const row of rows) questions.push(await mapQuestion(row, db))
+  return questions
 }
-
-function getQuestionRowsForLecturer(db, lecturerId) {
-  return db
-    .prepare(`${QUESTION_SELECT} WHERE course_classes.lecturer_id = ? GROUP BY questions.id`)
-    .all(lecturerId)
-    .map((row) => mapQuestion(row, db))
+async function getQuestionRowsForLecturer(db, lecturerId) {
+  const rows = await db.many(
+    `${QUESTION_SELECT} WHERE course_classes.lecturer_id = ? GROUP BY questions.id`,
+    [lecturerId],
+  )
+  const questions = []
+  for (const row of rows) questions.push(await mapQuestion(row, db))
+  return questions
 }
-
-export function createRepositories(db) {
+export function createAsyncRepositories(db) {
   const classRepository = {
-    listForLecturer(lecturerId) {
-      return db
-        .prepare(
+    async listForLecturer(lecturerId) {
+      return (
+        await db.many(
           `SELECT
              course_classes.*,
              subjects.name AS subject_name,
@@ -469,20 +457,18 @@ export function createRepositories(db) {
            JOIN subjects ON subjects.id = course_classes.subject_id
            WHERE course_classes.lecturer_id = ?
            ORDER BY course_classes.name`,
+          [lecturerId],
         )
-        .all(lecturerId)
-        .map(mapClass)
+      ).map(mapClass)
     },
-
-    getById(classId, lecturerId) {
-      getOwnedClass(db, classId, lecturerId)
-      return this.listForLecturer(lecturerId).find((item) => item.id === classId) ?? null
+    async getById(classId, lecturerId) {
+      await getOwnedClass(db, classId, lecturerId)
+      return (await this.listForLecturer(lecturerId)).find((item) => item.id === classId) ?? null
     },
-
-    listStudents(classId, lecturerId, filters = {}) {
-      getOwnedClass(db, classId, lecturerId)
-      const students = db
-        .prepare(
+    async listStudents(classId, lecturerId, filters = {}) {
+      await getOwnedClass(db, classId, lecturerId)
+      const students = (
+        await db.many(
           `SELECT
              users.id,
              users.name,
@@ -498,19 +484,18 @@ export function createRepositories(db) {
              ON enrollment_profiles.enrollment_id = enrollments.id
            WHERE enrollments.class_id = ?
            ORDER BY users.name`,
+          [classId],
         )
-        .all(classId)
-        .map((row) => ({
-          id: row.id,
-          name: row.name,
-          email: row.email,
-          enrollmentId: row.enrollment_id,
-          classId: row.class_id,
-          status: row.status ?? 'active',
-          progress: row.progress ?? 0,
-          lastActiveAt: row.last_active_at,
-        }))
-
+      ).map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        enrollmentId: row.enrollment_id,
+        classId: row.class_id,
+        status: row.status ?? 'active',
+        progress: row.progress ?? 0,
+        lastActiveAt: row.last_active_at,
+      }))
       return students.filter((student) => {
         if (filters.status && filters.status !== 'all' && student.status !== filters.status) {
           return false
@@ -525,44 +510,45 @@ export function createRepositories(db) {
         return true
       })
     },
-
-    updateStudentStatus(classId, studentId, status, lecturerId) {
+    async updateStudentStatus(classId, studentId, status, lecturerId) {
       if (!['active', 'attention', 'inactive'].includes(status)) {
         throw new ApiError(400, 'VALIDATION', 'Trạng thái sinh viên không hợp lệ.')
       }
-      getOwnedClass(db, classId, lecturerId)
-      const enrollment = db
-        .prepare(
-          `SELECT
+      await getOwnedClass(db, classId, lecturerId)
+      const enrollment = await db.one(
+        `SELECT
              enrollments.id,
              enrollment_profiles.status
            FROM enrollments
            LEFT JOIN enrollment_profiles
              ON enrollment_profiles.enrollment_id = enrollments.id
            WHERE enrollments.class_id = ? AND enrollments.student_id = ?`,
-        )
-        .get(classId, studentId)
+        [classId, studentId],
+      )
       if (!enrollment) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy sinh viên.')
-
-      db.prepare(
+      await db.execute(
         `INSERT INTO enrollment_profiles
          (enrollment_id, status, progress, last_active_at)
          VALUES (?, ?, 0, ?)
          ON CONFLICT(enrollment_id) DO UPDATE SET status = excluded.status`,
-      ).run(enrollment.id, status, nowIso())
-      audit(db, lecturerId, 'student.status_updated', 'enrollment', enrollment.id, {
+        [enrollment.id, status, nowIso()],
+      )
+      await audit(db, lecturerId, 'student.status_updated', 'enrollment', enrollment.id, {
         before: enrollment.status,
         after: status,
         classId,
         studentId,
       })
-      return this.listStudents(classId, lecturerId).find((item) => item.id === studentId)
+      return (await this.listStudents(classId, lecturerId)).find((item) => item.id === studentId)
     },
-
-    getMetrics(classId, lecturerId) {
-      const students = this.listStudents(classId, lecturerId)
+    async getMetrics(classId, lecturerId) {
+      const students = await this.listStudents(classId, lecturerId)
       if (!students.length) {
-        return { averageProgress: 0, attentionCount: 0, inactiveCount: 0 }
+        return {
+          averageProgress: 0,
+          attentionCount: 0,
+          inactiveCount: 0,
+        }
       }
       return {
         averageProgress: Math.round(
@@ -573,12 +559,11 @@ export function createRepositories(db) {
       }
     },
   }
-
   const classContentRepository = {
-    listLessons(classId, lecturerId) {
-      getOwnedClass(db, classId, lecturerId)
-      return db
-        .prepare(
+    async listLessons(classId, lecturerId) {
+      await getOwnedClass(db, classId, lecturerId)
+      return (
+        await db.many(
           `SELECT
              class_lessons.*,
              lessons.chapter_id,
@@ -593,15 +578,14 @@ export function createRepositories(db) {
            JOIN chapters ON chapters.id = lessons.chapter_id
            WHERE class_lessons.class_id = ?
            ORDER BY class_lessons.lesson_date`,
+          [classId],
         )
-        .all(classId)
-        .map(mapScheduledLesson)
+      ).map(mapScheduledLesson)
     },
-
-    listAvailableLessons(classId, lecturerId) {
-      const courseClass = getOwnedClass(db, classId, lecturerId)
-      return db
-        .prepare(
+    async listAvailableLessons(classId, lecturerId) {
+      const courseClass = await getOwnedClass(db, classId, lecturerId)
+      return (
+        await db.many(
           `SELECT
              lessons.*,
              chapters.subject_id,
@@ -616,83 +600,92 @@ export function createRepositories(db) {
                  AND class_lessons.lesson_id = lessons.id
              )
            ORDER BY chapters.chapter_order, lessons.lesson_order`,
+          [courseClass.subject_id, classId],
         )
-        .all(courseClass.subject_id, classId)
-        .map((row) => ({
-          id: row.id,
-          chapterId: row.chapter_id,
-          order: row.lesson_order,
-          title: row.title,
-          contentHtml: row.content_html,
-          chapter: {
-            id: row.chapter_id,
-            subjectId: row.subject_id,
-            order: row.chapter_order,
-            title: row.chapter_title,
-          },
-        }))
+      ).map((row) => ({
+        id: row.id,
+        chapterId: row.chapter_id,
+        order: row.lesson_order,
+        title: row.title,
+        contentHtml: row.content_html,
+        chapter: {
+          id: row.chapter_id,
+          subjectId: row.subject_id,
+          order: row.chapter_order,
+          title: row.chapter_title,
+        },
+      }))
     },
-
-    scheduleLesson(classId, input, lecturerId) {
-      const courseClass = getOwnedClass(db, classId, lecturerId)
+    async scheduleLesson(classId, input, lecturerId) {
+      const courseClass = await getOwnedClass(db, classId, lecturerId)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date ?? '')) {
         throw new ApiError(400, 'VALIDATION', 'Ngày học không hợp lệ.')
       }
-      const lesson = db
-        .prepare(
-          `SELECT lessons.id, chapters.subject_id
+      const lesson = await db.one(
+        `SELECT lessons.id, chapters.subject_id
            FROM lessons
            JOIN chapters ON chapters.id = lessons.chapter_id
            WHERE lessons.id = ?`,
-        )
-        .get(input.lessonId)
+        [input.lessonId],
+      )
       if (!lesson) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học.')
       if (lesson.subject_id !== courseClass.subject_id) {
         throw new ApiError(400, 'VALIDATION', 'Bài học không thuộc môn của lớp này.')
       }
-
       const id = createId('class_lesson')
       try {
-        db.prepare(
+        await db.execute(
           `INSERT INTO class_lessons
            (id, class_id, lesson_id, lesson_date, status, created_by, created_at)
            VALUES (?, ?, ?, ?, 'draft', ?, ?)`,
-        ).run(id, classId, input.lessonId, input.date, lecturerId, nowIso())
+          [id, classId, input.lessonId, input.date, lecturerId, nowIso()],
+        )
       } catch (error) {
         if (isUniqueConstraint(error)) {
           throw new ApiError(409, 'CONFLICT', 'Bài học đã có trong lớp.')
         }
         throw error
       }
-      audit(db, lecturerId, 'class_lesson.created', 'class_lesson', id, {
+      await audit(db, lecturerId, 'class_lesson.created', 'class_lesson', id, {
         classId,
         lessonId: input.lessonId,
       })
-      return this.listLessons(classId, lecturerId).find((item) => item.id === id)
+      return (await this.listLessons(classId, lecturerId)).find((item) => item.id === id)
     },
-
-    updateLessonStatus(classId, scheduledLessonId, status, lecturerId) {
+    async updateLessonStatus(classId, scheduledLessonId, status, lecturerId) {
       if (!['draft', 'published'].includes(status)) {
         throw new ApiError(400, 'VALIDATION', 'Trạng thái bài học không hợp lệ.')
       }
-      getOwnedClass(db, classId, lecturerId)
-      const existing = db
-        .prepare('SELECT status FROM class_lessons WHERE id = ? AND class_id = ?')
-        .get(scheduledLessonId, classId)
+      await getOwnedClass(db, classId, lecturerId)
+      const existing = await db.one(
+        'SELECT status FROM class_lessons WHERE id = ? AND class_id = ?',
+        [scheduledLessonId, classId],
+      )
       if (!existing) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học trong lớp.')
-      db.prepare('UPDATE class_lessons SET status = ? WHERE id = ?').run(status, scheduledLessonId)
-      audit(db, lecturerId, 'class_lesson.status_updated', 'class_lesson', scheduledLessonId, {
-        before: existing.status,
-        after: status,
-        classId,
-      })
-      return this.listLessons(classId, lecturerId).find((item) => item.id === scheduledLessonId)
+      await db.execute('UPDATE class_lessons SET status = ? WHERE id = ?', [
+        status,
+        scheduledLessonId,
+      ])
+      await audit(
+        db,
+        lecturerId,
+        'class_lesson.status_updated',
+        'class_lesson',
+        scheduledLessonId,
+        {
+          before: existing.status,
+          after: status,
+          classId,
+        },
+      )
+      return (await this.listLessons(classId, lecturerId)).find(
+        (item) => item.id === scheduledLessonId,
+      )
     },
-
-    listMaterials(classId, lecturerId) {
-      getOwnedClass(db, classId, lecturerId)
-      return db
-        .prepare(
+    async listMaterials(classId, lecturerId) {
+      await getOwnedClass(db, classId, lecturerId)
+      return (
+        await db.many(
           `SELECT
              class_materials.*,
              materials.subject_id,
@@ -706,125 +699,132 @@ export function createRepositories(db) {
            JOIN material_versions ON material_versions.id = class_materials.version_id
            WHERE class_materials.class_id = ?
            ORDER BY class_materials.added_at DESC`,
+          [classId],
         )
-        .all(classId)
-        .map(mapClassMaterial)
+      ).map(mapClassMaterial)
     },
-
-    listAvailableMaterials(classId, lecturerId) {
-      const courseClass = getOwnedClass(db, classId, lecturerId)
-      return db
-        .prepare(
-          `SELECT materials.*
-           FROM materials
-           JOIN approved_sources
-             ON approved_sources.material_id = materials.id
-            AND approved_sources.is_approved = 1
-           WHERE materials.subject_id = ?
-             AND NOT EXISTS (
-               SELECT 1 FROM class_materials
-               WHERE class_materials.class_id = ?
-                 AND class_materials.material_id = materials.id
-             )
-           ORDER BY materials.title`,
-        )
-        .all(courseClass.subject_id, classId)
-        .map((row) => ({
+    async listAvailableMaterials(classId, lecturerId) {
+      const courseClass = await getOwnedClass(db, classId, lecturerId)
+      const materials = await db.many(
+        `SELECT materials.*
+         FROM materials
+         JOIN approved_sources
+           ON approved_sources.material_id = materials.id
+          AND approved_sources.is_approved = 1
+         WHERE materials.subject_id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM class_materials
+             WHERE class_materials.class_id = ?
+               AND class_materials.material_id = materials.id
+           )
+         ORDER BY materials.title`,
+        [courseClass.subject_id, classId],
+      )
+      return Promise.all(
+        materials.map(async (row) => ({
           id: row.id,
           subjectId: row.subject_id,
           title: row.title,
           type: row.type,
           author: row.author,
-          versions: db
-            .prepare(
+          versions: (
+            await db.many(
               `SELECT id, material_id, year, file_url
-               FROM material_versions
-               WHERE material_id = ?
-               ORDER BY year DESC`,
+             FROM material_versions
+             WHERE material_id = ?
+             ORDER BY year DESC`,
+              [row.id],
             )
-            .all(row.id)
-            .map((version) => ({
-              id: version.id,
-              materialId: version.material_id,
-              year: version.year,
-              fileUrl: version.file_url,
-            })),
-        }))
+          ).map((version) => ({
+            id: version.id,
+            materialId: version.material_id,
+            year: version.year,
+            fileUrl: version.file_url,
+          })),
+        })),
+      )
     },
-
-    attachMaterial(classId, input, lecturerId) {
-      const courseClass = getOwnedClass(db, classId, lecturerId)
-      const material = db
-        .prepare(
-          `SELECT materials.*
+    async attachMaterial(classId, input, lecturerId) {
+      const courseClass = await getOwnedClass(db, classId, lecturerId)
+      const material = await db.one(
+        `SELECT materials.*
            FROM materials
            JOIN approved_sources
              ON approved_sources.material_id = materials.id
             AND approved_sources.is_approved = 1
            WHERE materials.id = ?`,
-        )
-        .get(input.materialId)
+        [input.materialId],
+      )
       if (!material) {
         throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy học liệu đã duyệt.')
       }
       if (material.subject_id !== courseClass.subject_id) {
         throw new ApiError(400, 'VALIDATION', 'Học liệu không thuộc môn của lớp này.')
       }
-      const version = db
-        .prepare(
-          `SELECT * FROM material_versions
+      const version = await db.one(
+        `SELECT * FROM material_versions
            WHERE material_id = ?
            ORDER BY year DESC
            LIMIT 1`,
-        )
-        .get(material.id)
+        [material.id],
+      )
       if (!version) {
         throw new ApiError(404, 'NOT_FOUND', 'Học liệu chưa có phiên bản khả dụng.')
       }
-
       const id = createId('class_material')
       try {
-        db.prepare(
+        await db.execute(
           `INSERT INTO class_materials
            (id, class_id, material_id, version_id, status, added_by, added_at)
            VALUES (?, ?, ?, ?, 'draft', ?, ?)`,
-        ).run(id, classId, material.id, version.id, lecturerId, nowIso())
+          [id, classId, material.id, version.id, lecturerId, nowIso()],
+        )
       } catch (error) {
         if (isUniqueConstraint(error)) {
           throw new ApiError(409, 'CONFLICT', 'Học liệu đã được gắn vào lớp.')
         }
         throw error
       }
-      audit(db, lecturerId, 'class_material.created', 'class_material', id, {
+      await audit(db, lecturerId, 'class_material.created', 'class_material', id, {
         classId,
         materialId: material.id,
         versionId: version.id,
       })
-      return this.listMaterials(classId, lecturerId).find((item) => item.id === id)
+      return (await this.listMaterials(classId, lecturerId)).find((item) => item.id === id)
     },
-
-    updateMaterialStatus(classId, classMaterialId, status, lecturerId) {
+    async updateMaterialStatus(classId, classMaterialId, status, lecturerId) {
       if (!['draft', 'published'].includes(status)) {
         throw new ApiError(400, 'VALIDATION', 'Trạng thái học liệu không hợp lệ.')
       }
-      getOwnedClass(db, classId, lecturerId)
-      const existing = db
-        .prepare('SELECT status FROM class_materials WHERE id = ? AND class_id = ?')
-        .get(classMaterialId, classId)
+      await getOwnedClass(db, classId, lecturerId)
+      const existing = await db.one(
+        'SELECT status FROM class_materials WHERE id = ? AND class_id = ?',
+        [classMaterialId, classId],
+      )
       if (!existing) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy học liệu trong lớp.')
-      db.prepare('UPDATE class_materials SET status = ? WHERE id = ?').run(status, classMaterialId)
-      audit(db, lecturerId, 'class_material.status_updated', 'class_material', classMaterialId, {
-        before: existing.status,
-        after: status,
-        classId,
-      })
-      return this.listMaterials(classId, lecturerId).find((item) => item.id === classMaterialId)
+      await db.execute('UPDATE class_materials SET status = ? WHERE id = ?', [
+        status,
+        classMaterialId,
+      ])
+      await audit(
+        db,
+        lecturerId,
+        'class_material.status_updated',
+        'class_material',
+        classMaterialId,
+        {
+          before: existing.status,
+          after: status,
+          classId,
+        },
+      )
+      return (await this.listMaterials(classId, lecturerId)).find(
+        (item) => item.id === classMaterialId,
+      )
     },
-
-    addMaterialVersion(materialId, input, lecturerId) {
-      const material = db
-        .prepare(
-          `SELECT materials.*
+    async addMaterialVersion(materialId, input, lecturerId) {
+      const material = await db.one(
+        `SELECT materials.*
            FROM materials
            WHERE materials.id = ?
              AND EXISTS (
@@ -832,8 +832,8 @@ export function createRepositories(db) {
                WHERE course_classes.subject_id = materials.subject_id
                  AND course_classes.lecturer_id = ?
              )`,
-        )
-        .get(materialId, lecturerId)
+        [materialId, lecturerId],
+      )
       if (!material) {
         throw new ApiError(403, 'FORBIDDEN', 'Bạn không thể cập nhật học liệu này.')
       }
@@ -844,21 +844,21 @@ export function createRepositories(db) {
       if (!String(input.fileUrl ?? '').trim()) {
         throw new ApiError(400, 'VALIDATION', 'Đường dẫn tệp không được để trống.')
       }
-
       const id = createId('material_version')
       try {
-        db.prepare(
+        await db.execute(
           `INSERT INTO material_versions
            (id, material_id, year, file_url, uploaded_by, created_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
-        ).run(id, materialId, year, input.fileUrl.trim(), lecturerId, nowIso())
+          [id, materialId, year, input.fileUrl.trim(), lecturerId, nowIso()],
+        )
       } catch (error) {
         if (isUniqueConstraint(error)) {
           throw new ApiError(409, 'CONFLICT', 'Phiên bản năm này đã tồn tại.')
         }
         throw error
       }
-      audit(db, lecturerId, 'material_version.created', 'material_version', id, {
+      await audit(db, lecturerId, 'material_version.created', 'material_version', id, {
         materialId,
         year,
         fileUrl: input.fileUrl.trim(),
@@ -871,10 +871,9 @@ export function createRepositories(db) {
       }
     },
   }
-
   const questionRepository = {
-    listForLecturer(lecturerId, filters = {}) {
-      return getQuestionRowsForLecturer(db, lecturerId)
+    async listForLecturer(lecturerId, filters = {}) {
+      return (await getQuestionRowsForLecturer(db, lecturerId))
         .filter((question) => {
           if (filters.classId && question.courseClass?.id !== filters.classId) return false
           if (filters.subjectId && question.subjectId !== filters.subjectId) return false
@@ -892,17 +891,17 @@ export function createRepositories(db) {
         })
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     },
-
-    listForStudent(studentId) {
-      return getQuestionRows(db)
+    async listForStudent(studentId) {
+      return (await getQuestionRows(db))
         .filter((question) => question.studentId === studentId)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     },
-
-    getForLecturer(questionId, lecturerId) {
-      const question = this.listForLecturer(lecturerId).find((item) => item.id === questionId)
+    async getForLecturer(questionId, lecturerId) {
+      const question = (await this.listForLecturer(lecturerId)).find(
+        (item) => item.id === questionId,
+      )
       if (!question) {
-        const exists = db.prepare('SELECT id FROM questions WHERE id = ?').get(questionId)
+        const exists = await db.one('SELECT id FROM questions WHERE id = ?', [questionId])
         if (exists) {
           throw new ApiError(403, 'FORBIDDEN', 'Bạn không có quyền xử lý câu hỏi này.')
         }
@@ -910,86 +909,83 @@ export function createRepositories(db) {
       }
       return question
     },
-
-    getForStudent(questionId, studentId) {
-      const question = getQuestionRows(db).find((item) => item.id === questionId)
+    async getForStudent(questionId, studentId) {
+      const question = (await getQuestionRows(db)).find((item) => item.id === questionId)
       if (!question) return null
       if (question.studentId !== studentId) {
         throw new ApiError(403, 'FORBIDDEN', 'Bạn không có quyền xem câu hỏi này.')
       }
       return question
     },
-
-    create(input, studentId) {
+    async create(input, studentId) {
       const content = String(input.content ?? '').trim()
       if (content.length < 10) {
         throw new ApiError(400, 'VALIDATION', 'Câu hỏi cần có ít nhất 10 ký tự.')
       }
-      ensureStudentSubjectAccess(db, studentId, input.subjectId)
+      await ensureStudentSubjectAccess(db, studentId, input.subjectId)
       if (input.lessonId) {
-        const lesson = db
-          .prepare(
-            `SELECT chapters.subject_id
+        const lesson = await db.one(
+          `SELECT chapters.subject_id
              FROM lessons
              JOIN chapters ON chapters.id = lessons.chapter_id
              WHERE lessons.id = ?`,
-          )
-          .get(input.lessonId)
+          [input.lessonId],
+        )
         if (!lesson) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học.')
         if (lesson.subject_id !== input.subjectId) {
           throw new ApiError(400, 'VALIDATION', 'Bài học không thuộc môn đã chọn.')
         }
       }
-
       const id = createId('question')
       const createdAt = nowIso()
-      db.prepare(
+      await db.execute(
         `INSERT INTO questions
          (id, lesson_id, subject_id, student_id, content, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 'unanswered', ?, ?)`,
-      ).run(id, input.lessonId ?? null, input.subjectId, studentId, content, createdAt, createdAt)
-
-      audit(db, studentId, 'question.created', 'question', id, {
+        [id, input.lessonId ?? null, input.subjectId, studentId, content, createdAt, createdAt],
+      )
+      await audit(db, studentId, 'question.created', 'question', id, {
         subjectId: input.subjectId,
         lessonId: input.lessonId ?? null,
       })
       return this.getForStudent(id, studentId)
     },
-
-    answer(questionId, input, lecturerId) {
-      const question = this.getForLecturer(questionId, lecturerId)
+    async answer(questionId, input, lecturerId) {
+      const question = await this.getForLecturer(questionId, lecturerId)
       if (!question) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
       const content = String(input.content ?? '').trim()
       if (!content) {
         throw new ApiError(400, 'VALIDATION', 'Câu trả lời không được để trống.')
       }
-
-      const existing = db
-        .prepare('SELECT * FROM lecturer_answers WHERE question_id = ?')
-        .get(questionId)
+      const existing = await db.one('SELECT * FROM lecturer_answers WHERE question_id = ?', [
+        questionId,
+      ])
       const timestamp = nowIso()
       let answerId
       if (existing) {
         answerId = existing.id
-        db.prepare(
+        await db.execute(
           `UPDATE lecturer_answers
            SET content = ?, updated_at = ?
            WHERE id = ?`,
-        ).run(content, timestamp, answerId)
+          [content, timestamp, answerId],
+        )
       } else {
         answerId = createId('answer')
-        db.prepare(
+        await db.execute(
           `INSERT INTO lecturer_answers
            (id, question_id, lecturer_id, content, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, NULL)`,
-        ).run(answerId, questionId, lecturerId, content, timestamp)
+          [answerId, questionId, lecturerId, content, timestamp],
+        )
       }
-      db.prepare(
+      await db.execute(
         `UPDATE questions
          SET status = 'answered', updated_at = ?
          WHERE id = ?`,
-      ).run(timestamp, questionId)
-      audit(
+        [timestamp, questionId],
+      )
+      await audit(
         db,
         lecturerId,
         existing ? 'answer.updated' : 'answer.created',
@@ -1000,21 +996,18 @@ export function createRepositories(db) {
           previousContent: existing?.content ?? null,
         },
       )
-      return this.getForLecturer(questionId, lecturerId).lecturerAnswer
+      return (await this.getForLecturer(questionId, lecturerId)).lecturerAnswer
     },
   }
-
   const ragRepository = {
-    createDemoChat(input, studentId) {
+    async createDemoChat(input, studentId) {
       const content = String(input.content ?? '').trim()
       if (content.length < 10) {
         throw new ApiError(400, 'VALIDATION', 'Câu hỏi cần có ít nhất 10 ký tự.')
       }
-      ensureStudentSubjectAccess(db, studentId, input.subjectId)
-
-      const source = db
-        .prepare(
-          `SELECT
+      await ensureStudentSubjectAccess(db, studentId, input.subjectId)
+      const source = await db.one(
+        `SELECT
              materials.id AS material_id,
              materials.title,
              materials.author,
@@ -1045,8 +1038,8 @@ export function createRepositories(db) {
            WHERE materials.subject_id = ?
            ORDER BY materials.title
            LIMIT 1`,
-        )
-        .get(input.subjectId)
+        [input.subjectId],
+      )
       if (!source) {
         throw new ApiError(
           409,
@@ -1054,7 +1047,6 @@ export function createRepositories(db) {
           'Môn học này chưa có nguồn được phê duyệt cho trợ giảng.',
         )
       }
-
       const template = subjectMockResponses.find((item) => item.subjectId === input.subjectId)
       const answerContent = buildDemoChatContent(
         content,
@@ -1074,74 +1066,74 @@ export function createRepositories(db) {
         subjectId: input.subjectId,
         hasPageCitation: Boolean(source.sample_page_number),
       })
-
-      db.exec('BEGIN IMMEDIATE')
-      try {
-        db.prepare(
+      await db.transaction(async (transaction) => {
+        await transaction.execute(
           `INSERT INTO questions
            (id, lesson_id, subject_id, student_id, content, status, created_at, updated_at)
            VALUES (?, NULL, ?, ?, ?, 'unanswered', ?, ?)`,
-        ).run(questionId, input.subjectId, studentId, content, timestamp, timestamp)
-        db.prepare(
+          [questionId, input.subjectId, studentId, content, timestamp, timestamp],
+        )
+        await transaction.execute(
           `INSERT INTO rag_requests
            (id, question_id, student_id, subject_id, lesson_id, status, attempt_count,
             request_json, started_at, completed_at, created_at)
            VALUES (?, ?, ?, ?, NULL, 'succeeded', 1, ?, ?, ?, ?)`,
-        ).run(
-          requestId,
-          questionId,
-          studentId,
-          input.subjectId,
-          JSON.stringify({
-            demo: true,
+          [
+            requestId,
             questionId,
-            question: content,
-            subjectId: input.subjectId,
-            moderation,
-          }),
-          timestamp,
-          timestamp,
-          timestamp,
+            studentId,
+            input.subjectId,
+            JSON.stringify({
+              demo: true,
+              questionId,
+              question: content,
+              subjectId: input.subjectId,
+              moderation,
+            }),
+            timestamp,
+            timestamp,
+            timestamp,
+          ],
         )
-        db.prepare(
+        await transaction.execute(
           `INSERT INTO rag_responses
            (id, request_id, provider_answer_id, content, original_content, confidence,
             review_status, model_version, raw_response_json, reviewed_by, reviewed_at,
             created_at, updated_at)
            VALUES (?, ?, NULL, ?, ?, 0.5, 'pending_review', 'demo-chat-api-v1', ?, NULL, NULL, ?, ?)`,
-        ).run(
-          responseId,
-          requestId,
-          answerContent,
-          answerContent,
-          JSON.stringify({ demo: true, source: 'chat-api' }),
-          timestamp,
-          timestamp,
+          [
+            responseId,
+            requestId,
+            answerContent,
+            answerContent,
+            JSON.stringify({
+              demo: true,
+              source: 'chat-api',
+            }),
+            timestamp,
+            timestamp,
+          ],
         )
-        db.prepare(
+        await transaction.execute(
           `INSERT INTO rag_citations
            (id, response_id, material_id, material_version_id, page_number, quote,
             citation_order, retrieval_score)
            VALUES (?, ?, ?, ?, ?, ?, 0, NULL)`,
-        ).run(
-          citationId,
-          responseId,
-          source.material_id,
-          source.version_id,
-          source.sample_page_number ?? null,
-          citationQuote,
+          [
+            citationId,
+            responseId,
+            source.material_id,
+            source.version_id,
+            source.sample_page_number ?? null,
+            citationQuote,
+          ],
         )
-        audit(db, studentId, 'rag.chat_created', 'question', questionId, {
+        await audit(transaction, studentId, 'rag.chat_created', 'question', questionId, {
           requestId,
           responseId,
           subjectId: input.subjectId,
         })
-        db.exec('COMMIT')
-      } catch (error) {
-        db.exec('ROLLBACK')
-        throw error
-      }
-
+      })
       return {
         questionId,
         requestId,
@@ -1164,26 +1156,22 @@ export function createRepositories(db) {
         ],
       }
     },
-
-    listForReview(lecturerId, status = 'pending_review', priority = 'attention') {
+    async listForReview(lecturerId, status = 'pending_review', priority = 'attention') {
       const allowedStatuses = ['pending_review', 'approved', 'rejected', 'needs_revision', 'all']
       const effectiveStatus = allowedStatuses.includes(status) ? status : 'pending_review'
       const allowedPriorities = ['attention', 'high', 'medium', 'sample', 'all']
       const effectivePriority = allowedPriorities.includes(priority) ? priority : 'attention'
-      return questionRepository
-        .listForLecturer(lecturerId)
-        .filter(
-          (question) =>
-            question.ragResponse &&
-            (effectiveStatus === 'all' || question.ragResponse.reviewStatus === effectiveStatus) &&
-            (effectivePriority === 'all' ||
-              (effectivePriority === 'attention'
-                ? question.ragResponse.moderation.queue === 'attention'
-                : question.ragResponse.moderation.priority === effectivePriority)),
-        )
+      return (await questionRepository.listForLecturer(lecturerId)).filter(
+        (question) =>
+          question.ragResponse &&
+          (effectiveStatus === 'all' || question.ragResponse.reviewStatus === effectiveStatus) &&
+          (effectivePriority === 'all' ||
+            (effectivePriority === 'attention'
+              ? question.ragResponse.moderation.queue === 'attention'
+              : question.ragResponse.moderation.priority === effectivePriority)),
+      )
     },
-
-    review(responseId, input, lecturerId) {
+    async review(responseId, input, lecturerId) {
       const actionMap = {
         approve: 'approved',
         reject: 'rejected',
@@ -1193,76 +1181,71 @@ export function createRepositories(db) {
       if (!reviewStatus) {
         throw new ApiError(400, 'VALIDATION', 'Hành động kiểm duyệt RAG không hợp lệ.')
       }
-
-      const row = db
-        .prepare(
-          `SELECT rag_responses.*, rag_requests.question_id
+      const row = await db.one(
+        `SELECT rag_responses.*, rag_requests.question_id
            FROM rag_responses
            JOIN rag_requests ON rag_requests.id = rag_responses.request_id
            WHERE rag_responses.id = ?`,
-        )
-        .get(responseId)
+        [responseId],
+      )
       if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu trả lời RAG.')
-      questionRepository.getForLecturer(row.question_id, lecturerId)
-
+      await questionRepository.getForLecturer(row.question_id, lecturerId)
       const content = String(input.content ?? row.content).trim()
       if (reviewStatus === 'approved' && content.length < 20) {
         throw new ApiError(400, 'VALIDATION', 'Câu trả lời được duyệt cần ít nhất 20 ký tự.')
       }
       const note = String(input.note ?? '').trim() || null
       const timestamp = nowIso()
-
-      db.exec('BEGIN IMMEDIATE')
-      try {
-        db.prepare(
+      await db.transaction(async (transaction) => {
+        await transaction.execute(
           `UPDATE rag_responses
            SET content = ?, review_status = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
            WHERE id = ?`,
-        ).run(content, reviewStatus, lecturerId, timestamp, timestamp, responseId)
-        db.prepare(
+          [content, reviewStatus, lecturerId, timestamp, timestamp, responseId],
+        )
+        await transaction.execute(
           `INSERT INTO rag_reviews
            (id, response_id, lecturer_id, action, content, note, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ).run(
-          createId('rag_review'),
-          responseId,
-          lecturerId,
-          reviewStatus,
-          reviewStatus === 'approved' ? content : null,
-          note,
-          timestamp,
+          [
+            createId('rag_review'),
+            responseId,
+            lecturerId,
+            reviewStatus,
+            reviewStatus === 'approved' ? content : null,
+            note,
+            timestamp,
+          ],
         )
-        const hasLecturerAnswer = db
-          .prepare('SELECT id FROM lecturer_answers WHERE question_id = ?')
-          .get(row.question_id)
+        const hasLecturerAnswer = await db.one(
+          'SELECT id FROM lecturer_answers WHERE question_id = ?',
+          [row.question_id],
+        )
         const questionStatus =
           reviewStatus === 'approved' || hasLecturerAnswer ? 'answered' : 'unanswered'
-        db.prepare('UPDATE questions SET status = ?, updated_at = ? WHERE id = ?').run(
+        await transaction.execute('UPDATE questions SET status = ?, updated_at = ? WHERE id = ?', [
           questionStatus,
           timestamp,
           row.question_id,
-        )
-        db.exec('COMMIT')
-      } catch (error) {
-        db.exec('ROLLBACK')
-        throw error
-      }
-
-      audit(db, lecturerId, `rag.${reviewStatus}`, 'question', row.question_id, {
+        ])
+      })
+      await audit(db, lecturerId, `rag.${reviewStatus}`, 'question', row.question_id, {
         responseId,
         note,
         contentEdited: content !== row.content,
       })
-      return questionRepository.getForLecturer(row.question_id, lecturerId)
+      return await questionRepository.getForLecturer(row.question_id, lecturerId)
     },
   }
   const learningRepository = {
-    getDashboard(studentId) {
-      const subjectIds = getStudentSubjectIds(db, studentId)
-      const progressMap = getProgressMap(db, studentId)
-      const lessons = subjectIds.flatMap((subjectId) =>
-        getSubjectLessons(db, subjectId).map((lesson) => enrichLessonProgress(lesson, progressMap)),
-      )
+    async getDashboard(studentId) {
+      const subjectIds = await getStudentSubjectIds(db, studentId)
+      const progressMap = await getProgressMap(db, studentId)
+      const lessons = []
+      for (const subjectId of subjectIds) {
+        const subjectLessons = await getSubjectLessons(db, subjectId)
+        lessons.push(...subjectLessons.map((lesson) => enrichLessonProgress(lesson, progressMap)))
+      }
       const recentCandidates = lessons.filter(
         (lesson) => lesson.lastReadAt && lesson.progress < 100,
       )
@@ -1280,49 +1263,45 @@ export function createRepositories(db) {
         recentLesson,
       }
     },
-
-    listSubjectProgress(studentId) {
-      const subjectIds = getStudentSubjectIds(db, studentId)
-      const progressMap = getProgressMap(db, studentId)
-      return db
-        .prepare('SELECT * FROM subjects ORDER BY name')
-        .all()
-        .filter((subject) => subjectIds.includes(subject.id))
-        .map((subject) => {
-          const lessons = getSubjectLessons(db, subject.id).map((lesson) =>
-            enrichLessonProgress(lesson, progressMap),
-          )
-          return {
-            id: subject.id,
-            name: subject.name,
-            credits: subject.credits,
-            lessonCount: lessons.length,
-            completedLessons: lessons.filter((lesson) => lesson.progress === 100).length,
-            progress: lessons.length
-              ? Math.round(
-                  lessons.reduce((sum, lesson) => sum + lesson.progress, 0) / lessons.length,
-                )
-              : 0,
-          }
+    async listSubjectProgress(studentId) {
+      const subjectIds = await getStudentSubjectIds(db, studentId)
+      const progressMap = await getProgressMap(db, studentId)
+      const subjectRows = (await db.many('SELECT * FROM subjects ORDER BY name', [])).filter(
+        (subject) => subjectIds.includes(subject.id),
+      )
+      const result = []
+      for (const subject of subjectRows) {
+        const lessons = (await getSubjectLessons(db, subject.id)).map((lesson) =>
+          enrichLessonProgress(lesson, progressMap),
+        )
+        result.push({
+          id: subject.id,
+          name: subject.name,
+          credits: subject.credits,
+          lessonCount: lessons.length,
+          completedLessons: lessons.filter((lesson) => lesson.progress === 100).length,
+          progress: lessons.length
+            ? Math.round(lessons.reduce((sum, lesson) => sum + lesson.progress, 0) / lessons.length)
+            : 0,
         })
+      }
+      return result
     },
-
-    getSubjectOverview(studentId, subjectId) {
-      ensureStudentSubjectAccess(db, studentId, subjectId)
-      const subject = db.prepare('SELECT * FROM subjects WHERE id = ?').get(subjectId)
+    async getSubjectOverview(studentId, subjectId) {
+      await ensureStudentSubjectAccess(db, studentId, subjectId)
+      const subject = await db.one('SELECT * FROM subjects WHERE id = ?', [subjectId])
       if (!subject) return null
-      const progressMap = getProgressMap(db, studentId)
-      const lessons = getSubjectLessons(db, subjectId).map((lesson) =>
+      const progressMap = await getProgressMap(db, studentId)
+      const lessons = (await getSubjectLessons(db, subjectId)).map((lesson) =>
         enrichLessonProgress(lesson, progressMap),
       )
-      const chapterRows = db
-        .prepare(
-          `SELECT id, subject_id, chapter_order, title
+      const chapterRows = await db.many(
+        `SELECT id, subject_id, chapter_order, title
            FROM chapters
            WHERE subject_id = ?
            ORDER BY chapter_order`,
-        )
-        .all(subjectId)
+        [subjectId],
+      )
       return {
         subject: {
           id: subject.id,
@@ -1343,21 +1322,18 @@ export function createRepositories(db) {
         lessonCount: lessons.length,
       }
     },
-
-    getChapterLessons(studentId, chapterId) {
-      const chapter = db.prepare('SELECT * FROM chapters WHERE id = ?').get(chapterId)
+    async getChapterLessons(studentId, chapterId) {
+      const chapter = await db.one('SELECT * FROM chapters WHERE id = ?', [chapterId])
       if (!chapter) return []
-      ensureStudentSubjectAccess(db, studentId, chapter.subject_id)
-      const progressMap = getProgressMap(db, studentId)
-      return getSubjectLessons(db, chapter.subject_id)
+      await ensureStudentSubjectAccess(db, studentId, chapter.subject_id)
+      const progressMap = await getProgressMap(db, studentId)
+      return (await getSubjectLessons(db, chapter.subject_id))
         .filter((lesson) => lesson.chapterId === chapterId)
         .map((lesson) => enrichLessonProgress(lesson, progressMap))
     },
-
-    getLessonForStudent(studentId, lessonId) {
-      const lessonRow = db
-        .prepare(
-          `SELECT
+    async getLessonForStudent(studentId, lessonId) {
+      const lessonRow = await db.one(
+        `SELECT
              lessons.*,
              chapters.subject_id,
              chapters.chapter_order,
@@ -1368,13 +1344,13 @@ export function createRepositories(db) {
            JOIN chapters ON chapters.id = lessons.chapter_id
            JOIN subjects ON subjects.id = chapters.subject_id
            WHERE lessons.id = ?`,
-        )
-        .get(lessonId)
+        [lessonId],
+      )
       if (!lessonRow) return null
-      ensureStudentSubjectAccess(db, studentId, lessonRow.subject_id)
-      const lessons = getSubjectLessons(db, lessonRow.subject_id)
+      await ensureStudentSubjectAccess(db, studentId, lessonRow.subject_id)
+      const lessons = await getSubjectLessons(db, lessonRow.subject_id)
       const index = lessons.findIndex((item) => item.id === lessonId)
-      const progressMap = getProgressMap(db, studentId)
+      const progressMap = await getProgressMap(db, studentId)
       return {
         ...enrichLessonProgress(lessons[index], progressMap),
         subject: {
@@ -1386,30 +1362,29 @@ export function createRepositories(db) {
         nextLesson: index < lessons.length - 1 ? lessons[index + 1] : null,
       }
     },
-
-    updateProgress(studentId, lessonId, progress) {
+    async updateProgress(studentId, lessonId, progress) {
       const numericProgress = Number(progress)
       if (!Number.isInteger(numericProgress) || numericProgress < 0 || numericProgress > 100) {
         throw new ApiError(400, 'VALIDATION', 'Tiến độ bài học không hợp lệ.')
       }
-      const lesson = this.getLessonForStudent(studentId, lessonId)
+      const lesson = await this.getLessonForStudent(studentId, lessonId)
       if (!lesson) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học.')
-      const existing = db
-        .prepare(
-          `SELECT * FROM learning_progress
+      const existing = await db.one(
+        `SELECT * FROM learning_progress
            WHERE student_id = ? AND lesson_id = ?`,
-        )
-        .get(studentId, lessonId)
+        [studentId, lessonId],
+      )
       const id = existing?.id ?? createId('progress')
       const timestamp = nowIso()
-      db.prepare(
+      await db.execute(
         `INSERT INTO learning_progress
          (id, student_id, lesson_id, progress, last_read_at)
          VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(student_id, lesson_id)
          DO UPDATE SET progress = excluded.progress, last_read_at = excluded.last_read_at`,
-      ).run(id, studentId, lessonId, numericProgress, timestamp)
-      audit(db, studentId, 'learning_progress.updated', 'lesson', lessonId, {
+        [id, studentId, lessonId, numericProgress, timestamp],
+      )
+      await audit(db, studentId, 'learning_progress.updated', 'lesson', lessonId, {
         before: existing?.progress ?? 0,
         after: numericProgress,
       })
@@ -1422,22 +1397,20 @@ export function createRepositories(db) {
       }
     },
   }
-
   const searchRepository = {
-    search(input, studentId) {
+    async search(input, studentId) {
       const query = String(input.query ?? '').trim()
       if (!query) return []
-      const allowedSubjectIds = getStudentSubjectIds(db, studentId)
+      const allowedSubjectIds = await getStudentSubjectIds(db, studentId)
       let effectiveSubjectId = input.subjectId ?? null
       if (input.lessonId) {
-        const lesson = db
-          .prepare(
-            `SELECT chapters.subject_id
+        const lesson = await db.one(
+          `SELECT chapters.subject_id
              FROM lessons
              JOIN chapters ON chapters.id = lessons.chapter_id
              WHERE lessons.id = ?`,
-          )
-          .get(input.lessonId)
+          [input.lessonId],
+        )
         if (!lesson) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học.')
         if (effectiveSubjectId && effectiveSubjectId !== lesson.subject_id) {
           throw new ApiError(400, 'VALIDATION', 'Bài học không thuộc môn đã chọn.')
@@ -1447,9 +1420,8 @@ export function createRepositories(db) {
       if (effectiveSubjectId && !allowedSubjectIds.includes(effectiveSubjectId)) {
         throw new ApiError(403, 'FORBIDDEN', 'Bạn chưa được ghi danh vào môn học này.')
       }
-
-      const lessonRows = db
-        .prepare(
+      const lessonRows = (
+        await db.many(
           `SELECT
              lessons.*,
              chapters.subject_id,
@@ -1460,8 +1432,9 @@ export function createRepositories(db) {
            FROM lessons
            JOIN chapters ON chapters.id = lessons.chapter_id
            JOIN subjects ON subjects.id = chapters.subject_id`,
+          [],
         )
-        .all()
+      )
         .filter((row) => allowedSubjectIds.includes(row.subject_id))
         .filter((row) => !effectiveSubjectId || row.subject_id === effectiveSubjectId)
         .filter((row) => !input.lessonId || row.id === input.lessonId)
@@ -1473,7 +1446,6 @@ export function createRepositories(db) {
           id: `lesson-${row.id}`,
           title: row.title,
           excerpt: getExcerpt(row.content_html),
-
           lessonId: row.id,
           sourceType: 'lesson',
           sourceLabel: `${row.chapter_title} · Nội dung môn học`,
@@ -1489,11 +1461,10 @@ export function createRepositories(db) {
             title: row.chapter_title,
           },
         }))
-
       const materialRows = input.lessonId
         ? []
-        : db
-            .prepare(
+        : (
+            await db.many(
               `SELECT
                  materials.*,
                  subjects.name AS subject_name,
@@ -1511,8 +1482,9 @@ export function createRepositories(db) {
                    ORDER BY latest_version.year DESC
                    LIMIT 1
                  )`,
+              [],
             )
-            .all()
+          )
             .filter((row) => allowedSubjectIds.includes(row.subject_id))
             .filter((row) => !effectiveSubjectId || row.subject_id === effectiveSubjectId)
             .filter(
@@ -1532,8 +1504,7 @@ export function createRepositories(db) {
                 credits: row.subject_credits,
               },
             }))
-
-      const answerRows = getQuestionRows(db)
+      const answerRows = (await getQuestionRows(db))
         .filter((question) => question.lecturerAnswer)
         .filter((question) => allowedSubjectIds.includes(question.subjectId))
         .filter((question) => !effectiveSubjectId || question.subjectId === effectiveSubjectId)
@@ -1554,34 +1525,33 @@ export function createRepositories(db) {
           subject: question.subject,
           chapter: question.chapter,
         }))
-
       const results = [...lessonRows, ...materialRows, ...answerRows].slice(0, 12)
       if (input.recordHistory !== false) {
         const id = createId('search')
-        db.prepare(
+        await db.execute(
           `INSERT INTO search_history
            (id, student_id, query, subject_id, lesson_id, result_count, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ).run(
-          id,
-          studentId,
-          query,
-          effectiveSubjectId,
-          input.lessonId ?? null,
-          results.length,
-          nowIso(),
+          [
+            id,
+            studentId,
+            query,
+            effectiveSubjectId,
+            input.lessonId ?? null,
+            results.length,
+            nowIso(),
+          ],
         )
-        audit(db, studentId, 'search.created', 'search_history', id, {
+        await audit(db, studentId, 'search.created', 'search_history', id, {
           query,
           resultCount: results.length,
         })
       }
       return results
     },
-
-    listHistory(studentId) {
-      return db
-        .prepare(
+    async listHistory(studentId) {
+      return (
+        await db.many(
           `SELECT
              search_history.*,
              subjects.name AS subject_name,
@@ -1592,37 +1562,36 @@ export function createRepositories(db) {
            LEFT JOIN lessons ON lessons.id = search_history.lesson_id
            WHERE search_history.student_id = ?
            ORDER BY search_history.created_at DESC`,
+          [studentId],
         )
-        .all(studentId)
-        .map((row) => ({
-          id: row.id,
-          studentId: row.student_id,
-          query: row.query,
-          subjectId: row.subject_id,
-          lessonId: row.lesson_id,
-          resultCount: row.result_count,
-          createdAt: row.created_at,
-          subject: row.subject_id
-            ? {
-                id: row.subject_id,
-                name: row.subject_name,
-                credits: row.subject_credits,
-              }
-            : null,
-          lesson: row.lesson_id
-            ? {
-                id: row.lesson_id,
-                title: row.lesson_title,
-              }
-            : null,
-        }))
+      ).map((row) => ({
+        id: row.id,
+        studentId: row.student_id,
+        query: row.query,
+        subjectId: row.subject_id,
+        lessonId: row.lesson_id,
+        resultCount: row.result_count,
+        createdAt: row.created_at,
+        subject: row.subject_id
+          ? {
+              id: row.subject_id,
+              name: row.subject_name,
+              credits: row.subject_credits,
+            }
+          : null,
+        lesson: row.lesson_id
+          ? {
+              id: row.lesson_id,
+              title: row.lesson_title,
+            }
+          : null,
+      }))
     },
   }
-
   const auditRepository = {
-    listForLecturer(lecturerId, limit = 50) {
-      return db
-        .prepare(
+    async listForLecturer(lecturerId, limit = 50) {
+      return (
+        await db.many(
           `SELECT
              audit_logs.*,
              users.name AS actor_name,
@@ -1645,28 +1614,27 @@ export function createRepositories(db) {
               )
            ORDER BY audit_logs.created_at DESC
            LIMIT ?`,
+          [lecturerId, lecturerId, Math.min(Math.max(Number(limit) || 50, 1), 100)],
         )
-        .all(lecturerId, lecturerId, Math.min(Math.max(Number(limit) || 50, 1), 100))
-        .map((row) => ({
-          id: row.id,
-          actorId: row.actor_id,
-          action: row.action,
-          entityType: row.entity_type,
-          entityId: row.entity_id,
-          metadata: parseMetadata(row.metadata_json),
-          createdAt: row.created_at,
-          actor: row.actor_id
-            ? {
-                id: row.actor_id,
-                name: row.actor_name,
-                email: row.actor_email,
-                role: row.actor_role,
-              }
-            : null,
-        }))
+      ).map((row) => ({
+        id: row.id,
+        actorId: row.actor_id,
+        action: row.action,
+        entityType: row.entity_type,
+        entityId: row.entity_id,
+        metadata: parseMetadata(row.metadata_json),
+        createdAt: row.created_at,
+        actor: row.actor_id
+          ? {
+              id: row.actor_id,
+              name: row.actor_name,
+              email: row.actor_email,
+              role: row.actor_role,
+            }
+          : null,
+      }))
     },
   }
-
   return {
     audit,
     auditRepository,
