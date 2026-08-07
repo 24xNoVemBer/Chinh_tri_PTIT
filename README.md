@@ -163,6 +163,8 @@ docs/                    API, database và frontend contracts
 - [DB-4B async repositories và runtime](./docs/PHASE_DB4B_ASYNC_REPOSITORIES.md)
 - [API parity staging check](./docs/API_PARITY.md)
 - [API load test](./docs/LOAD_TEST.md)
+- [Implementation history: Student → production readiness](./docs/IMPLEMENTATION_HISTORY.md)
+- [DB-5 PostgreSQL staging cutover](./docs/PHASE_DB5_POSTGRES_STAGING.md)
 - [Design system](./design-system/ptit-teaching-assistant/MASTER.md)
 
 ## Nguồn hình ảnh
