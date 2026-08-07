@@ -1,3 +1,5 @@
+import { DATA_TABLE_ORDER, POSTGRES_PUBLIC_TABLES } from './applicationSchema.js'
+
 const SYSTEM_DATABASES = new Set(['postgres', 'template0', 'template1'])
 const PRODUCTION_TOKEN = /(^|[._-])prod(?:uction)?($|[._-])/i
 
@@ -110,5 +112,76 @@ export async function verifyConnectedPostgresTarget(client, target) {
     user: info.user,
     serverAddress: info.server_addr ?? null,
     serverPort: info.server_port == null ? null : Number(info.server_port),
+  })
+}
+function quoteApplicationTable(table) {
+  if (!DATA_TABLE_ORDER.includes(table)) {
+    throw new Error('Unknown application table: ' + table + '.')
+  }
+  return '"' + table + '"'
+}
+
+export async function inspectPostgresApplicationSchema(client) {
+  if (!client || typeof client.many !== 'function') {
+    throw new Error('inspectPostgresApplicationSchema requires a PostgreSQL client.')
+  }
+
+  const rows = await client.many(
+    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name",
+  )
+  const actual = new Set(rows.map((row) => row.table_name))
+  const expected = new Set(POSTGRES_PUBLIC_TABLES)
+  const missing = POSTGRES_PUBLIC_TABLES.filter((table) => !actual.has(table))
+  const unexpected = [...actual].filter((table) => !expected.has(table)).sort()
+
+  if (missing.length || unexpected.length) {
+    const details = []
+    if (missing.length) details.push('missing=' + missing.join(','))
+    if (unexpected.length) details.push('unexpected=' + unexpected.join(','))
+    throw new Error(
+      'PostgreSQL application schema is not ready; run db:migrate on a dedicated target first (' +
+        details.join('; ') +
+        ').',
+    )
+  }
+
+  return Object.freeze({
+    tableCount: actual.size,
+    tables: Object.freeze([...actual].sort()),
+  })
+}
+
+export async function assertPostgresImportTargetReady(client, { requireEmpty = true } = {}) {
+  if (!client || typeof client.one !== 'function') {
+    throw new Error('assertPostgresImportTargetReady requires a PostgreSQL client.')
+  }
+
+  const schema = await inspectPostgresApplicationSchema(client)
+  if (!requireEmpty) {
+    return Object.freeze({ ...schema, requireEmpty, occupied: Object.freeze([]) })
+  }
+
+  const occupied = []
+  for (const table of DATA_TABLE_ORDER) {
+    if (table === 'schema_meta') continue
+    const row = await client.one('SELECT COUNT(*) AS count FROM ' + quoteApplicationTable(table))
+    const count = Number(row?.count)
+    if (!Number.isSafeInteger(count) || count < 0) {
+      throw new Error('PostgreSQL returned an invalid row count for ' + table + '.')
+    }
+    if (count > 0) occupied.push(Object.freeze({ table, count }))
+  }
+  if (occupied.length) {
+    throw new Error(
+      'Import target is not empty: ' +
+        occupied.map(({ table, count }) => table + '=' + count).join(', ') +
+        '.',
+    )
+  }
+
+  return Object.freeze({
+    ...schema,
+    requireEmpty,
+    occupied: Object.freeze(occupied),
   })
 }

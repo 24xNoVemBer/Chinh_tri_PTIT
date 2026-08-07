@@ -3,37 +3,11 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { createDatabase } from '../database.js'
 
-// Parent tables must be imported before dependent tables to satisfy foreign keys.
-export const DATA_TABLE_ORDER = [
-  'schema_meta',
-  'users',
-  'subjects',
-  'course_classes',
-  'enrollments',
-  'enrollment_profiles',
-  'chapters',
-  'lessons',
-  'class_lessons',
-  'materials',
-  'material_versions',
-  'approved_sources',
-  'class_materials',
-  'questions',
-  'lecturer_answers',
-  'rag_requests',
-  'rag_responses',
-  'rag_citations',
-  'rag_reviews',
-  'mock_response_templates',
-  'mock_responses',
-  'learning_progress',
-  'search_history',
-  'sessions',
-  'audit_logs',
-]
+import { DATA_TABLE_ORDER, STAGING_DISABLED_PASSWORD_HASH } from './applicationSchema.js'
+
+export { DATA_TABLE_ORDER, STAGING_DISABLED_PASSWORD_HASH } from './applicationSchema.js'
 
 export const STAGING_EXCLUDED_TABLES = ['sessions', 'audit_logs']
-export const STAGING_DISABLED_PASSWORD_HASH = 'disabled$staging-import'
 
 export function sanitizeStagingSnapshot(snapshot) {
   assertSnapshot(snapshot)
@@ -383,8 +357,8 @@ export async function importDatabaseSnapshot(
 
   const imported = {}
   await client.transaction(async (transaction) => {
+    await lockImportTables(transaction)
     if (requireEmpty) {
-      await lockImportTables(transaction)
       await assertDatabaseEmpty(transaction)
     }
 

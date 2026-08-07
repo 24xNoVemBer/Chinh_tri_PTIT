@@ -24,6 +24,7 @@
     "db:export": "node --no-warnings scripts/db-export.mjs",
     "db:import": "node --no-warnings scripts/db-import.mjs",
     "db:validate:staging": "node --no-warnings scripts/db-validate-staging.mjs",
+    "db:credentials:staging": "node --no-warnings scripts/db-set-staging-credentials.mjs",
     "api:parity": "node --no-warnings scripts/api-parity.mjs",
     "load:test": "node scripts/load-test.mjs",
     "load:test:smoke": "node scripts/load-test.mjs --profile smoke",

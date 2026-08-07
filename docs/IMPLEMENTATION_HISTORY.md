@@ -102,12 +102,13 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - `npm run db:export`
 - `npm run db:import`
 - `npm run db:validate:staging`
+- `npm run db:credentials:staging`
 - `npm run api:parity`
 - `npm run load:test` và các profile `load:test:smoke|baseline|login-storm|exam-peak`
 
 ## 4. Kiểm thử và xác minh hiện tại
 
-- Vitest: **20 test files, 86/86 tests passed**.
+- Vitest: **22 test files, 109/109 tests passed**.
 - ESLint: passed.
 - Contract/OpenAPI validation: 9 schema, 4 examples và 3 OpenAPI documents
   passed.
@@ -162,6 +163,7 @@ Cấp PostgreSQL staging + credential test
 → npm run db:migrate
 → npm run db:import
 → npm run db:validate:staging với exact snapshot
+→ npm run db:credentials:staging cho đúng hai tài khoản parity
 → npm run api:parity
 → load baseline 1.000 session và exam peak 2.000–3.000
 → đo p95/p99, pool và error rate (RAG đo riêng)

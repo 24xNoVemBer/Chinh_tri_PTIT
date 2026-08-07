@@ -112,6 +112,13 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 | `DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS` | `10000`                               | Đóng transaction bị bỏ quên (ms)                                                 |
 | `DATABASE_APPLICATION_NAME`               | `ptit-politics-api`                   | Tên ứng dụng hiển thị trong `pg_stat_activity`                                   |
 | `DB_SNAPSHOT_PATH`                        | _(trống)_                             | Snapshot staging-safe dùng cho import và exact validation                        |
+| `DB_ALLOW_EXISTING_IMPORT`                | `false`                               | Xác nhận thứ hai khi dùng break-glass --allow-existing                           |
+| `DB_ALLOW_RUNTIME_DATA_IMPORT`            | `false`                               | Xác nhận thứ hai khi import session/audit runtime                                |
+| `STAGING_CREDENTIAL_ROTATION_CONFIRM`     | `false`                               | Chỉ bật sau khi import và đối chiếu snapshot staging                             |
+| `STAGING_STUDENT_EMAIL`                   | _(trống)_                             | Tài khoản sinh viên PTIT được kích hoạt cho parity staging                       |
+| `STAGING_STUDENT_PASSWORD`                | _(trống)_                             | Secret sinh viên staging; không ghi vào Git                                      |
+| `STAGING_LECTURER_EMAIL`                  | _(trống)_                             | Tài khoản giảng viên PTIT được kích hoạt cho parity staging                      |
+| `STAGING_LECTURER_PASSWORD`               | _(trống)_                             | Secret giảng viên staging; không ghi vào Git                                     |
 | `NODE_ENV`                                | `development`                         | Môi trường chạy                                                                  |
 | `VITE_DATA_SOURCE`                        | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                       |
 | `RAG_DEMO_DATA`                           | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                       |

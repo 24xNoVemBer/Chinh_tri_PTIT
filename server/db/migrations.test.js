@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runMigrations } from './migrations.js'
+import { assertMigrationsCurrent, runMigrations } from './migrations.js'
 
 function createFakeClient() {
   const applied = new Map()
@@ -33,6 +33,7 @@ function createFakeClient() {
       return callback(transaction)
     },
   }
+  client.applied = applied
   return client
 }
 
@@ -69,6 +70,34 @@ describe('PostgreSQL migration runner', () => {
     expect(logger.info).toHaveBeenCalledTimes(2)
   })
 
+  it('requires every known migration with matching metadata before import', async () => {
+    directory = await mkdtemp(join(tmpdir(), 'ptit-migrations-'))
+    await writeFile(join(directory, '001_first.sql'), 'SELECT 1;')
+    const client = createFakeClient()
+
+    await expect(
+      assertMigrationsCurrent(client, { migrationDirectory: directory }),
+    ).rejects.toThrow('"issue":"missing"')
+
+    await runMigrations(client, { migrationDirectory: directory, logger: { info() {} } })
+    await expect(
+      assertMigrationsCurrent(client, { migrationDirectory: directory }),
+    ).resolves.toEqual({
+      known: 1,
+      applied: 1,
+      latest: expect.objectContaining({ version: '001', name: 'first' }),
+    })
+
+    client.applied.set('999', {
+      version: '999',
+      name: 'unexpected',
+      checksum: 'unexpected',
+      applied_at: '2026-08-08T00:00:00.000Z',
+    })
+    await expect(
+      assertMigrationsCurrent(client, { migrationDirectory: directory }),
+    ).rejects.toThrow('unknown-applied-migration')
+  })
   it('rejects a changed checksum for an applied version', async () => {
     directory = await mkdtemp(join(tmpdir(), 'ptit-migrations-'))
     await writeFile(join(directory, '001_first.sql'), 'SELECT 1;')

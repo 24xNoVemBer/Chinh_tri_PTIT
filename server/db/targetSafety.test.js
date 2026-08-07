@@ -1,6 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
-import { resolveConfirmedPostgresTarget, verifyConnectedPostgresTarget } from './targetSafety.js'
+import { DATA_TABLE_ORDER, POSTGRES_PUBLIC_TABLES } from './applicationSchema.js'
+import {
+  assertPostgresImportTargetReady,
+  inspectPostgresApplicationSchema,
+  resolveConfirmedPostgresTarget,
+  verifyConnectedPostgresTarget,
+} from './targetSafety.js'
 
 const confirmedEnv = {
   DATABASE_CONFIRM_HOST: 'db.staging.ptit.test:5432',
@@ -107,5 +113,60 @@ describe('PostgreSQL administrative target safety', () => {
         user: 'ptit_app',
       }),
     ).rejects.toThrow('identity mismatch for database')
+  })
+
+  it('requires the exact dedicated application schema before import', async () => {
+    const rows = POSTGRES_PUBLIC_TABLES.map((table_name) => ({ table_name }))
+    const client = {
+      many: vi.fn().mockResolvedValue(rows),
+      one: vi.fn().mockResolvedValue({ count: 0 }),
+    }
+
+    await expect(inspectPostgresApplicationSchema(client)).resolves.toEqual({
+      tableCount: POSTGRES_PUBLIC_TABLES.length,
+      tables: [...POSTGRES_PUBLIC_TABLES].sort(),
+    })
+    await expect(assertPostgresImportTargetReady(client)).resolves.toMatchObject({
+      tableCount: POSTGRES_PUBLIC_TABLES.length,
+      requireEmpty: true,
+      occupied: [],
+    })
+    expect(client.one).toHaveBeenCalledTimes(DATA_TABLE_ORDER.length - 1)
+  })
+
+  it('rejects incomplete, shared or occupied import targets during read-only preflight', async () => {
+    const completeRows = POSTGRES_PUBLIC_TABLES.map((table_name) => ({ table_name }))
+
+    await expect(
+      inspectPostgresApplicationSchema({
+        many: vi
+          .fn()
+          .mockResolvedValue(completeRows.filter((row) => row.table_name !== 'questions')),
+      }),
+    ).rejects.toThrow('missing=questions')
+
+    await expect(
+      inspectPostgresApplicationSchema({
+        many: vi.fn().mockResolvedValue([...completeRows, { table_name: 'other_application' }]),
+      }),
+    ).rejects.toThrow('unexpected=other_application')
+
+    const occupiedClient = {
+      many: vi.fn().mockResolvedValue(completeRows),
+      one: vi.fn(async (sql) => ({ count: sql.includes('"subjects"') ? 5 : 0 })),
+    }
+    await expect(assertPostgresImportTargetReady(occupiedClient)).rejects.toThrow('subjects=5')
+  })
+
+  it('can skip only the empty-data check after an explicit break-glass decision', async () => {
+    const client = {
+      many: vi.fn().mockResolvedValue(POSTGRES_PUBLIC_TABLES.map((table_name) => ({ table_name }))),
+      one: vi.fn(),
+    }
+
+    await expect(
+      assertPostgresImportTargetReady(client, { requireEmpty: false }),
+    ).resolves.toMatchObject({ requireEmpty: false, occupied: [] })
+    expect(client.one).not.toHaveBeenCalled()
   })
 })

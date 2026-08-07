@@ -5,7 +5,8 @@ import { parseArgs } from 'node:util'
 import { createRuntimeConfig } from '../server/runtimeConfig.js'
 import { createPostgresClient } from '../server/db/postgres.js'
 import { createPostgresPoolOptions } from '../server/db/runtime.js'
-import { runMigrations } from '../server/db/migrations.js'
+import { assertMigrationsCurrent } from '../server/db/migrations.js'
+import { DATA_TABLE_ORDER } from '../server/db/applicationSchema.js'
 import {
   fingerprintSnapshotTables,
   importDatabaseSnapshot,
@@ -14,6 +15,7 @@ import {
   validateStagingSnapshot,
 } from '../server/db/dataMigration.js'
 import {
+  assertPostgresImportTargetReady,
   resolveConfirmedPostgresTarget,
   verifyConnectedPostgresTarget,
 } from '../server/db/targetSafety.js'
@@ -46,6 +48,14 @@ const validation = validateStagingSnapshot(snapshot, { allowRuntimeData })
 await validateSnapshotImportability(snapshot, { allowRuntimeData })
 const fingerprints = fingerprintSnapshotTables(snapshot)
 
+function requireImportBreakGlass(enabled, envName, optionName) {
+  if (enabled && process.env[envName] !== 'true') {
+    throw new Error(
+      'Using ' + optionName + ' requires ' + envName + '=true in the protected environment.',
+    )
+  }
+}
+
 if (dryRun) {
   console.log(
     JSON.stringify(
@@ -64,6 +74,9 @@ if (dryRun) {
     ),
   )
 } else {
+  requireImportBreakGlass(allowExisting, 'DB_ALLOW_EXISTING_IMPORT', '--allow-existing')
+  requireImportBreakGlass(allowRuntimeData, 'DB_ALLOW_RUNTIME_DATA_IMPORT', '--allow-runtime-data')
+
   const config = createRuntimeConfig()
   if (config.database.driver !== 'postgres') {
     throw new Error('Set DATABASE_DRIVER=postgres before importing a database snapshot.')
@@ -83,7 +96,10 @@ if (dryRun) {
 
   try {
     const connectedTarget = await verifyConnectedPostgresTarget(client, target)
-    await runMigrations(client, { migrationDirectory })
+    const preflight = await assertPostgresImportTargetReady(client, {
+      requireEmpty: !allowExisting,
+    })
+    const migrations = await assertMigrationsCurrent(client, { migrationDirectory })
     const imported = await importDatabaseSnapshot(client, snapshot, {
       conflictPolicy: allowExisting ? 'ignore' : 'error',
       requireEmpty: !allowExisting,
@@ -93,7 +109,7 @@ if (dryRun) {
     let analyzed = true
     let analyzeWarning = null
     try {
-      await client.exec('ANALYZE')
+      await client.exec('ANALYZE ' + DATA_TABLE_ORDER.map((table) => '"' + table + '"').join(', '))
     } catch (error) {
       analyzed = false
       analyzeWarning = error instanceof Error ? error.message : String(error)
@@ -105,6 +121,8 @@ if (dryRun) {
         {
           status: 'imported',
           database: connectedTarget,
+          preflight,
+          migrations,
           snapshotPath,
           rowCount,
           analyzed,

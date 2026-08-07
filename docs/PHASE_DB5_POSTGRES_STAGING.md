@@ -2,7 +2,7 @@
 
 **Bắt đầu:** 2026-08-08  
 **Nhánh:** `feature/db5-postgres-staging`  
-**Trạng thái:** DB-5.2 hoàn thành; dừng tại checkpoint review, chưa chạy PostgreSQL staging
+**Trạng thái:** DB-5.3 hoàn thành; dừng tại checkpoint review, chưa chạy PostgreSQL staging
 
 ## Phạm vi
 
@@ -19,14 +19,15 @@ Không thuộc DB-5: Outlook SSO thật, RAG provider thật, thay đổi UI và
 
 ## Tiến độ
 
-| Mốc                      | Trạng thái | Kết quả                                                                              |
-| ------------------------ | ---------- | ------------------------------------------------------------------------------------ |
-| DB-5.0 baseline          | Hoàn thành | Backup SQLite, inventory 25 bảng/538 rows và checksum                                |
-| DB-5.1 artifact offline  | Hoàn thành | Snapshot 141 rows, bỏ runtime data, vô hiệu credential, importability và fingerprint |
-| DB-5.2 target safety     | Hoàn thành | Xác nhận URL host/database/user, xác minh identity từ server và CLI fail-closed      |
-| DB-5.3 staging migration | Đang chờ   | Chỉ chạy sau checkpoint review và khi có PostgreSQL staging credential               |
-| DB-5.4 parity/load       | Một phần   | Read/write parity và smoke local đã đạt; staging chưa chạy                           |
-| DB-5.5 rollback          | Chưa chạy  | Cần database staging để diễn tập backup/restore/rollback                             |
+| Mốc                             | Trạng thái | Kết quả                                                                              |
+| ------------------------------- | ---------- | ------------------------------------------------------------------------------------ |
+| DB-5.0 baseline                 | Hoàn thành | Backup SQLite, inventory 25 bảng/538 rows và checksum                                |
+| DB-5.1 artifact offline         | Hoàn thành | Snapshot 141 rows, bỏ runtime data, vô hiệu credential, importability và fingerprint |
+| DB-5.2 target safety            | Hoàn thành | Xác nhận URL host/database/user, xác minh identity từ server và CLI fail-closed      |
+| DB-5.3 import/credential safety | Hoàn thành | Tách migrate/import, preflight schema rỗng và kích hoạt credential riêng             |
+| PostgreSQL staging execution    | Đang chờ   | Chưa có credential database/role staging để chạy runbook thật                        |
+| DB-5.4 parity/load              | Một phần   | Read/write parity và smoke local đã đạt; staging chưa chạy                           |
+| DB-5.5 rollback                 | Chưa chạy  | Cần database staging để diễn tập backup/restore/rollback                             |
 
 ## DB-5.0 — Baseline ngày 2026-08-08
 
@@ -94,6 +95,22 @@ thay đổi.
 - CLI dùng strict parsing; option sai chính tả bị từ chối thay vì rơi vào luồng ghi dữ liệu.
 - Chưa có kết nối hay thay đổi nào trên PostgreSQL thật tại checkpoint này.
 
+## DB-5.3 — Import và credential staging
+
+- db:import không còn tự chạy migration. Operator phải chạy db:migrate thành công trước.
+- Preflight chỉ đọc yêu cầu đúng toàn bộ application tables, không có bảng public ngoài phạm vi,
+  migration version/name/checksum phải khớp và target nghiệp vụ phải rỗng.
+- Khi bắt đầu transaction import, PostgreSQL khóa toàn bộ application tables rồi kiểm tra rỗng lần
+  nữa trước insert để chống thay đổi xen giữa preflight và import.
+- Hai cờ allow-existing và allow-runtime-data cần thêm xác nhận thứ hai qua protected environment.
+- ANALYZE sau import chỉ áp dụng cho application tables, không quét toàn database.
+- Snapshot giữ toàn bộ user ở trạng thái credential vô hiệu. Sau validation, lệnh
+  db:credentials:staging chỉ kích hoạt đúng một sinh viên và một giảng viên trong một transaction.
+- Password staging phải dài 16–128 ký tự, khác nhau, email thuộc ptit.edu.vn và không được truyền
+  qua command line hoặc ghi vào log.
+- Script từ chối ghi đè credential đã hoạt động; các tài khoản demo còn lại tiếp tục bị vô hiệu.
+- Chưa có kết nối hay thay đổi nào trên PostgreSQL thật tại checkpoint này.
+
 ## Runbook staging an toàn
 
 `.env.staging.example` chỉ là mẫu. Các script tự load `.env`, không tự load file mẫu. Tạo secret
@@ -120,7 +137,7 @@ npm run db:import -- data/ptit-staging-snapshot-db5.json --dry-run
 
 `--dry-run` chỉ đọc/validate snapshot, không kết nối và không chạy migration.
 
-### 3. Migrate, import, đối chiếu exact data
+### 3. Migrate, import và đối chiếu trước khi kích hoạt đăng nhập
 
 ```powershell
 npm run db:migrate
@@ -128,10 +145,23 @@ npm run db:import -- data/ptit-staging-snapshot-db5.json
 npm run db:validate:staging -- data/ptit-staging-snapshot-db5.json
 ```
 
-Validation kiểm tra version/checksum của toàn bộ migration, bảng, index và row count từng bảng.
-Chạy exact validation trước parity vì login sẽ tăng `sessions` và `audit_logs`.
+Ba lệnh là các bước tách biệt; db:import không tạo hoặc sửa schema. Import kiểm tra schema,
+migration metadata và target rỗng trước transaction. Chạy validation trước khi kích hoạt
+credential vì các bước đăng nhập sau đó sẽ tạo sessions và audit logs.
 
-### 4. Parity và load
+### 4. Kích hoạt hai tài khoản parity staging
+
+Nạp STAGING_STUDENT_EMAIL, STAGING_STUDENT_PASSWORD, STAGING_LECTURER_EMAIL và
+STAGING_LECTURER_PASSWORD từ secret manager, sau đó đặt
+STAGING_CREDENTIAL_ROTATION_CONFIRM=true cho đúng lần chạy đã được duyệt.
+
+```powershell
+npm run db:credentials:staging
+```
+
+Lệnh chỉ xuất id/email/role đã cập nhật; không xuất password hoặc password hash.
+
+### 5. Parity và load
 
 ```powershell
 npm run api:parity
@@ -148,8 +178,8 @@ Xem guard và cách xác nhận target trong [API_PARITY.md](./API_PARITY.md) v�
 Chỉ dùng khi có phê duyệt và backup:
 
 - `db:export -- --include-runtime-data`: đưa session/audit development vào snapshot;
-- `db:import -- --allow-runtime-data`: chấp nhận runtime data;
-- `db:import -- --allow-existing`: bỏ invariant target trống và dùng conflict-ignore;
+- `db:import -- --allow-runtime-data`: cần thêm `DB_ALLOW_RUNTIME_DATA_IMPORT=true`;
+- `db:import -- --allow-existing`: cần thêm `DB_ALLOW_EXISTING_IMPORT=true`;
 - `db:validate:staging -- --schema-only`: chỉ kiểm tra schema, không xác nhận dữ liệu.
 
 Luồng bình thường không dùng bất kỳ cờ nào ở trên.

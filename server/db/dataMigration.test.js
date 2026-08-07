@@ -311,6 +311,40 @@ describe('database snapshot migration', () => {
       source.close()
     }
   })
+  it('locks PostgreSQL tables even for an explicitly non-empty import', async () => {
+    const source = createDatabase({ databasePath: ':memory:', seed: true })
+    try {
+      const snapshot = exportDatabaseSnapshot(source)
+      for (const table of DATA_TABLE_ORDER) snapshot.tables[table] = []
+
+      const events = []
+      const client = {
+        async transaction(callback) {
+          return callback({
+            dialect: 'postgres',
+            async exec(sql) {
+              events.push({ type: 'exec', sql })
+            },
+            async execute() {
+              throw new Error('Empty snapshot should not execute inserts.')
+            },
+          })
+        },
+      }
+
+      await importDatabaseSnapshot(client, snapshot, {
+        logger: { info() {} },
+        conflictPolicy: 'ignore',
+        requireEmpty: false,
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0]).toMatchObject({ type: 'exec' })
+      expect(events[0].sql).toContain('LOCK TABLE')
+    } finally {
+      source.close()
+    }
+  })
   it('rejects unsupported snapshots before opening a transaction', async () => {
     const target = createDatabase({ databasePath: ':memory:', seed: false })
     try {

@@ -32,6 +32,45 @@ export async function listMigrations(migrationDirectory) {
   )
 }
 
+export async function assertMigrationsCurrent(client, { migrationDirectory } = {}) {
+  if (!client || typeof client.many !== 'function') {
+    throw new Error('assertMigrationsCurrent requires a database client with many().')
+  }
+  if (!migrationDirectory) throw new Error('Migration directory is required.')
+
+  const known = await listMigrations(migrationDirectory)
+  const applied = await client.many(
+    'SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version',
+  )
+  const appliedByVersion = new Map(
+    applied.map((migration) => [String(migration.version), migration]),
+  )
+  const knownVersions = new Set(known.map((migration) => migration.version))
+  const mismatches = []
+
+  for (const migration of known) {
+    const existing = appliedByVersion.get(migration.version)
+    if (!existing) {
+      mismatches.push({ version: migration.version, issue: 'missing' })
+    } else if (existing.name !== migration.name || existing.checksum !== migration.checksum) {
+      mismatches.push({ version: migration.version, issue: 'metadata-mismatch' })
+    }
+  }
+  for (const migration of applied) {
+    if (!knownVersions.has(String(migration.version))) {
+      mismatches.push({ version: String(migration.version), issue: 'unknown-applied-migration' })
+    }
+  }
+  if (mismatches.length) {
+    throw new Error('PostgreSQL migrations are not current: ' + JSON.stringify(mismatches))
+  }
+
+  return Object.freeze({
+    known: known.length,
+    applied: applied.length,
+    latest: applied.at(-1) ?? null,
+  })
+}
 export async function runMigrations(client, { migrationDirectory, logger = console } = {}) {
   if (!client || typeof client.transaction !== 'function')
     throw new Error('runMigrations requires a database client with transaction().')
