@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+import { parseArgs } from 'node:util'
 import { createRuntimeConfig } from '../server/runtimeConfig.js'
 import { createPostgresClient } from '../server/db/postgres.js'
 import { createPostgresPoolOptions } from '../server/db/runtime.js'
@@ -10,13 +11,29 @@ import {
   readDatabaseSnapshot,
   validateStagingSnapshot,
 } from '../server/db/dataMigration.js'
+import {
+  resolveConfirmedPostgresTarget,
+  verifyConnectedPostgresTarget,
+} from '../server/db/targetSafety.js'
 
 if (existsSync('.env')) process.loadEnvFile('.env')
 
-const args = process.argv.slice(2)
-const schemaOnly = args.includes('--schema-only')
-const requestedSnapshot = args.find((argument) => !argument.startsWith('--'))
-const configuredSnapshotPath = requestedSnapshot ?? process.env.DB_SNAPSHOT_PATH
+const { values, positionals } = parseArgs({
+  args: process.argv.slice(2),
+  options: {
+    'schema-only': { type: 'boolean' },
+  },
+  allowPositionals: true,
+  strict: true,
+})
+if (positionals.length > 1) {
+  throw new Error('db:validate:staging accepts at most one snapshot path.')
+}
+const schemaOnly = Boolean(values['schema-only'])
+if (schemaOnly && positionals.length > 0) {
+  throw new Error('Do not provide a snapshot path together with --schema-only.')
+}
+const configuredSnapshotPath = positionals[0] ?? process.env.DB_SNAPSHOT_PATH
 if (!schemaOnly && !configuredSnapshotPath) {
   throw new Error(
     'Provide a staging-safe snapshot path or set DB_SNAPSHOT_PATH. Use --schema-only only for an explicit schema check.',
@@ -39,6 +56,9 @@ const config = createRuntimeConfig()
 if (config.database.driver !== 'postgres') {
   throw new Error('Set DATABASE_DRIVER=postgres before validating staging.')
 }
+const target = resolveConfirmedPostgresTarget(config.database.url, process.env, {
+  operation: 'staging validation',
+})
 
 const requiredIndexes = [
   'users_email_lower_unique',
@@ -66,9 +86,9 @@ const client = createPostgresClient({
 })
 
 try {
-  const databaseInfo = await client.one(
-    "SELECT current_database() AS database, current_user AS user, current_setting('server_version') AS version",
-  )
+  const connectedTarget = await verifyConnectedPostgresTarget(client, target)
+  const versionInfo = await client.one("SELECT current_setting('server_version') AS version")
+  const databaseInfo = { ...connectedTarget, version: versionInfo.version }
   const appliedMigrations = await client.many(
     'SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version',
   )

@@ -2,7 +2,7 @@
 
 **Bắt đầu:** 2026-08-08  
 **Nhánh:** `feature/db5-postgres-staging`  
-**Trạng thái:** DB-5.1 hoàn thành; dừng tại checkpoint review, chưa chạy PostgreSQL staging
+**Trạng thái:** DB-5.2 hoàn thành; dừng tại checkpoint review, chưa chạy PostgreSQL staging
 
 ## Phạm vi
 
@@ -19,14 +19,14 @@ Không thuộc DB-5: Outlook SSO thật, RAG provider thật, thay đổi UI và
 
 ## Tiến độ
 
-| Mốc                      | Trạng thái      | Kết quả                                                                              |
-| ------------------------ | --------------- | ------------------------------------------------------------------------------------ |
-| DB-5.0 baseline          | Hoàn thành      | Backup SQLite, inventory 25 bảng/538 rows và checksum                                |
-| DB-5.1 artifact offline  | Hoàn thành      | Snapshot 141 rows, bỏ runtime data, vô hiệu credential, importability và fingerprint |
-| DB-5.2 target safety     | Chưa triển khai | Sẽ xác nhận chính xác host/database/user trước migration, import và validate         |
-| DB-5.3 staging migration | Đang chờ        | Chỉ chạy sau checkpoint review và khi có PostgreSQL staging credential               |
-| DB-5.4 parity/load       | Một phần        | Read/write parity và smoke local đã đạt; staging chưa chạy                           |
-| DB-5.5 rollback          | Chưa chạy       | Cần database staging để diễn tập backup/restore/rollback                             |
+| Mốc                      | Trạng thái | Kết quả                                                                              |
+| ------------------------ | ---------- | ------------------------------------------------------------------------------------ |
+| DB-5.0 baseline          | Hoàn thành | Backup SQLite, inventory 25 bảng/538 rows và checksum                                |
+| DB-5.1 artifact offline  | Hoàn thành | Snapshot 141 rows, bỏ runtime data, vô hiệu credential, importability và fingerprint |
+| DB-5.2 target safety     | Hoàn thành | Xác nhận URL host/database/user, xác minh identity từ server và CLI fail-closed      |
+| DB-5.3 staging migration | Đang chờ   | Chỉ chạy sau checkpoint review và khi có PostgreSQL staging credential               |
+| DB-5.4 parity/load       | Một phần   | Read/write parity và smoke local đã đạt; staging chưa chạy                           |
+| DB-5.5 rollback          | Chưa chạy  | Cần database staging để diễn tập backup/restore/rollback                             |
 
 ## DB-5.0 — Baseline ngày 2026-08-08
 
@@ -65,7 +65,7 @@ thay đổi.
 | sessions            |  119 | subjects                |    5 |
 | users               |    7 |                         |      |
 
-## DB-5.2 — Snapshot staging-safe
+## DB-5.1 — Snapshot staging-safe
 
 - File local: `data/ptit-staging-snapshot-db5.json`.
 - SHA-256: `083FC33331353312172FD23C3785005E477B02801B3BB2387CE056CF5CEC0CC2`.
@@ -81,12 +81,30 @@ thay đổi.
 - Export mở SQLite read-only và đọc cả 25 bảng trong một transaction point-in-time.
 - Import mặc định khóa các bảng PostgreSQL, yêu cầu target trống trong cùng transaction và fail khi conflict.
 
+## DB-5.2 — PostgreSQL target safety
+
+- db:migrate, db:import khi không dùng dry-run và db:validate:staging bắt buộc khai báo riêng
+  DATABASE_CONFIRM_HOST, DATABASE_CONFIRM_NAME và DATABASE_CONFIRM_USER.
+- Bộ xác nhận được đối chiếu với DATABASE_URL trước khi tạo kết nối. Sau khi kết nối, script dùng
+  current_database() và current_user để xác minh lại identity từ PostgreSQL trước khi chạy migration,
+  import hoặc truy vấn validation.
+- URL không được phép dùng query parameter để ghi đè host, port, database hoặc user.
+- Các database hệ thống postgres, template0 và template1 luôn bị chặn.
+- Target có dấu hiệu production cần DATABASE_ALLOW_PRODUCTION_ADMIN=true theo quy trình break-glass.
+- CLI dùng strict parsing; option sai chính tả bị từ chối thay vì rơi vào luồng ghi dữ liệu.
+- Chưa có kết nối hay thay đổi nào trên PostgreSQL thật tại checkpoint này.
+
 ## Runbook staging an toàn
 
 `.env.staging.example` chỉ là mẫu. Các script tự load `.env`, không tự load file mẫu. Tạo secret
 theo kênh quản lý cấu hình của PTIT; không commit connection string hoặc password.
 
 ### 1. Xác nhận đúng target bằng truy vấn chỉ đọc
+
+Điền đủ bốn biến DATABASE_CONFIRM_HOST, DATABASE_CONFIRM_NAME, DATABASE_CONFIRM_USER và
+DATABASE_ALLOW_PRODUCTION_ADMIN trong secret environment. Giá trị phải khớp chính xác với
+DATABASE_URL; xem mẫu tại .env.staging.example. Truy vấn psql dưới đây là bước kiểm tra vận hành bổ
+sung, không thay thế guard tự động trong script.
 
 ```powershell
 psql "$env:DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "SELECT current_database(), current_user, inet_server_addr(), inet_server_port();"

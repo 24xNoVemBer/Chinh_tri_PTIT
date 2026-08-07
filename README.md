@@ -98,6 +98,10 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 | `DATABASE_PATH`                           | `data/ptit-teaching-assistant.sqlite` | Đường dẫn file SQLite                                                            |
 | `DATABASE_DRIVER`                         | `sqlite`                              | Adapter: `sqlite` hoặc `postgres`; PostgreSQL cần migrate schema trước khi start |
 | `DATABASE_URL`                            | _(trống)_                             | PostgreSQL connection string khi dùng adapter postgres                           |
+| `DATABASE_CONFIRM_HOST`                   | _(trống)_                             | Host và port phải khớp DATABASE_URL trước tác vụ quản trị PostgreSQL             |
+| `DATABASE_CONFIRM_NAME`                   | _(trống)_                             | Tên database phải khớp DATABASE_URL                                              |
+| `DATABASE_CONFIRM_USER`                   | _(trống)_                             | User phải khớp URL và current_user do PostgreSQL báo cáo                         |
+| `DATABASE_ALLOW_PRODUCTION_ADMIN`         | `false`                               | Break-glass cho target production; staging bình thường phải giữ false            |
 | `DATABASE_POOL_MAX`                       | `10`                                  | Số connection tối đa cho PostgreSQL pool                                         |
 | `DATABASE_IDLE_TIMEOUT_MS`                | `10000`                               | Thời gian connection PostgreSQL idle trước khi đóng (ms)                         |
 | `DATABASE_CONNECTION_TIMEOUT_MS`          | `5000`                                | Giới hạn thời gian mở connection PostgreSQL (ms)                                 |
