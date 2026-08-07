@@ -133,6 +133,12 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 | `LOAD_TEST_CONFIRM_STAGING`               | `false`                               | Xác nhận target tải cao là staging disposable                                    |
 | `LOAD_TEST_CONFIRM_HOST`                  | _(trống)_                             | Host load test phải khớp target                                                  |
 | `LOAD_TEST_MAX_REQUESTS`                  | `20000`                               | Trần request dự kiến trước khi generator được phép chạy                          |
+| `RESTORE_DATABASE_URL`                    | _(trống)_                             | URL của database restore drill riêng, không phải source staging                  |
+| `RESTORE_DATABASE_SSL_MODE`               | `verify-full`                         | TLS mode riêng cho restore target                                                |
+| `RESTORE_DATABASE_SSL_CA_PATH`            | _(trống)_                             | CA tin cậy của restore target                                                    |
+| `RESTORE_CONFIRM_HOST/NAME/USER`          | _(trống)_                             | Ba xác nhận identity riêng cho restore target                                    |
+| `RESTORE_CONFIRM_DISPOSABLE`              | `false`                               | Xác nhận restore target có thể xóa/bỏ                                            |
+| `RESTORE_CONFIRM_CLEAN`                   | `false`                               | Xác nhận cho phép pg_restore clean schema trên target disposable                 |
 | `NODE_ENV`                                | `development`                         | Môi trường chạy                                                                  |
 | `VITE_DATA_SOURCE`                        | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                       |
 | `RAG_DEMO_DATA`                           | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                       |
@@ -197,6 +203,7 @@ docs/                    API, database và frontend contracts
 - [DB-4B async repositories và runtime](./docs/PHASE_DB4B_ASYNC_REPOSITORIES.md)
 - [API parity staging check](./docs/API_PARITY.md)
 - [API load test](./docs/LOAD_TEST.md)
+- [DB-5.5 backup/restore drill](./docs/PHASE_DB5_BACKUP_RESTORE.md)
 - [Implementation history: Student → production readiness](./docs/IMPLEMENTATION_HISTORY.md)
 - [DB-5 PostgreSQL staging cutover](./docs/PHASE_DB5_POSTGRES_STAGING.md)
 - [Design system](./design-system/ptit-teaching-assistant/MASTER.md)

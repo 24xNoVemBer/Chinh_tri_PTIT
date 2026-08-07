@@ -103,13 +103,14 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - `npm run db:import`
 - `npm run db:validate:staging`
 - `npm run db:credentials:staging`
+- `npm run db:backup:staging` và `npm run db:restore:drill`
 - PostgreSQL TLS `verify-full`, exact content fingerprint và parity/load fail-closed guards
 - `npm run api:parity`
 - `npm run load:test` và các profile `load:test:smoke|baseline|login-storm|exam-peak`
 
 ## 4. Kiểm thử và xác minh hiện tại
 
-- Vitest: **23 test files, 121/121 tests passed**.
+- Vitest: **25 test files, 129/129 tests passed**.
 - ESLint: passed.
 - Contract/OpenAPI validation: 9 schema, 4 examples và 3 OpenAPI documents
   passed.
@@ -133,6 +134,7 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - [API parity staging check](./API_PARITY.md)
 - [API load test](./LOAD_TEST.md)
 - [DB-5 PostgreSQL staging cutover](./PHASE_DB5_POSTGRES_STAGING.md)
+- [DB-5.5 backup/restore drill](./PHASE_DB5_BACKUP_RESTORE.md)
 
 ## 6. Trạng thái production readiness
 

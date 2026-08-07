@@ -2,7 +2,7 @@
 
 **Bắt đầu:** 2026-08-08  
 **Nhánh:** `feature/db5-postgres-staging`  
-**Trạng thái:** DB-5.4 tooling hoàn thành; chưa chạy PostgreSQL staging thật
+**Trạng thái:** DB-5.5 tooling hoàn thành; chưa chạy PostgreSQL staging/restore drill thật
 
 ## Phạm vi
 
@@ -27,7 +27,7 @@ Không thuộc DB-5: Outlook SSO thật, RAG provider thật, thay đổi UI và
 | DB-5.3 import/credential safety | Hoàn thành   | Tách migrate/import, preflight schema rỗng và kích hoạt credential riêng             |
 | PostgreSQL staging execution    | Đang chờ     | Chưa có credential database/role staging để chạy runbook thật                        |
 | DB-5.4 parity/load              | Tooling xong | Fingerprint, TLS, parity/load guards hoàn thành; staging chưa chạy                   |
-| DB-5.5 rollback                 | Chưa chạy    | Cần database staging để diễn tập backup/restore/rollback                             |
+| DB-5.5 rollback                 | Tooling xong | Backup/checksum/restore disposable guards xong; drill thật chưa chạy                 |
 
 ## DB-5.0 — Baseline ngày 2026-08-08
 
@@ -114,7 +114,8 @@ thay đổi.
 ## DB-5.4 — Exact parity, TLS và load safety
 
 - `db:validate:staging` đối chiếu cả row count và SHA-256 content fingerprint từng bảng; dữ liệu
-  bị thay đổi nhưng giữ nguyên số dòng vẫn làm validation thất bại. Toàn bộ 25 bảng được đọc trong`n  một transaction PostgreSQL `REPEATABLE READ, READ ONLY` để có snapshot nhất quán.
+  bị thay đổi nhưng giữ nguyên số dòng vẫn làm validation thất bại. Toàn bộ 25 bảng được đọc trong
+  một transaction PostgreSQL `REPEATABLE READ, READ ONLY` để có snapshot nhất quán.
 - Validator dùng cùng schema/migration guard đã kiểm thử ở DB-5.2/DB-5.3 và báo transport TLS
   thật từ `pg_stat_ssl`.
 - PostgreSQL production chỉ khởi động với `DATABASE_SSL_MODE=verify-full` và CA file riêng;
@@ -126,6 +127,17 @@ thay đổi.
   số request; mặc định chặn workload vượt 20.000 request trước khi gửi lưu lượng.
 - Smoke/dry-run và 23 test files với 121/121 tests chạy offline; chưa có số liệu PostgreSQL
   staging thật tại checkpoint này.
+
+## DB-5.5 — Backup, restore và rollback tooling
+
+- `db:backup:staging` tạo PostgreSQL custom archive trong `data/backups`, kiểm tra bằng
+  `pg_restore --list` và ghi SHA-256 sidecar manifest; không overwrite file có sẵn.
+- Credential chỉ truyền qua libpq environment, không xuất hiện trong process arguments/log.
+- `db:restore:drill` dùng target `RESTORE_*` tách biệt, bắt buộc tên database disposable, khác
+  source và có hai xác nhận clean/disposable trước `pg_restore --single-transaction`.
+- Sau restore, script xác minh lại identity, TLS, exact application schema và migration checksum.
+- Runbook/RTO/RPO evidence tại [PHASE_DB5_BACKUP_RESTORE.md](./PHASE_DB5_BACKUP_RESTORE.md).
+- Chưa tạo archive hay thay đổi PostgreSQL thật tại checkpoint này.
 
 ## Runbook staging an toàn
 
@@ -189,6 +201,16 @@ npm run load:test:exam-peak
 
 Xem guard và cách xác nhận target trong [API_PARITY.md](./API_PARITY.md) và
 [LOAD_TEST.md](./LOAD_TEST.md).
+
+### 6. Backup và restore drill
+
+```powershell
+npm run db:backup:staging -- data/backups/pre-cutover-db5.dump
+npm run db:restore:drill -- data/backups/pre-cutover-db5.dump
+```
+
+Restore bắt buộc dùng database disposable riêng và bộ biến `RESTORE_*`; xem runbook chi tiết tại
+[PHASE_DB5_BACKUP_RESTORE.md](./PHASE_DB5_BACKUP_RESTORE.md).
 
 ## Break-glass flags
 

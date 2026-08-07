@@ -86,7 +86,8 @@ read p95 `1.000 ms`. Chỉ coi là SLO chính thức sau khi chủ hệ thống 
    tăng liên tục.
 6. Restore database disposable hoặc dọn session/audit theo retention policy sau khi đo.
 
-Không chạy profile cao trên production. Guard `LOAD_TEST_CONFIRM_STAGING=true` chỉ được cấp cho`nserver/database staging disposable đã backup và có người giám sát.
+Không chạy profile cao trên production. Guard `LOAD_TEST_CONFIRM_STAGING=true` chỉ được cấp cho
+server/database staging disposable đã backup và có người giám sát.
 
 ## Giới hạn hiện tại
 
