@@ -4,7 +4,12 @@ import { createPostgresClient } from './postgres.js'
 
 describe('PostgreSQL database adapter', () => {
   it('maps the neutral query API to pg parameters', async () => {
-    const pool = { query: vi.fn().mockResolvedValue({ rows: [{ id: 'u1' }], rowCount: 1 }) }
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [{ id: 'u1' }], rowCount: 1 }),
+      totalCount: 5,
+      idleCount: 3,
+      waitingCount: 2,
+    }
     const client = createPostgresClient({ pool })
 
     await expect(
@@ -15,6 +20,22 @@ describe('PostgreSQL database adapter', () => {
     expect(pool.query).toHaveBeenCalledWith("SELECT * FROM users WHERE id = $1 AND note = '?'", [
       'u1',
     ])
+    expect(client.stats()).toEqual({ total: 5, idle: 3, waiting: 2 })
+  })
+
+  it('logs unexpected errors from idle pooled connections', () => {
+    const pool = {
+      query: vi.fn(),
+      on: vi.fn(),
+    }
+    const logger = { error: vi.fn() }
+    createPostgresClient({ pool, logger })
+
+    expect(pool.on).toHaveBeenCalledWith('error', expect.any(Function))
+    const handler = pool.on.mock.calls[0][1]
+    const error = new Error('connection reset')
+    handler(error)
+    expect(logger.error).toHaveBeenCalledWith('Unexpected PostgreSQL pool error.', error)
   })
 
   it('commits a transaction and releases the pooled connection', async () => {

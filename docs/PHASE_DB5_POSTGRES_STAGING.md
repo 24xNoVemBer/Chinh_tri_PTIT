@@ -2,40 +2,52 @@
 
 **Bắt đầu:** 2026-08-08  
 **Nhánh:** `feature/db5-postgres-staging`  
-**Trạng thái:** DB-5.0 đang triển khai
+**Trạng thái:** DB-5.1 hoàn thành; dừng tại checkpoint review, chưa chạy PostgreSQL staging
 
 ## Phạm vi
 
-DB-5 kiểm chứng toàn bộ backend trên PostgreSQL trước khi tích hợp staging PTIT:
+DB-5 kiểm chứng backend trên PostgreSQL trước khi tích hợp staging PTIT:
 
-1. Khóa baseline và bảo toàn SQLite.
-2. Dựng PostgreSQL local staging.
-3. Chuyển dữ liệu demo an toàn.
-4. Chạy API parity/E2E.
-5. Đo tải và pool saturation.
-6. Diễn tập backup, restore và rollback.
+1. khóa baseline và bảo toàn SQLite;
+2. harden PostgreSQL runtime;
+3. chuyển dữ liệu demo an toàn;
+4. chạy API read/write parity;
+5. đo tải và pool saturation;
+6. diễn tập backup, restore và rollback.
 
 Không thuộc DB-5: Outlook SSO thật, RAG provider thật, thay đổi UI và production cutover.
+
+## Tiến độ
+
+| Mốc                      | Trạng thái      | Kết quả                                                                              |
+| ------------------------ | --------------- | ------------------------------------------------------------------------------------ |
+| DB-5.0 baseline          | Hoàn thành      | Backup SQLite, inventory 25 bảng/538 rows và checksum                                |
+| DB-5.1 artifact offline  | Hoàn thành      | Snapshot 141 rows, bỏ runtime data, vô hiệu credential, importability và fingerprint |
+| DB-5.2 target safety     | Chưa triển khai | Sẽ xác nhận chính xác host/database/user trước migration, import và validate         |
+| DB-5.3 staging migration | Đang chờ        | Chỉ chạy sau checkpoint review và khi có PostgreSQL staging credential               |
+| DB-5.4 parity/load       | Một phần        | Read/write parity và smoke local đã đạt; staging chưa chạy                           |
+| DB-5.5 rollback          | Chưa chạy       | Cần database staging để diễn tập backup/restore/rollback                             |
 
 ## DB-5.0 — Baseline ngày 2026-08-08
 
 - SQLite source: `data/ptit-teaching-assistant.sqlite`.
-- Backup trước khi chạy baseline: `data/backups/ptit-teaching-assistant-db5-20260808.sqlite`.
-- Snapshot local: `data/ptit-snapshot-db5.json`.
+- Backup: `data/backups/ptit-teaching-assistant-db5-20260808.sqlite`.
+- Snapshot đầy đủ: `data/ptit-snapshot-db5.json`.
 - Snapshot có 25 bảng và 538 rows.
 - Backup/snapshot được ignore khỏi Git.
 
-### SHA-256
+### SHA-256 tại thời điểm capture
 
 | Artifact                     | SHA-256                                                            |
 | ---------------------------- | ------------------------------------------------------------------ |
 | SQLite source sau export     | `AFCC17F52BA8F9794C274C46F2168A19F4482EE1D1115ECEED065B85810745AB` |
 | SQLite backup trước baseline | `DDEA694E99C873849F66BD52C8133D12DDAFA82FB5D7026FCB9788B74F829F84` |
-| JSON snapshot                | `8B2C5239370E854F108C98006BF1F1B60E1831CFAFAE81250574B3859567C68F` |
+| JSON snapshot đầy đủ         | `8B2C5239370E854F108C98006BF1F1B60E1831CFAFAE81250574B3859567C68F` |
 
-SQLite source và backup có hash khác nhau vì backup được tạo trước khi các lệnh baseline/export mở database. Không ghi đè backup ban đầu.
+Đây là hash lịch sử tại thời điểm capture; không thay bằng hash của SQLite runtime đang tiếp tục
+thay đổi.
 
-### Row count
+### Row count baseline
 
 | Table               | Rows | Table                   | Rows |
 | ------------------- | ---: | ----------------------- | ---: |
@@ -53,19 +65,84 @@ SQLite source và backup có hash khác nhau vì backup được tạo trước 
 | sessions            |  119 | subjects                |    5 |
 | users               |    7 |                         |      |
 
-## Quyết định dữ liệu cho DB-5.2
+## DB-5.2 — Snapshot staging-safe
 
-- Không import `sessions`; token cũ không được chuyển môi trường.
-- Không import `audit_logs` development vào staging mặc định.
-- Dữ liệu nghiệp vụ dự kiến: 141 rows sau khi loại hai bảng trên.
-- Import chỉ được chạy trên database trống, trừ khi truyền cờ override rõ ràng.
-- Migration `001_initial.sql` không được sửa; thay đổi schema mới phải dùng migration `002+`.
+- File local: `data/ptit-staging-snapshot-db5.json`.
+- SHA-256: `083FC33331353312172FD23C3785005E477B02801B3BB2387CE056CF5CEC0CC2`.
+- Tổng: 141 rows.
+- Toàn bộ 7 giá trị users.password_hash đã được thay bằng sentinel vô hiệu
+  disabled$staging-import; không mang mật khẩu demo sang staging.
+- Offline dry-run đã import thử toàn bộ snapshot vào database dùng một lần, kiểm tra khóa ngoại,
+  unique/check constraint và kiểu dữ liệu tương thích PostgreSQL.
+- SHA-256 fingerprint được tính độc lập cho từng bảng, không phụ thuộc thứ tự dòng hoặc thứ tự key;
+  dry-run xuất fingerprints để dùng cho bước đối chiếu PostgreSQL.
+- `sessions=0`, `audit_logs=0`; token và audit development không đi sang staging.
+- Validator bắt buộc đủ 25 bảng, row hợp lệ, có users/subjects và không có runtime data.
+- Export mở SQLite read-only và đọc cả 25 bảng trong một transaction point-in-time.
+- Import mặc định khóa các bảng PostgreSQL, yêu cầu target trống trong cùng transaction và fail khi conflict.
 
-## Blocker hiện tại cho DB-5.1
+## Runbook staging an toàn
 
-Máy có PostgreSQL 17.9 nhưng chưa có credential quản trị để tạo database và role staging. Cần một trong hai:
+`.env.staging.example` chỉ là mẫu. Các script tự load `.env`, không tự load file mẫu. Tạo secret
+theo kênh quản lý cấu hình của PTIT; không commit connection string hoặc password.
 
-- tài khoản có quyền `CREATE DATABASE` và `CREATE ROLE`; hoặc
-- database/role staging được tạo sẵn và cung cấp `DATABASE_URL` qua biến môi trường.
+### 1. Xác nhận đúng target bằng truy vấn chỉ đọc
 
-Không ghi connection string hoặc password thật vào tài liệu/Git.
+```powershell
+psql "$env:DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "SELECT current_database(), current_user, inet_server_addr(), inet_server_port();"
+```
+
+### 2. Backup và tạo snapshot
+
+```powershell
+npm run db:export -- data/ptit-staging-snapshot-db5.json
+Get-FileHash -Algorithm SHA256 data/ptit-staging-snapshot-db5.json
+npm run db:import -- data/ptit-staging-snapshot-db5.json --dry-run
+```
+
+`--dry-run` chỉ đọc/validate snapshot, không kết nối và không chạy migration.
+
+### 3. Migrate, import, đối chiếu exact data
+
+```powershell
+npm run db:migrate
+npm run db:import -- data/ptit-staging-snapshot-db5.json
+npm run db:validate:staging -- data/ptit-staging-snapshot-db5.json
+```
+
+Validation kiểm tra version/checksum của toàn bộ migration, bảng, index và row count từng bảng.
+Chạy exact validation trước parity vì login sẽ tăng `sessions` và `audit_logs`.
+
+### 4. Parity và load
+
+```powershell
+npm run api:parity
+npm run load:test:smoke
+npm run load:test:baseline
+npm run load:test:exam-peak
+```
+
+Xem guard và cách xác nhận target trong [API_PARITY.md](./API_PARITY.md) và
+[LOAD_TEST.md](./LOAD_TEST.md).
+
+## Break-glass flags
+
+Chỉ dùng khi có phê duyệt và backup:
+
+- `db:export -- --include-runtime-data`: đưa session/audit development vào snapshot;
+- `db:import -- --allow-runtime-data`: chấp nhận runtime data;
+- `db:import -- --allow-existing`: bỏ invariant target trống và dùng conflict-ignore;
+- `db:validate:staging -- --schema-only`: chỉ kiểm tra schema, không xác nhận dữ liệu.
+
+Luồng bình thường không dùng bất kỳ cờ nào ở trên.
+
+## Blocker còn lại
+
+PostgreSQL 17.9 local đang lắng nghe ở cổng 5432 nhưng chưa có credential quản trị. Để tiếp tục
+cần một trong hai:
+
+- tài khoản có quyền tạo database/role staging; hoặc
+- database/role đã tạo sẵn và `DATABASE_URL` được cấp qua secret environment.
+
+Sau khi có credential, công việc còn lại là chạy runbook thật, lưu report parity/load, kiểm tra
+query plan/pool saturation và diễn tập backup → restore → rollback.

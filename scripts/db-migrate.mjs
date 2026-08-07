@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { createRuntimeConfig } from '../server/runtimeConfig.js'
 import { createPostgresClient } from '../server/db/postgres.js'
+import { createPostgresPoolOptions } from '../server/db/runtime.js'
 import { runMigrations } from '../server/db/migrations.js'
 
 if (existsSync('.env')) process.loadEnvFile('.env')
@@ -18,10 +19,7 @@ const migrationDirectory = resolve(
 )
 const client = createPostgresClient({
   connectionString: config.database.url,
-  poolOptions: {
-    max: config.database.poolMax,
-    idleTimeoutMillis: config.database.idleTimeoutMs,
-  },
+  poolOptions: createPostgresPoolOptions(config.database, { administrative: true }),
 })
 
 try {

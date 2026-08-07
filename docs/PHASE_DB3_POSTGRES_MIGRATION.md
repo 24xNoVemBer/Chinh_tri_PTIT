@@ -38,7 +38,7 @@
 
 ## Data migration dry-run
 
-- `server/db/dataMigration.js` định nghĩa snapshot format version `1` và thứ tự 24 bảng dữ liệu theo khóa ngoại.
-- `npm run db:export` tạo snapshot JSON từ SQLite hiện tại.
-- `npm run db:import` chạy schema migration trước, sau đó import snapshot theo transaction và `ON CONFLICT DO NOTHING`.
+- `server/db/dataMigration.js` định nghĩa snapshot format version `1`, bắt buộc đủ 25 bảng và thứ tự import theo khóa ngoại.
+- `npm run db:export` mở SQLite read-only và tạo snapshot point-in-time; mặc định loại `sessions` và `audit_logs`.
+- `npm run db:import -- <snapshot> --dry-run` chỉ validate offline. Import thật chạy migration rồi yêu cầu target trống trong cùng transaction và fail khi conflict; `ON CONFLICT DO NOTHING` chỉ dùng với break-glass `--allow-existing`.
 - Snapshot demo không nên dùng làm dữ liệu production nếu chưa được PTIT duyệt retention, dữ liệu cá nhân và quy trình backup.

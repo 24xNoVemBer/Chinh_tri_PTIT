@@ -501,7 +501,5 @@ Trong đó, phần frontend-first trước khi tích hợp RAG khoảng **7–11
 
 ### Công cụ chuẩn bị cho staging
 
-- `npm run api:parity`: smoke test read-only cho health/readiness và route đọc
-  của hai vai trò bằng credential staging.
-- `npm run load:test`: đo latency/error rate ở HTTP boundary sau khi parity
-  đạt.
+- `npm run api:parity`: smoke test mặc định không đổi dữ liệu nghiệp vụ cho health/readiness và route đọc của hai vai trò; đăng nhập vẫn tạo session/audit.
+- `npm run load:test`: tạo pool session, đo latency/TTFB/error rate theo endpoint với profile smoke, baseline, login-storm và exam-peak.

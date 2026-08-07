@@ -103,17 +103,17 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - `npm run db:import`
 - `npm run db:validate:staging`
 - `npm run api:parity`
-- `npm run load:test`
+- `npm run load:test` và các profile `load:test:smoke|baseline|login-storm|exam-peak`
 
 ## 4. Kiểm thử và xác minh hiện tại
 
-- Vitest: **19 test files, 68/68 tests passed**.
+- Vitest: **20 test files, 86/86 tests passed**.
 - ESLint: passed.
 - Contract/OpenAPI validation: 9 schema, 4 examples và 3 OpenAPI documents
   passed.
 - Production build bằng Vite: passed.
-- API parity local cho cả student và lecturer: passed.
-- Load baseline local: 100 users, concurrency 20, 0 errors.
+- API read parity và luồng write student → lecturer trên database disposable: passed.
+- Load smoke local: 10 session, 5 active, 35/35 request thành công, 0 lỗi.
 
 > Các số liệu local dùng SQLite, chỉ là baseline kỹ thuật. Chưa được dùng làm
 > cam kết hiệu năng production.
@@ -130,6 +130,7 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - [DB-4B async repositories](./PHASE_DB4B_ASYNC_REPOSITORIES.md)
 - [API parity staging check](./API_PARITY.md)
 - [API load test](./LOAD_TEST.md)
+- [DB-5 PostgreSQL staging cutover](./PHASE_DB5_POSTGRES_STAGING.md)
 
 ## 6. Trạng thái production readiness
 
@@ -145,8 +146,8 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 
 1. Chưa chạy migration/import trên PostgreSQL staging thật của PTIT.
 2. Chưa đối chiếu API parity với dữ liệu staging không phải fixture.
-3. Chưa có số liệu p95/p99, pool saturation và error rate ở 1.000 concurrent.
-4. Chưa chạy burst 2.000–3.000 người dùng trong cửa sổ bảo trì được giám sát.
+3. Chưa có số liệu PostgreSQL staging cho 1.000 session với 100–200 active, gồm p95/p99, pool saturation và error rate.
+4. Chưa chạy profile 2.000–3.000 session với tối đa 500 active trong cửa sổ bảo trì được giám sát.
 5. Chưa xác nhận Outlook SSO và chính sách tài khoản edu trên môi trường thật.
 6. Chưa có backup/restore drill và phê duyệt rollback/cutover từ hạ tầng PTIT.
 7. RAG model thật vẫn cần endpoint, auth, timeout, citation và policy dữ liệu từ
@@ -156,12 +157,14 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 
 ```text
 Cấp PostgreSQL staging + credential test
+→ xác nhận database/user/host bằng truy vấn chỉ đọc
+→ export + hash + offline dry-run snapshot staging-safe
 → npm run db:migrate
-→ npm run db:validate:staging
-→ import snapshot được PTIT duyệt
+→ npm run db:import
+→ npm run db:validate:staging với exact snapshot
 → npm run api:parity
-→ load test 1.000 và burst 2.000–3.000
-→ đo p95/p99, pool, error rate, RAG latency
+→ load baseline 1.000 session và exam peak 2.000–3.000
+→ đo p95/p99, pool và error rate (RAG đo riêng)
 → backup/restore + rollback drill
 → phê duyệt cutover production
 ```

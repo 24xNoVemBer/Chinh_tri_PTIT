@@ -33,12 +33,17 @@ export class PostgresDatabaseClient {
   #pool
   #ownsPool
 
-  constructor(pool, { ownsPool = false } = {}) {
+  constructor(pool, { ownsPool = false, logger = console } = {}) {
     if (!pool || typeof pool.query !== 'function')
       throw new Error('PostgresDatabaseClient requires a pg Pool-compatible object.')
     this.#pool = pool
     this.#ownsPool = ownsPool
     this.dialect = 'postgres'
+    if (typeof this.#pool.on === 'function') {
+      this.#pool.on('error', (error) => {
+        logger.error?.('Unexpected PostgreSQL pool error.', error)
+      })
+    }
   }
 
   async one(sql, params) {
@@ -84,15 +89,29 @@ export class PostgresDatabaseClient {
     }
   }
 
+  stats() {
+    return {
+      total: Number(this.#pool.totalCount ?? 0),
+      idle: Number(this.#pool.idleCount ?? 0),
+      waiting: Number(this.#pool.waitingCount ?? 0),
+    }
+  }
+
   async close() {
     if (this.#ownsPool) await this.#pool.end()
   }
 }
 
-export function createPostgresClient({ connectionString, pool, poolOptions = {} } = {}) {
+export function createPostgresClient({
+  connectionString,
+  pool,
+  poolOptions = {},
+  logger = console,
+} = {}) {
   if (!pool && !connectionString)
     throw new Error('createPostgresClient requires connectionString or a pool.')
   return new PostgresDatabaseClient(pool ?? new Pool({ connectionString, ...poolOptions }), {
     ownsPool: !pool,
+    logger,
   })
 }

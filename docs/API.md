@@ -20,13 +20,13 @@ Lỗi có dạng:
 
 ## Xác thực
 
-| Method | Endpoint           | Mô tả                                      |
-| ------ | ------------------ | ------------------------------------------ |
-| `POST` | `/api/auth/login`  | Đăng nhập bằng `email`, `password`, `role` |
-| `GET`  | `/api/auth/me`     | Lấy người dùng của session hiện tại        |
-| `POST` | `/api/auth/logout` | Hủy session                                |
+| Method | Endpoint           | Mô tả                                                        |
+| ------ | ------------------ | ------------------------------------------------------------ |
+| `POST` | `/api/auth/login`  | Đăng nhập bằng `email`, `password`; `role` là guard tùy chọn |
+| `GET`  | `/api/auth/me`     | Lấy người dùng của session hiện tại                          |
+| `POST` | `/api/auth/logout` | Hủy session                                                  |
 
-Session token là chuỗi ngẫu nhiên, chỉ bản băm SHA-256 được lưu trong SQLite. Cookie
+Session token là chuỗi ngẫu nhiên, chỉ bản băm SHA-256 được lưu trong database runtime đã cấu hình. Cookie
 `ptit_session` có `HttpOnly`, `SameSite=Lax`, `Path=/`; production bổ sung `Secure`.
 Mật khẩu seed được băm bằng `scrypt`.
 

@@ -73,8 +73,8 @@ const server = createServer((request, response) => {
   serveStatic(request, response)
 })
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`PTIT Teaching Assistant server: http://127.0.0.1:${port}`)
+server.listen(port, runtimeConfig.host, () => {
+  console.log(`PTIT Teaching Assistant server: http://${runtimeConfig.host}:${port}`)
   console.log(`Database driver: ${runtimeConfig.database.driver}`)
 })
 

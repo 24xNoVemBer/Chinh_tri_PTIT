@@ -45,9 +45,13 @@ Môi trường hiện tại chưa có PostgreSQL staging thật nên chưa xác 
 ```powershell
 $env:DATABASE_DRIVER="postgres"
 $env:DATABASE_URL="postgres://user:password@host:5432/ptit"
+$env:DB_SNAPSHOT_PATH="data/ptit-staging-snapshot-db5.json"
+
+npm run db:export -- data/ptit-staging-snapshot-db5.json
+npm run db:import -- data/ptit-staging-snapshot-db5.json --dry-run
 npm run db:migrate
-npm run db:validate:staging
-npm run db:import -- data/ptit-snapshot.json
+npm run db:import -- data/ptit-staging-snapshot-db5.json
+npm run db:validate:staging -- data/ptit-staging-snapshot-db5.json
 npm run test
 npm run build
 npm start

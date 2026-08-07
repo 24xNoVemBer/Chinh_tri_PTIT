@@ -18,15 +18,15 @@ Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục
 - Dashboard sinh viên có bài học gần nhất, tiến độ, thống kê động, danh sách học phần và câu hỏi gần đây.
 - Dashboard giảng viên có công việc cần xử lý, thống kê lớp, mức độ tham gia, tiến độ và hoạt động gần đây.
 - Bìa học phần và hình minh họa theo đúng nội dung Triết học Mác – Lênin, Kinh tế chính trị, Tư tưởng Hồ Chí Minh và Lịch sử Đảng.
-- Chatbot demo gửi câu hỏi theo học phần qua backend, lưu request/response/citation vào SQLite và
+- Chatbot demo gửi câu hỏi theo học phần qua backend, lưu request/response/citation vào database runtime và
   đưa cùng câu trả lời vào hàng đợi kiểm duyệt của giảng viên.
 - Câu trả lời được phân loại minh bạch thành ưu tiên cao, cần xem xét hoặc kiểm tra lấy mẫu để
   giảng viên tập trung vào ngoại lệ thay vì phải duyệt toàn bộ.
-- Backend Node.js cung cấp JSON API, SQLite persistence, session cookie HttpOnly, RBAC và audit log.
+- Backend Node.js cung cấp JSON API, runtime SQLite/PostgreSQL, session cookie HttpOnly, RBAC và audit log.
 
 > [!IMPORTANT]
 > **Mô hình RAG chưa được kết nối.** Chat API hiện tạo nội dung demo có nhãn chưa kiểm duyệt để
-> kiểm tra trọn luồng frontend, backend, SQLite, citation và review queue. Model và retrieval thật
+> kiểm tra trọn luồng frontend, backend, database, citation và review queue. Model và retrieval thật
 > sẽ được tích hợp sau.
 
 ## Luồng chức năng
@@ -53,7 +53,7 @@ Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục
 | -------- | ------------------------------------------------------------------ |
 | Frontend | React 19, React Router 7, Vite 8, Lucide                           |
 | Backend  | Node.js HTTP server                                                |
-| Dữ liệu  | SQLite                                                             |
+| Dữ liệu  | SQLite cho development; PostgreSQL cho staging/production          |
 | Xác thực | Session cookie HttpOnly, RBAC                                      |
 | Kiểm thử | Vitest, Testing Library, jsdom                                     |
 | UI       | CSS custom properties, responsive layout, route-level lazy loading |
@@ -78,7 +78,7 @@ npm run dev
 - API: `http://127.0.0.1:3001/api`
 - SQLite mặc định: `data/ptit-teaching-assistant.sqlite`
 
-Sao chép `.env.example` thành `.env` nếu cần thay đổi cấu hình mặc định.
+Sao chép `.env.example` thành `.env` nếu cần thay đổi cấu hình mặc định. Với staging, dùng `.env.staging.example` làm checklist rồi nạp secret thật vào `.env` hoặc secret manager; các script không tự load file mẫu.
 
 ## Tài khoản demo
 
@@ -91,17 +91,26 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 
 ## Biến môi trường
 
-| Biến                       | Mặc định                              | Mô tả                                                                            |
-| -------------------------- | ------------------------------------- | -------------------------------------------------------------------------------- |
-| `PORT`                     | `3001`                                | Cổng HTTP của backend                                                            |
-| `DATABASE_PATH`            | `data/ptit-teaching-assistant.sqlite` | Đường dẫn file SQLite                                                            |
-| `DATABASE_DRIVER`          | `sqlite`                              | Adapter: `sqlite` hoặc `postgres`; PostgreSQL cần migrate schema trước khi start |
-| `DATABASE_URL`             | _(trống)_                             | PostgreSQL connection string khi dùng adapter postgres                           |
-| `DATABASE_POOL_MAX`        | `10`                                  | Số connection tối đa cho PostgreSQL pool                                         |
-| `DATABASE_IDLE_TIMEOUT_MS` | `10000`                               | Thời gian connection PostgreSQL idle trước khi đóng (ms)                         |
-| `NODE_ENV`                 | `development`                         | Môi trường chạy                                                                  |
-| `VITE_DATA_SOURCE`         | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                       |
-| `RAG_DEMO_DATA`            | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                       |
+| Biến                                      | Mặc định                              | Mô tả                                                                            |
+| ----------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| `HOST`                                    | `127.0.0.1`                           | Địa chỉ backend lắng nghe; dùng `0.0.0.0` khi đặt sau container/reverse proxy    |
+| `PORT`                                    | `3001`                                | Cổng HTTP của backend                                                            |
+| `DATABASE_PATH`                           | `data/ptit-teaching-assistant.sqlite` | Đường dẫn file SQLite                                                            |
+| `DATABASE_DRIVER`                         | `sqlite`                              | Adapter: `sqlite` hoặc `postgres`; PostgreSQL cần migrate schema trước khi start |
+| `DATABASE_URL`                            | _(trống)_                             | PostgreSQL connection string khi dùng adapter postgres                           |
+| `DATABASE_POOL_MAX`                       | `10`                                  | Số connection tối đa cho PostgreSQL pool                                         |
+| `DATABASE_IDLE_TIMEOUT_MS`                | `10000`                               | Thời gian connection PostgreSQL idle trước khi đóng (ms)                         |
+| `DATABASE_CONNECTION_TIMEOUT_MS`          | `5000`                                | Giới hạn thời gian mở connection PostgreSQL (ms)                                 |
+| `DATABASE_QUERY_TIMEOUT_MS`               | `20000`                               | Giới hạn chờ query ở client; phải lớn hơn statement timeout (ms)                 |
+| `DATABASE_STATEMENT_TIMEOUT_MS`           | `15000`                               | Giới hạn thực thi statement runtime ở PostgreSQL (ms)                            |
+| `DATABASE_ADMIN_QUERY_TIMEOUT_MS`         | `125000`                              | Client timeout cho migration/import/validation (ms)                              |
+| `DATABASE_ADMIN_STATEMENT_TIMEOUT_MS`     | `120000`                              | Server statement timeout cho tác vụ database quản trị (ms)                       |
+| `DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS` | `10000`                               | Đóng transaction bị bỏ quên (ms)                                                 |
+| `DATABASE_APPLICATION_NAME`               | `ptit-politics-api`                   | Tên ứng dụng hiển thị trong `pg_stat_activity`                                   |
+| `DB_SNAPSHOT_PATH`                        | _(trống)_                             | Snapshot staging-safe dùng cho import và exact validation                        |
+| `NODE_ENV`                                | `development`                         | Môi trường chạy                                                                  |
+| `VITE_DATA_SOURCE`                        | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                       |
+| `RAG_DEMO_DATA`                           | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                       |
 
 ## Build production cục bộ
 
@@ -120,7 +129,7 @@ Chạy toàn bộ quy trình kiểm tra:
 npm run check
 ```
 
-Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử bao phủ session, RBAC, các vertical slice chính, audit log, SQLite persistence, chatbot demo và async database boundary.
+Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử bao phủ session, RBAC, các vertical slice chính, audit log, SQLite/PostgreSQL database boundary, migration guard, chatbot demo và async repository.
 
 Có thể chạy riêng từng bước:
 
@@ -134,7 +143,7 @@ npm run build
 ## Cấu trúc dự án
 
 ```text
-server/                 HTTP API, session, SQLite schema/seed và repositories
+server/                 HTTP API, session, SQLite/PostgreSQL adapters, migrations và repositories
 src/
   assets/               Ảnh học phần, ảnh dashboard và thông tin nguồn
   components/common/    Navigation, progress, course cover và component dùng chung
