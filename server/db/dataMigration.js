@@ -251,6 +251,56 @@ export function fingerprintSnapshotTables(snapshot) {
   )
 }
 
+export async function fingerprintDatabaseTables(client) {
+  if (!client || typeof client.many !== 'function') {
+    throw new Error('fingerprintDatabaseTables requires a database client with many().')
+  }
+
+  const fingerprints = {}
+  const counts = {}
+  for (const table of DATA_TABLE_ORDER) {
+    const rows = await client.many('SELECT * FROM ' + quoteIdentifier(table))
+    counts[table] = rows.length
+    fingerprints[table] = fingerprintRows(rows)
+  }
+  return Object.freeze({
+    counts: Object.freeze(counts),
+    fingerprints: Object.freeze(fingerprints),
+  })
+}
+
+export async function assertDatabaseSnapshotParity(client, snapshot) {
+  assertSnapshot(snapshot)
+  const expectedFingerprints = fingerprintSnapshotTables(snapshot)
+  const actual = await fingerprintDatabaseTables(client)
+  const mismatches = []
+
+  for (const table of DATA_TABLE_ORDER) {
+    const expectedCount = snapshot.tables[table].length
+    if (actual.counts[table] !== expectedCount) {
+      mismatches.push({
+        table,
+        issue: 'row-count',
+        expected: expectedCount,
+        actual: actual.counts[table],
+      })
+      continue
+    }
+    if (actual.fingerprints[table] !== expectedFingerprints[table]) {
+      mismatches.push({ table, issue: 'content-fingerprint' })
+    }
+  }
+
+  if (mismatches.length) {
+    throw new Error('Database snapshot parity mismatch: ' + JSON.stringify(mismatches))
+  }
+
+  return Object.freeze({
+    counts: actual.counts,
+    fingerprints: actual.fingerprints,
+  })
+}
+
 function assertPostgresCompatibleTypes(database, snapshot) {
   for (const table of DATA_TABLE_ORDER) {
     const columns = new Map(

@@ -29,6 +29,14 @@ describe('load test configuration', () => {
     })
   })
 
+  it('rejects unknown, duplicate and positional CLI arguments', () => {
+    expect(() => parseOptions(['--typo'])).toThrow('Unknown load-test option')
+    expect(() => parseOptions(['baseline'])).toThrow('Unexpected positional argument')
+    expect(() => parseOptions(['--profile', 'smoke', '--profile', 'baseline'])).toThrow(
+      'Duplicate load-test option',
+    )
+  })
+
   it('keeps --users as a backwards-compatible sessions alias', () => {
     const config = resolveLoadTestConfig(['--users', '20', '--active', '8'], {})
     expect(config.sessions).toBe(20)
@@ -81,6 +89,7 @@ describe('load test configuration', () => {
         LOAD_TEST_BASE_URL: 'https://staging.ptit.test',
         LOAD_TEST_EMAIL: 'load-student@ptit.edu.vn',
         LOAD_TEST_PASSWORD: 'secret-from-env',
+        LOAD_TEST_CONFIRM_STAGING: 'true',
       },
     )
     expect(config).toMatchObject({
@@ -89,6 +98,19 @@ describe('load test configuration', () => {
       targetHost: 'staging.ptit.test',
       email: 'load-student@ptit.edu.vn',
     })
+  })
+
+  it('calculates and enforces the projected workload request budget', () => {
+    const config = resolveLoadTestConfig(['--sessions', '20', '--active', '8', '--rounds', '2'], {})
+    expect(config.projectedRequests).toBe(100)
+    expect(config.maxRequests).toBe(20_000)
+
+    expect(() =>
+      resolveLoadTestConfig(
+        ['--sessions', '20', '--active', '8', '--rounds', '2', '--max-requests', '99'],
+        {},
+      ),
+    ).toThrow('Projected workload of 100 requests exceeds')
   })
 
   it('rejects more active users than created sessions', () => {

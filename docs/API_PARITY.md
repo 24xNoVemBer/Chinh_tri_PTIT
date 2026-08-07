@@ -2,11 +2,10 @@
 
 `npm run api:parity` đối chiếu deployment với HTTP contract trước khi chạy load test.
 
-Chế độ mặc định không thay đổi dữ liệu học tập, câu hỏi hoặc RAG. Tuy nhiên, nếu cung cấp
-credential thì thao tác đăng nhập vẫn tạo một session và một audit log `auth.login`. Chỉ hai
-kiểm tra `/api/health` và `/api/ready` không có credential mới hoàn toàn không ghi database.
+Chế độ authenticated mặc định đăng nhập cả sinh viên và giảng viên. Thao tác đăng nhập tạo session
+và audit log `auth.login`; chỉ chế độ `--health-only` mới hoàn toàn không ghi database.
 
-## Kiểm tra mặc định
+## Kiểm tra authenticated mặc định
 
 Đặt credential bằng biến môi trường ở máy chạy kiểm thử; không commit credential vào repo và
 không truyền mật khẩu trên command line dùng chung:
@@ -20,14 +19,16 @@ $env:PARITY_LECTURER_PASSWORD = "..."
 npm run api:parity
 ```
 
-Nếu chưa có tài khoản, có thể chỉ kiểm tra health/readiness:
+Nếu chưa có tài khoản, phải chọn rõ chế độ chỉ kiểm tra health/readiness:
 
 ```powershell
-npm run api:parity -- --base-url http://127.0.0.1:3001
+npm run api:parity -- --health-only --base-url http://127.0.0.1:3001
 ```
 
-Hai nhóm route yêu cầu tài khoản sẽ có trạng thái `skipped`. Kết quả JSON gồm từng check,
-HTTP timing và trạng thái `passed`; exit code là `1` khi có lỗi.
+Chế độ authenticated fail-closed nếu thiếu bất kỳ credential sinh viên/giảng viên nào; không còn
+trả kết quả passed với các route chính bị skip. Kết quả JSON gồm mode, từng check, HTTP timing và
+trạng thái `passed`; exit code là `1` khi có lỗi. Option sai hoặc positional argument bị từ chối.
+Remote target bắt buộc là một HTTPS origin sạch, không credential/path/query/hash.
 
 ## Tiêu chí parity
 
@@ -51,19 +52,23 @@ Script không tự cleanup. Cần cả hai credential cùng `subjectId` và `les
 
 ```powershell
 $env:PARITY_ALLOW_WRITES = "true"
+$env:PARITY_CONFIRM_DISPOSABLE = "true"
+$env:PARITY_CONFIRM_HOST = "staging.example.ptit.edu.vn"
 $env:PARITY_SUBJECT_ID = "sub1"
 $env:PARITY_LESSON_ID = "les3"
 npm run api:parity -- --write
 ```
 
-Không bật `PARITY_ALLOW_WRITES` trên production.
+Write parity chỉ chạy khi ba guard khớp đồng thời: `PARITY_ALLOW_WRITES=true`,
+`PARITY_CONFIRM_DISPOSABLE=true` và `PARITY_CONFIRM_HOST` đúng target. Không bật các guard này
+trên production.
 
 ## Thứ tự chạy
 
-1. Chạy `db:validate:staging` với snapshot để đối chiếu exact row count.
-2. Chạy parity mặc định.
+1. Chạy `db:validate:staging` với snapshot để đối chiếu exact row count và content fingerprint.
+2. Kích hoạt đúng hai credential staging rồi chạy parity authenticated mặc định.
 3. Chỉ chạy write parity trên database disposable.
 4. Sau khi parity đạt, chạy load profile phù hợp trong [LOAD_TEST.md](./LOAD_TEST.md).
 
-Exact row-count validation phải chạy trước parity vì mỗi lần đăng nhập làm tăng `sessions` và
-`audit_logs`.
+Exact validation phải chạy trước khi kích hoạt credential vì đổi password hash và mỗi lần đăng
+nhập đều làm tăng `sessions`/`audit_logs`.

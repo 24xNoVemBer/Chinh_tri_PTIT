@@ -98,6 +98,8 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 | `DATABASE_PATH`                           | `data/ptit-teaching-assistant.sqlite` | Đường dẫn file SQLite                                                            |
 | `DATABASE_DRIVER`                         | `sqlite`                              | Adapter: `sqlite` hoặc `postgres`; PostgreSQL cần migrate schema trước khi start |
 | `DATABASE_URL`                            | _(trống)_                             | PostgreSQL connection string khi dùng adapter postgres                           |
+| `DATABASE_SSL_MODE`                       | `disable`                             | `verify-full` bắt buộc cho PostgreSQL production                                 |
+| `DATABASE_SSL_CA_PATH`                    | _(trống)_                             | Đường dẫn CA tin cậy; file secret không commit vào Git                           |
 | `DATABASE_CONFIRM_HOST`                   | _(trống)_                             | Host và port phải khớp DATABASE_URL trước tác vụ quản trị PostgreSQL             |
 | `DATABASE_CONFIRM_NAME`                   | _(trống)_                             | Tên database phải khớp DATABASE_URL                                              |
 | `DATABASE_CONFIRM_USER`                   | _(trống)_                             | User phải khớp URL và current_user do PostgreSQL báo cáo                         |
@@ -119,6 +121,18 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 | `STAGING_STUDENT_PASSWORD`                | _(trống)_                             | Secret sinh viên staging; không ghi vào Git                                      |
 | `STAGING_LECTURER_EMAIL`                  | _(trống)_                             | Tài khoản giảng viên PTIT được kích hoạt cho parity staging                      |
 | `STAGING_LECTURER_PASSWORD`               | _(trống)_                             | Secret giảng viên staging; không ghi vào Git                                     |
+| `API_BASE_URL`                            | `http://127.0.0.1:3001`               | Origin backend dùng cho parity staging                                           |
+| `PARITY_STUDENT_EMAIL/PASSWORD`           | _(trống)_                             | Credential sinh viên cho parity staging                                          |
+| `PARITY_LECTURER_EMAIL/PASSWORD`          | _(trống)_                             | Credential giảng viên cho parity staging                                         |
+| `PARITY_ALLOW_WRITES`                     | `false`                               | Cho phép write parity khi có đủ xác nhận disposable/host                         |
+| `PARITY_CONFIRM_DISPOSABLE`               | `false`                               | Xác nhận database parity có thể phục hồi hoặc bỏ                                 |
+| `PARITY_CONFIRM_HOST`                     | _(trống)_                             | Host parity phải khớp target                                                     |
+| `LOAD_TEST_BASE_URL`                      | `http://127.0.0.1:3001`               | Origin backend dùng cho capacity probe                                           |
+| `LOAD_TEST_EMAIL/PASSWORD`                | _(trống)_                             | Credential sinh viên riêng cho load test                                         |
+| `LOAD_TEST_ALLOW_HIGH`                    | `false`                               | Cho phép profile tải cao đã được duyệt                                           |
+| `LOAD_TEST_CONFIRM_STAGING`               | `false`                               | Xác nhận target tải cao là staging disposable                                    |
+| `LOAD_TEST_CONFIRM_HOST`                  | _(trống)_                             | Host load test phải khớp target                                                  |
+| `LOAD_TEST_MAX_REQUESTS`                  | `20000`                               | Trần request dự kiến trước khi generator được phép chạy                          |
 | `NODE_ENV`                                | `development`                         | Môi trường chạy                                                                  |
 | `VITE_DATA_SOURCE`                        | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                       |
 | `RAG_DEMO_DATA`                           | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                       |

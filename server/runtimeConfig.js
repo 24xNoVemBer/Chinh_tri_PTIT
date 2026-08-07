@@ -23,6 +23,42 @@ export function createRuntimeConfig(env = process.env) {
     throw new Error('DATABASE_URL is required when DATABASE_DRIVER=postgres.')
   }
 
+  const databaseUrl = String(env.DATABASE_URL ?? '')
+  if (databaseDriver === 'postgres') {
+    let parsedDatabaseUrl
+    try {
+      parsedDatabaseUrl = new URL(databaseUrl)
+    } catch {
+      throw new Error('DATABASE_URL must be a valid PostgreSQL URL.')
+    }
+    if (!['postgres:', 'postgresql:'].includes(parsedDatabaseUrl.protocol)) {
+      throw new Error('DATABASE_URL must use the postgres or postgresql protocol.')
+    }
+    if (parsedDatabaseUrl.search || parsedDatabaseUrl.hash) {
+      throw new Error(
+        'DATABASE_URL query parameters and fragments are not allowed; use dedicated DATABASE_* settings.',
+      )
+    }
+  }
+
+  const databaseSslMode = String(env.DATABASE_SSL_MODE ?? 'disable')
+    .trim()
+    .toLowerCase()
+  if (!['disable', 'verify-full'].includes(databaseSslMode)) {
+    throw new Error('DATABASE_SSL_MODE must be disable or verify-full.')
+  }
+  const databaseSslCaPath = String(env.DATABASE_SSL_CA_PATH ?? '').trim()
+  if (databaseSslMode === 'verify-full' && !databaseSslCaPath) {
+    throw new Error('DATABASE_SSL_CA_PATH is required when DATABASE_SSL_MODE=verify-full.')
+  }
+  if (
+    nodeEnv === 'production' &&
+    databaseDriver === 'postgres' &&
+    databaseSslMode !== 'verify-full'
+  ) {
+    throw new Error('Production PostgreSQL requires DATABASE_SSL_MODE=verify-full.')
+  }
+
   const statementTimeoutMs = asInteger(env.DATABASE_STATEMENT_TIMEOUT_MS, 15_000, {
     min: 100,
     max: 120_000,
@@ -77,7 +113,7 @@ export function createRuntimeConfig(env = process.env) {
     databasePath: env.DATABASE_PATH ?? 'data/ptit-teaching-assistant.sqlite',
     database: Object.freeze({
       driver: databaseDriver,
-      url: env.DATABASE_URL ?? '',
+      url: databaseUrl,
       poolMax: asInteger(env.DATABASE_POOL_MAX, 10, { min: 1, max: 100 }),
       idleTimeoutMs: asInteger(env.DATABASE_IDLE_TIMEOUT_MS, 10_000, {
         min: 0,
@@ -96,6 +132,8 @@ export function createRuntimeConfig(env = process.env) {
       adminQueryTimeoutMs,
       adminStatementTimeoutMs,
       applicationName,
+      sslMode: databaseSslMode,
+      sslCaPath: databaseSslCaPath,
     }),
     rag: Object.freeze({
       demoData: asBoolean(env.RAG_DEMO_DATA, nodeEnv !== 'production'),

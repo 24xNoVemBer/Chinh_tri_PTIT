@@ -36,3 +36,4 @@ data/backups/
 .env.*
 !.env.example
 !.env.*.example
+config/secrets/

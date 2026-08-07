@@ -50,10 +50,35 @@ const READ_ROUTES = Object.freeze([
 export function parseOptions(args) {
   const result = {}
   const flags = new Set(['allow-high', 'dry-run', 'help', 'verbose'])
+  const valueOptions = new Set([
+    'profile',
+    'base-url',
+    'sessions',
+    'users',
+    'active',
+    'concurrency',
+    'rounds',
+    'ramp-ms',
+    'think-time-ms',
+    'timeout-ms',
+    'max-error-rate',
+    'max-login-p95-ms',
+    'max-read-p95-ms',
+    'max-requests',
+    'email',
+    'password',
+    'confirm-host',
+  ])
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index]
-    if (!token.startsWith('--')) continue
+    if (!token.startsWith('--')) throw new Error('Unexpected positional argument: ' + token + '.')
     const key = token.slice(2)
+    if (!flags.has(key) && !valueOptions.has(key)) {
+      throw new Error('Unknown load-test option: --' + key + '.')
+    }
+    if (Object.prototype.hasOwnProperty.call(result, key)) {
+      throw new Error('Duplicate load-test option: --' + key + '.')
+    }
     if (flags.has(key)) {
       result[key] = true
       continue
@@ -167,6 +192,23 @@ export function resolveLoadTestConfig(args, env = process.env) {
     120_000,
     'max-read-p95-ms',
   )
+  const maxRequests = integerOption(
+    options['max-requests'],
+    env.LOAD_TEST_MAX_REQUESTS ?? 20_000,
+    1,
+    1_000_000,
+    'max-requests',
+  )
+  const projectedRequests = sessions + active * rounds * READ_ROUTES.length
+  if (projectedRequests > maxRequests) {
+    throw new Error(
+      'Projected workload of ' +
+        projectedRequests +
+        ' requests exceeds LOAD_TEST_MAX_REQUESTS=' +
+        maxRequests +
+        '.',
+    )
+  }
 
   const isLocal = ['127.0.0.1', 'localhost', '::1'].includes(target.hostname)
   if (!isLocal && target.protocol !== 'https:') {
@@ -186,11 +228,12 @@ export function resolveLoadTestConfig(args, env = process.env) {
   const highRisk = sessions > 500 || active > 200 || concurrency > 100
   const allowHigh = Boolean(options['allow-high']) || asBoolean(env.LOAD_TEST_ALLOW_HIGH)
   const confirmHost = String(options['confirm-host'] ?? env.LOAD_TEST_CONFIRM_HOST ?? '')
-  if (highRisk && (!allowHigh || confirmHost !== target.host)) {
+  const confirmStaging = asBoolean(env.LOAD_TEST_CONFIRM_STAGING)
+  if (highRisk && (!allowHigh || !confirmStaging || confirmHost !== target.host)) {
     throw new Error(
-      'High-load run blocked. Set LOAD_TEST_ALLOW_HIGH=true and LOAD_TEST_CONFIRM_HOST=' +
+      'High-load run blocked. Set LOAD_TEST_ALLOW_HIGH=true, LOAD_TEST_CONFIRM_STAGING=true, and LOAD_TEST_CONFIRM_HOST=' +
         target.host +
-        ' after confirming the staging target.',
+        ' after confirming the disposable staging target.',
     )
   }
 
@@ -208,6 +251,8 @@ export function resolveLoadTestConfig(args, env = process.env) {
     maxErrorRate,
     maxLoginP95Ms,
     maxReadP95Ms,
+    maxRequests,
+    projectedRequests,
     email,
     password,
     dryRun: Boolean(options['dry-run']),
@@ -364,6 +409,8 @@ export async function runLoadTest(config, fetchImpl = fetch) {
       rampMs: config.rampMs,
       thinkTimeMs: config.thinkTimeMs,
       timeoutMs: config.timeoutMs,
+      projectedRequests: config.projectedRequests,
+      maxRequests: config.maxRequests,
     },
     preflight,
     elapsedMs: round(elapsedMs),
@@ -527,7 +574,7 @@ function printHelp() {
       'Key overrides:',
       '  --base-url --sessions/--users --active --concurrency --rounds',
       '  --ramp-ms --think-time-ms --timeout-ms',
-      '  --max-error-rate --max-login-p95-ms --max-read-p95-ms',
+      '  --max-error-rate --max-login-p95-ms --max-read-p95-ms --max-requests',
       '  --dry-run --verbose',
     ].join('\n'),
   )

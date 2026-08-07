@@ -43,15 +43,19 @@ $env:LOAD_TEST_BASE_URL = "https://staging.example.ptit.edu.vn"
 $env:LOAD_TEST_EMAIL = "load-student@ptit.edu.vn"
 $env:LOAD_TEST_PASSWORD = "..."
 $env:LOAD_TEST_ALLOW_HIGH = "true"
+$env:LOAD_TEST_CONFIRM_STAGING = "true"
 $env:LOAD_TEST_CONFIRM_HOST = "staging.example.ptit.edu.vn"
+$env:LOAD_TEST_MAX_REQUESTS = "20000"
 
 npm run load:test:baseline
 npm run load:test:exam-peak
 ```
 
-Mọi lượt có trên 500 session, trên 200 active hoặc concurrency trên 100 bị chặn nếu thiếu cả
-`LOAD_TEST_ALLOW_HIGH=true` và hostname xác nhận trùng chính xác target. Dùng `--dry-run` để
-kiểm tra cấu hình đã resolve mà không gửi request:
+Mọi lượt có trên 500 session, trên 200 active hoặc concurrency trên 100 bị chặn nếu thiếu đủ
+`LOAD_TEST_ALLOW_HIGH=true`, `LOAD_TEST_CONFIRM_STAGING=true` và hostname xác nhận trùng chính
+xác target. Generator tính trước `sessions + active × rounds × 5 routes`; nếu vượt
+`LOAD_TEST_MAX_REQUESTS` (mặc định 20.000), lệnh dừng trước khi gửi request. Dùng `--dry-run` để
+kiểm tra target, cấu hình và ngân sách request đã resolve:
 
 ```powershell
 npm run load:test:baseline -- --dry-run
@@ -61,7 +65,7 @@ npm run load:test:baseline -- --dry-run
 
 Report JSON có:
 
-- `runId`, thời gian bắt đầu/kết thúc và cấu hình đã dùng;
+- `runId`, thời gian bắt đầu/kết thúc, request dự kiến/trần request và cấu hình đã dùng;
 - số session tạo thành công, active session và số credential phân biệt;
 - attempted/succeeded/failed, error rate và status-code buckets;
 - actual throughput của pha login, pha đọc và toàn lượt;
@@ -74,7 +78,7 @@ read p95 `1.000 ms`. Chỉ coi là SLO chính thức sau khi chủ hệ thống 
 ## Quy trình vận hành
 
 1. Dùng database staging riêng, đã backup và có thể restore.
-2. Chạy exact database validation và API parity trước load test.
+2. Chạy exact row-count/fingerprint validation và API parity trước load test.
 3. Chạy generator từ host khác API server để không cạnh tranh CPU/RAM.
 4. Ghi lại `runId`, start/end time; đối chiếu đồng thời CPU, RAM, network, `pg_stat_activity`,
    connection-pool waiting, lock và slow query.
@@ -82,8 +86,7 @@ read p95 `1.000 ms`. Chỉ coi là SLO chính thức sau khi chủ hệ thống 
    tăng liên tục.
 6. Restore database disposable hoặc dọn session/audit theo retention policy sau khi đo.
 
-Không chạy profile cao trên production nếu chưa có cửa sổ bảo trì và phê duyệt của người phụ
-trách hạ tầng.
+Không chạy profile cao trên production. Guard `LOAD_TEST_CONFIRM_STAGING=true` chỉ được cấp cho`nserver/database staging disposable đã backup và có người giám sát.
 
 ## Giới hạn hiện tại
 

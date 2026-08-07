@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { DATA_TABLE_ORDER, POSTGRES_PUBLIC_TABLES } from './applicationSchema.js'
 import {
   assertPostgresImportTargetReady,
+  inspectConnectedPostgresTls,
   inspectPostgresApplicationSchema,
   resolveConfirmedPostgresTarget,
   verifyConnectedPostgresTarget,
@@ -113,6 +114,29 @@ describe('PostgreSQL administrative target safety', () => {
         user: 'ptit_app',
       }),
     ).rejects.toThrow('identity mismatch for database')
+  })
+
+  it('reports connection TLS and fails closed when encryption is required', async () => {
+    const encrypted = {
+      one: vi.fn().mockResolvedValue({
+        ssl: true,
+        version: 'TLSv1.3',
+        cipher: 'TLS_AES_256_GCM_SHA384',
+        bits: 256,
+      }),
+    }
+    await expect(inspectConnectedPostgresTls(encrypted, { required: true })).resolves.toEqual({
+      enabled: true,
+      version: 'TLSv1.3',
+      cipher: 'TLS_AES_256_GCM_SHA384',
+      bits: 256,
+    })
+    await expect(
+      inspectConnectedPostgresTls(
+        { one: vi.fn().mockResolvedValue({ ssl: false }) },
+        { required: true },
+      ),
+    ).rejects.toThrow('not using TLS')
   })
 
   it('requires the exact dedicated application schema before import', async () => {

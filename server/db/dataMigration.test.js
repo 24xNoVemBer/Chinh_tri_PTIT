@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createDatabase } from '../database.js'
 import {
   assertDatabaseEmpty,
+  assertDatabaseSnapshotParity,
   exportDatabaseSnapshot,
   fingerprintRows,
   fingerprintSnapshotTables,
@@ -115,6 +116,36 @@ describe('database snapshot migration', () => {
       expect(fingerprints.sessions).toBe(fingerprintRows([]))
     } finally {
       source.close()
+    }
+  })
+
+  it('detects same-count content drift after a snapshot import', async () => {
+    const source = createDatabase({ databasePath: ':memory:', seed: true })
+    const target = createDatabase({ databasePath: ':memory:', seed: false })
+
+    try {
+      const snapshot = sanitizeStagingSnapshot(
+        exportDatabaseSnapshot(source, { excludeTables: STAGING_EXCLUDED_TABLES }),
+      )
+      await importDatabaseSnapshot(target, snapshot, {
+        conflictPolicy: 'ignore',
+        logger: { info() {} },
+        requireEmpty: true,
+      })
+
+      const parity = await assertDatabaseSnapshotParity(target, snapshot)
+      expect(parity.counts.users).toBe(snapshot.tables.users.length)
+      expect(parity.fingerprints.users).toBe(fingerprintSnapshotTables(snapshot).users)
+
+      target.execute("UPDATE users SET name = 'Changed without changing row count' WHERE id = ?", [
+        snapshot.tables.users[0].id,
+      ])
+      await expect(assertDatabaseSnapshotParity(target, snapshot)).rejects.toThrow(
+        'content-fingerprint',
+      )
+    } finally {
+      source.close()
+      target.close()
     }
   })
 

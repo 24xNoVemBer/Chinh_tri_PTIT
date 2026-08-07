@@ -17,6 +17,8 @@ describe('database runtime configuration', () => {
       adminStatementTimeoutMs: 120000,
       idleInTransactionTimeoutMs: 10000,
       applicationName: 'ptit-politics-api',
+      sslMode: 'disable',
+      sslCaPath: '',
     })
     expect(config.rag.demoData).toBe(true)
   })
@@ -56,6 +58,42 @@ describe('database runtime configuration', () => {
       },
     })
     expect(createRuntimeConfig({ NODE_ENV: 'production', PORT: '3001' }).rag.demoData).toBe(false)
+  })
+
+  it('requires verified TLS for production PostgreSQL', () => {
+    const production = {
+      DATABASE_DRIVER: 'postgres',
+      DATABASE_URL: 'postgres://ptit_app@db.ptit.edu.vn/ptit_politics',
+      NODE_ENV: 'production',
+      PORT: '3001',
+    }
+    expect(() => createRuntimeConfig(production)).toThrow(
+      'Production PostgreSQL requires DATABASE_SSL_MODE=verify-full',
+    )
+    expect(() => createRuntimeConfig({ ...production, DATABASE_SSL_MODE: 'verify-full' })).toThrow(
+      'DATABASE_SSL_CA_PATH is required',
+    )
+
+    expect(
+      createRuntimeConfig({
+        ...production,
+        DATABASE_SSL_MODE: 'verify-full',
+        DATABASE_SSL_CA_PATH: 'secrets/ptit-postgres-ca.pem',
+      }).database,
+    ).toMatchObject({
+      sslMode: 'verify-full',
+      sslCaPath: 'secrets/ptit-postgres-ca.pem',
+    })
+  })
+
+  it('rejects PostgreSQL URL parameters that could override dedicated security settings', () => {
+    expect(() =>
+      createRuntimeConfig({
+        DATABASE_DRIVER: 'postgres',
+        DATABASE_URL: 'postgres://localhost/ptit?sslmode=disable',
+        NODE_ENV: 'test',
+      }),
+    ).toThrow('query parameters and fragments are not allowed')
   })
 
   it('requires client query timeouts to exceed server statement timeouts', () => {

@@ -10,49 +10,20 @@
  * or passed on a shared command line.
  */
 
-const args = process.argv.slice(2)
+import { resolveApiParityConfig } from './api-parity-config.mjs'
 
-function readOption(name, fallback) {
-  const index = args.indexOf(`--${name}`)
-  return index >= 0 && args[index + 1] ? args[index + 1] : fallback
-}
-
-const baseUrl = readOption('base-url', process.env.API_BASE_URL ?? 'http://127.0.0.1:3001').replace(
-  /\/$/,
-  '',
-)
-const parsedBaseUrl = new URL(baseUrl)
-const localTarget = ['127.0.0.1', 'localhost', '::1'].includes(parsedBaseUrl.hostname)
-if (
-  parsedBaseUrl.username ||
-  parsedBaseUrl.password ||
-  parsedBaseUrl.search ||
-  parsedBaseUrl.hash ||
-  parsedBaseUrl.pathname !== '/'
-) {
-  throw new Error('API base URL must be an origin without credentials, path, query, or hash.')
-}
-if (!localTarget && parsedBaseUrl.protocol !== 'https:') {
-  throw new Error('Remote API parity targets must use HTTPS.')
-}
-const studentEmail = process.env.PARITY_STUDENT_EMAIL
-const studentPassword = process.env.PARITY_STUDENT_PASSWORD
-const lecturerEmail = process.env.PARITY_LECTURER_EMAIL
-const lecturerPassword = process.env.PARITY_LECTURER_PASSWORD
-const timeoutMs = Number(readOption('timeout-ms', process.env.PARITY_TIMEOUT_MS ?? 10_000))
-if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) {
-  throw new Error('PARITY_TIMEOUT_MS must be an integer between 100 and 120000.')
-}
-const writeEnabled = args.includes('--write')
-const paritySubjectId = process.env.PARITY_SUBJECT_ID ?? 'sub1'
-const parityLessonId = process.env.PARITY_LESSON_ID ?? 'les3'
-
-if (writeEnabled && process.env.PARITY_ALLOW_WRITES !== 'true') {
-  throw new Error(
-    'Set PARITY_ALLOW_WRITES=true before using --write against a disposable database.',
-  )
-}
-
+const config = resolveApiParityConfig(process.argv.slice(2))
+const {
+  baseUrl,
+  timeoutMs,
+  writeEnabled,
+  studentEmail,
+  studentPassword,
+  lecturerEmail,
+  lecturerPassword,
+  subjectId: paritySubjectId,
+  lessonId: parityLessonId,
+} = config
 const checks = []
 
 async function request(path, options = {}) {
@@ -288,11 +259,38 @@ async function run() {
   }
 
   const failed = checks.filter((item) => item.status === 'failed')
-  console.log(JSON.stringify({ baseUrl, checks, passed: failed.length === 0 }, null, 2))
+  console.log(
+    JSON.stringify(
+      {
+        baseUrl,
+        mode: config.healthOnly
+          ? 'health-only'
+          : writeEnabled
+            ? 'read-write'
+            : 'authenticated-read',
+        checks,
+        passed: failed.length === 0,
+      },
+      null,
+      2,
+    ),
+  )
   if (failed.length > 0) process.exitCode = 1
 }
 
-run().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exitCode = 1
-})
+if (config.help) {
+  console.log(
+    [
+      'PTIT API parity check',
+      '',
+      'Authenticated read: npm run api:parity',
+      'Health only:        npm run api:parity -- --health-only',
+      'Disposable write:   npm run api:parity -- --write',
+    ].join('\n'),
+  )
+} else {
+  run().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })
+}

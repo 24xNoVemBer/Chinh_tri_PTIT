@@ -2,7 +2,7 @@
 
 **Bắt đầu:** 2026-08-08  
 **Nhánh:** `feature/db5-postgres-staging`  
-**Trạng thái:** DB-5.3 hoàn thành; dừng tại checkpoint review, chưa chạy PostgreSQL staging
+**Trạng thái:** DB-5.4 tooling hoàn thành; chưa chạy PostgreSQL staging thật
 
 ## Phạm vi
 
@@ -19,15 +19,15 @@ Không thuộc DB-5: Outlook SSO thật, RAG provider thật, thay đổi UI và
 
 ## Tiến độ
 
-| Mốc                             | Trạng thái | Kết quả                                                                              |
-| ------------------------------- | ---------- | ------------------------------------------------------------------------------------ |
-| DB-5.0 baseline                 | Hoàn thành | Backup SQLite, inventory 25 bảng/538 rows và checksum                                |
-| DB-5.1 artifact offline         | Hoàn thành | Snapshot 141 rows, bỏ runtime data, vô hiệu credential, importability và fingerprint |
-| DB-5.2 target safety            | Hoàn thành | Xác nhận URL host/database/user, xác minh identity từ server và CLI fail-closed      |
-| DB-5.3 import/credential safety | Hoàn thành | Tách migrate/import, preflight schema rỗng và kích hoạt credential riêng             |
-| PostgreSQL staging execution    | Đang chờ   | Chưa có credential database/role staging để chạy runbook thật                        |
-| DB-5.4 parity/load              | Một phần   | Read/write parity và smoke local đã đạt; staging chưa chạy                           |
-| DB-5.5 rollback                 | Chưa chạy  | Cần database staging để diễn tập backup/restore/rollback                             |
+| Mốc                             | Trạng thái   | Kết quả                                                                              |
+| ------------------------------- | ------------ | ------------------------------------------------------------------------------------ |
+| DB-5.0 baseline                 | Hoàn thành   | Backup SQLite, inventory 25 bảng/538 rows và checksum                                |
+| DB-5.1 artifact offline         | Hoàn thành   | Snapshot 141 rows, bỏ runtime data, vô hiệu credential, importability và fingerprint |
+| DB-5.2 target safety            | Hoàn thành   | Xác nhận URL host/database/user, xác minh identity từ server và CLI fail-closed      |
+| DB-5.3 import/credential safety | Hoàn thành   | Tách migrate/import, preflight schema rỗng và kích hoạt credential riêng             |
+| PostgreSQL staging execution    | Đang chờ     | Chưa có credential database/role staging để chạy runbook thật                        |
+| DB-5.4 parity/load              | Tooling xong | Fingerprint, TLS, parity/load guards hoàn thành; staging chưa chạy                   |
+| DB-5.5 rollback                 | Chưa chạy    | Cần database staging để diễn tập backup/restore/rollback                             |
 
 ## DB-5.0 — Baseline ngày 2026-08-08
 
@@ -111,10 +111,27 @@ thay đổi.
 - Script từ chối ghi đè credential đã hoạt động; các tài khoản demo còn lại tiếp tục bị vô hiệu.
 - Chưa có kết nối hay thay đổi nào trên PostgreSQL thật tại checkpoint này.
 
+## DB-5.4 — Exact parity, TLS và load safety
+
+- `db:validate:staging` đối chiếu cả row count và SHA-256 content fingerprint từng bảng; dữ liệu
+  bị thay đổi nhưng giữ nguyên số dòng vẫn làm validation thất bại. Toàn bộ 25 bảng được đọc trong`n  một transaction PostgreSQL `REPEATABLE READ, READ ONLY` để có snapshot nhất quán.
+- Validator dùng cùng schema/migration guard đã kiểm thử ở DB-5.2/DB-5.3 và báo transport TLS
+  thật từ `pg_stat_ssl`.
+- PostgreSQL production chỉ khởi động với `DATABASE_SSL_MODE=verify-full` và CA file riêng;
+  `rejectUnauthorized=true`. Query/fragment trong `DATABASE_URL` bị chặn để không ghi đè cấu hình.
+- API parity authenticated yêu cầu đủ credential của hai vai trò. Chỉ `--health-only` mới được bỏ
+  qua route đăng nhập; option lạ bị từ chối.
+- Write parity yêu cầu đồng thời allow-write, xác nhận database disposable và hostname chính xác.
+- Load profile cao yêu cầu xác nhận allow, staging disposable và hostname. Generator tính trước
+  số request; mặc định chặn workload vượt 20.000 request trước khi gửi lưu lượng.
+- Smoke/dry-run và 23 test files với 121/121 tests chạy offline; chưa có số liệu PostgreSQL
+  staging thật tại checkpoint này.
+
 ## Runbook staging an toàn
 
 `.env.staging.example` chỉ là mẫu. Các script tự load `.env`, không tự load file mẫu. Tạo secret
-theo kênh quản lý cấu hình của PTIT; không commit connection string hoặc password.
+theo kênh quản lý cấu hình của PTIT; không commit connection string, password hoặc CA file.
+PostgreSQL staging/production phải cấp CA tin cậy tại DATABASE_SSL_CA_PATH.
 
 ### 1. Xác nhận đúng target bằng truy vấn chỉ đọc
 

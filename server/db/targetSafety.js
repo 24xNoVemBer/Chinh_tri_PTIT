@@ -114,6 +114,25 @@ export async function verifyConnectedPostgresTarget(client, target) {
     serverPort: info.server_port == null ? null : Number(info.server_port),
   })
 }
+export async function inspectConnectedPostgresTls(client, { required = false } = {}) {
+  if (!client || typeof client.one !== 'function') {
+    throw new Error('inspectConnectedPostgresTls requires a PostgreSQL client.')
+  }
+  const row = await client.one(
+    'SELECT ssl, version, cipher, bits FROM pg_stat_ssl WHERE pid = pg_backend_pid()',
+  )
+  const enabled = row?.ssl === true || row?.ssl === 't'
+  if (required && !enabled) {
+    throw new Error('PostgreSQL staging connection is not using TLS.')
+  }
+  return Object.freeze({
+    enabled,
+    version: row?.version ?? null,
+    cipher: row?.cipher ?? null,
+    bits: row?.bits == null ? null : Number(row.bits),
+  })
+}
+
 function quoteApplicationTable(table) {
   if (!DATA_TABLE_ORDER.includes(table)) {
     throw new Error('Unknown application table: ' + table + '.')
