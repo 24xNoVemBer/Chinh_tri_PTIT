@@ -1,20 +1,57 @@
-import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  scrypt,
+  scryptSync,
+  timingSafeEqual,
+} from 'node:crypto'
 
 const SESSION_COOKIE = 'ptit_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
+const PASSWORD_KEY_LENGTH = 64
+const PASSWORD_HASH_HEX_LENGTH = PASSWORD_KEY_LENGTH * 2
 
 export function hashPassword(password, salt = randomBytes(16).toString('hex')) {
-  const derivedKey = scryptSync(password, salt, 64).toString('hex')
+  const derivedKey = scryptSync(password, salt, PASSWORD_KEY_LENGTH).toString('hex')
   return `scrypt$${salt}$${derivedKey}`
 }
 
-export function verifyPassword(password, storedHash) {
-  const [algorithm, salt, expectedHex] = String(storedHash).split('$')
-  if (algorithm !== 'scrypt' || !salt || !expectedHex) return false
+function derivePasswordKeyAsync(password, salt, keyLength) {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, keyLength, (error, derivedKey) => {
+      if (error) reject(error)
+      else resolve(derivedKey)
+    })
+  })
+}
 
-  const actual = scryptSync(password, salt, 64)
-  const expected = Buffer.from(expectedHex, 'hex')
-  return actual.length === expected.length && timingSafeEqual(actual, expected)
+function parsePasswordHash(storedHash) {
+  const parts = String(storedHash ?? '').split('$')
+  if (parts.length !== 3) return null
+
+  const [algorithm, salt, expectedHex] = parts
+  if (algorithm !== 'scrypt' || !salt || salt.length > 256) return null
+  if (expectedHex.length !== PASSWORD_HASH_HEX_LENGTH || !/^[0-9a-f]+$/i.test(expectedHex)) {
+    return null
+  }
+
+  return { salt, expected: Buffer.from(expectedHex, 'hex') }
+}
+
+export async function verifyPasswordAsync(
+  password,
+  storedHash,
+  { deriveKey = derivePasswordKeyAsync } = {},
+) {
+  const parsedHash = parsePasswordHash(storedHash)
+  if (!parsedHash) return false
+
+  const derivedKey = await deriveKey(String(password), parsedHash.salt, PASSWORD_KEY_LENGTH)
+  const actual = Buffer.from(derivedKey)
+  return (
+    actual.length === parsedHash.expected.length && timingSafeEqual(actual, parsedHash.expected)
+  )
 }
 
 function hashToken(token) {

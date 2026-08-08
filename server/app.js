@@ -6,7 +6,7 @@ import {
   createSessionCookie,
   destroySessionAsync,
   getSessionToken,
-  verifyPassword,
+  verifyPasswordAsync,
 } from './auth.js'
 import { ApiError, readJson, requireFields, requireRole, sendJson, serializeError } from './http.js'
 import { createAsyncRepositories } from './repositoriesAsync.js'
@@ -91,7 +91,8 @@ export function createRequestHandler({
           [email],
         )
 
-        const credentialsValid = user && verifyPassword(String(input.password), user.password_hash)
+        const credentialsValid =
+          user && (await verifyPasswordAsync(String(input.password), user.password_hash))
         const roleValid = !input.role || input.role === user?.role
         if (!credentialsValid || !roleValid) {
           throw new ApiError(

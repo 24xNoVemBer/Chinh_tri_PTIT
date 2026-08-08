@@ -85,6 +85,8 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - DB-4A: chuyển auth/session/audit sang async query API.
 - DB-4B: chuyển toàn bộ repository nghiệp vụ và live RAG sang async; transaction
   async hỗ trợ commit/rollback đúng khi callback trả Promise.
+- AUTH-1: chuyển xác minh mật khẩu trong request đăng nhập từ `scryptSync` sang
+  `crypto.scrypt` bất đồng bộ; giữ nguyên hash và HTTP contract.
 - Runtime chọn database qua:
 
   ```text
@@ -110,7 +112,7 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 
 ## 4. Kiểm thử và xác minh hiện tại
 
-- Vitest: **25 test files, 129/129 tests passed**.
+- Vitest: **26 test files, 141/141 tests passed**.
 - ESLint: passed.
 - Contract/OpenAPI validation: 9 schema, 4 examples và 3 OpenAPI documents
   passed.
@@ -135,6 +137,7 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - [API load test](./LOAD_TEST.md)
 - [DB-5 PostgreSQL staging cutover](./PHASE_DB5_POSTGRES_STAGING.md)
 - [DB-5.5 backup/restore drill](./PHASE_DB5_BACKUP_RESTORE.md)
+- [AUTH-1 async password verification](./PHASE_AUTH1_ASYNC_PASSWORD.md)
 
 ## 6. Trạng thái production readiness
 

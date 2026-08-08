@@ -204,6 +204,7 @@ docs/                    API, database và frontend contracts
 - [API parity staging check](./docs/API_PARITY.md)
 - [API load test](./docs/LOAD_TEST.md)
 - [DB-5.5 backup/restore drill](./docs/PHASE_DB5_BACKUP_RESTORE.md)
+- [AUTH-1 xác minh mật khẩu bất đồng bộ](./docs/PHASE_AUTH1_ASYNC_PASSWORD.md)
 - [Implementation history: Student → production readiness](./docs/IMPLEMENTATION_HISTORY.md)
 - [DB-5 PostgreSQL staging cutover](./docs/PHASE_DB5_POSTGRES_STAGING.md)
 - [Design system](./design-system/ptit-teaching-assistant/MASTER.md)
