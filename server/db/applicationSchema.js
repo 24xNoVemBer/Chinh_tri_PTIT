@@ -27,6 +27,12 @@ export const DATA_TABLE_ORDER = Object.freeze([
   'audit_logs',
 ])
 
-export const POSTGRES_PUBLIC_TABLES = Object.freeze([...DATA_TABLE_ORDER, 'schema_migrations'])
+export const RUNTIME_TABLES = Object.freeze(['auth_login_limits'])
+
+export const POSTGRES_PUBLIC_TABLES = Object.freeze([
+  ...DATA_TABLE_ORDER,
+  ...RUNTIME_TABLES,
+  'schema_migrations',
+])
 
 export const STAGING_DISABLED_PASSWORD_HASH = 'disabled$staging-import'

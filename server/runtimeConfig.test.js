@@ -21,6 +21,15 @@ describe('database runtime configuration', () => {
       sslCaPath: '',
     })
     expect(config.rag.demoData).toBe(true)
+    expect(config.auth).toEqual({
+      enabled: true,
+      trustProxy: false,
+      windowMs: 900000,
+      blockMs: 900000,
+      accountMax: 20,
+      sourceAccountMax: 5,
+      cleanupIntervalMs: 300000,
+    })
   })
 
   it('requires a URL before selecting PostgreSQL', () => {
@@ -125,5 +134,31 @@ describe('database runtime configuration', () => {
         PORT: '3001',
       }),
     ).toThrow('DATABASE_APPLICATION_NAME must not be empty')
+  })
+
+  it('validates login protection and proxy settings', () => {
+    expect(
+      createRuntimeConfig({
+        AUTH_TRUST_PROXY: 'true',
+        AUTH_LOGIN_ACCOUNT_MAX: '30',
+        AUTH_LOGIN_SOURCE_ACCOUNT_MAX: '8',
+        AUTH_LOGIN_WINDOW_MS: '60000',
+        AUTH_LOGIN_BLOCK_MS: '120000',
+        AUTH_LOGIN_CLEANUP_INTERVAL_MS: '30000',
+        NODE_ENV: 'test',
+      }).auth,
+    ).toEqual({
+      enabled: true,
+      trustProxy: true,
+      windowMs: 60000,
+      blockMs: 120000,
+      accountMax: 30,
+      sourceAccountMax: 8,
+      cleanupIntervalMs: 30000,
+    })
+
+    expect(() =>
+      createRuntimeConfig({ AUTH_RATE_LIMIT_ENABLED: 'false', NODE_ENV: 'production' }),
+    ).toThrow('AUTH_RATE_LIMIT_ENABLED must remain enabled in production')
   })
 })

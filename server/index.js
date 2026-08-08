@@ -20,6 +20,7 @@ const apiHandler = createRequestHandler({
   secureCookies: runtimeConfig.nodeEnv === 'production',
   ragClient,
   allowDemoRag: runtimeConfig.rag.demoData,
+  authConfig: runtimeConfig.auth,
 })
 
 const mimeTypes = {

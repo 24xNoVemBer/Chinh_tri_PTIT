@@ -88,6 +88,11 @@ export function createRuntimeConfig(env = process.env) {
   const applicationName = String(env.DATABASE_APPLICATION_NAME ?? 'ptit-politics-api').trim()
   if (!applicationName) throw new Error('DATABASE_APPLICATION_NAME must not be empty.')
 
+  const authRateLimitEnabled = asBoolean(env.AUTH_RATE_LIMIT_ENABLED, true)
+  if (nodeEnv === 'production' && !authRateLimitEnabled) {
+    throw new Error('AUTH_RATE_LIMIT_ENABLED must remain enabled in production.')
+  }
+
   const ragEnabled = asBoolean(env.RAG_ENABLED, false)
   const ragBaseUrl = env.RAG_BASE_URL ?? 'http://127.0.0.1:8787'
   let parsedUrl
@@ -134,6 +139,27 @@ export function createRuntimeConfig(env = process.env) {
       applicationName,
       sslMode: databaseSslMode,
       sslCaPath: databaseSslCaPath,
+    }),
+    auth: Object.freeze({
+      enabled: authRateLimitEnabled,
+      trustProxy: asBoolean(env.AUTH_TRUST_PROXY, false),
+      windowMs: asInteger(env.AUTH_LOGIN_WINDOW_MS, 900_000, {
+        min: 1_000,
+        max: 86_400_000,
+      }),
+      blockMs: asInteger(env.AUTH_LOGIN_BLOCK_MS, 900_000, {
+        min: 1_000,
+        max: 86_400_000,
+      }),
+      accountMax: asInteger(env.AUTH_LOGIN_ACCOUNT_MAX, 20, { min: 1, max: 1_000 }),
+      sourceAccountMax: asInteger(env.AUTH_LOGIN_SOURCE_ACCOUNT_MAX, 5, {
+        min: 1,
+        max: 1_000,
+      }),
+      cleanupIntervalMs: asInteger(env.AUTH_LOGIN_CLEANUP_INTERVAL_MS, 300_000, {
+        min: 1_000,
+        max: 86_400_000,
+      }),
     }),
     rag: Object.freeze({
       demoData: asBoolean(env.RAG_DEMO_DATA, nodeEnv !== 'production'),

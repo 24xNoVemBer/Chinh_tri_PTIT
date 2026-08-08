@@ -22,7 +22,8 @@ Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục
   đưa cùng câu trả lời vào hàng đợi kiểm duyệt của giảng viên.
 - Câu trả lời được phân loại minh bạch thành ưu tiên cao, cần xem xét hoặc kiểm tra lấy mẫu để
   giảng viên tập trung vào ngoại lệ thay vì phải duyệt toàn bộ.
-- Backend Node.js cung cấp JSON API, runtime SQLite/PostgreSQL, session cookie HttpOnly, RBAC và audit log.
+- Backend Node.js cung cấp JSON API, runtime SQLite/PostgreSQL, session cookie HttpOnly, RBAC,
+  rate limit đăng nhập dùng chung giữa các instance và audit log.
 
 > [!IMPORTANT]
 > **Mô hình RAG chưa được kết nối.** Chat API hiện tạo nội dung demo có nhãn chưa kiểm duyệt để
@@ -54,7 +55,7 @@ Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục
 | Frontend | React 19, React Router 7, Vite 8, Lucide                           |
 | Backend  | Node.js HTTP server                                                |
 | Dữ liệu  | SQLite cho development; PostgreSQL cho staging/production          |
-| Xác thực | Session cookie HttpOnly, RBAC                                      |
+| Xác thực | Session cookie HttpOnly, RBAC, shared login rate limit             |
 | Kiểm thử | Vitest, Testing Library, jsdom                                     |
 | UI       | CSS custom properties, responsive layout, route-level lazy loading |
 
@@ -113,6 +114,13 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 | `DATABASE_ADMIN_STATEMENT_TIMEOUT_MS`     | `120000`                              | Server statement timeout cho tác vụ database quản trị (ms)                       |
 | `DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS` | `10000`                               | Đóng transaction bị bỏ quên (ms)                                                 |
 | `DATABASE_APPLICATION_NAME`               | `ptit-politics-api`                   | Tên ứng dụng hiển thị trong `pg_stat_activity`                                   |
+| `AUTH_RATE_LIMIT_ENABLED`                 | `true`                                | Bảo vệ login; bắt buộc bật trong production                                      |
+| `AUTH_TRUST_PROXY`                        | `false`                               | Chỉ tin X-Forwarded-For khi proxy PTIT ghi đè header                             |
+| `AUTH_LOGIN_WINDOW_MS`                    | `900000`                              | Cửa sổ tính lượt đăng nhập                                                       |
+| `AUTH_LOGIN_BLOCK_MS`                     | `900000`                              | Thời gian chặn sau khi vượt ngân sách                                            |
+| `AUTH_LOGIN_ACCOUNT_MAX`                  | `20`                                  | Ngân sách trên tài khoản trong một cửa sổ                                        |
+| `AUTH_LOGIN_SOURCE_ACCOUNT_MAX`           | `5`                                   | Ngân sách trên cặp nguồn–tài khoản                                               |
+| `AUTH_LOGIN_CLEANUP_INTERVAL_MS`          | `300000`                              | Chu kỳ dọn trạng thái rate limit hết hạn                                         |
 | `DB_SNAPSHOT_PATH`                        | _(trống)_                             | Snapshot staging-safe dùng cho import và exact validation                        |
 | `DB_ALLOW_EXISTING_IMPORT`                | `false`                               | Xác nhận thứ hai khi dùng break-glass --allow-existing                           |
 | `DB_ALLOW_RUNTIME_DATA_IMPORT`            | `false`                               | Xác nhận thứ hai khi import session/audit runtime                                |
@@ -129,6 +137,7 @@ Các tài khoản trên chỉ phục vụ development và review cục bộ.
 | `PARITY_CONFIRM_HOST`                     | _(trống)_                             | Host parity phải khớp target                                                     |
 | `LOAD_TEST_BASE_URL`                      | `http://127.0.0.1:3001`               | Origin backend dùng cho capacity probe                                           |
 | `LOAD_TEST_EMAIL/PASSWORD`                | _(trống)_                             | Credential sinh viên riêng cho load test                                         |
+| `LOAD_TEST_CREDENTIALS_PATH`              | _(trống)_                             | JSON secret chứa pool tài khoản; bắt buộc cho profile tải cao                    |
 | `LOAD_TEST_ALLOW_HIGH`                    | `false`                               | Cho phép profile tải cao đã được duyệt                                           |
 | `LOAD_TEST_CONFIRM_STAGING`               | `false`                               | Xác nhận target tải cao là staging disposable                                    |
 | `LOAD_TEST_CONFIRM_HOST`                  | _(trống)_                             | Host load test phải khớp target                                                  |
@@ -160,7 +169,9 @@ Chạy toàn bộ quy trình kiểm tra:
 npm run check
 ```
 
-Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử bao phủ session, RBAC, các vertical slice chính, audit log, SQLite/PostgreSQL database boundary, migration guard, chatbot demo và async repository.
+Lệnh này chạy lần lượt Prettier, ESLint, Vitest và production build. Bộ kiểm thử bao phủ session,
+RBAC, rate limit đăng nhập, các vertical slice chính, audit log, SQLite/PostgreSQL database
+boundary, migration guard, chatbot demo và async repository.
 
 Có thể chạy riêng từng bước:
 
@@ -205,6 +216,8 @@ docs/                    API, database và frontend contracts
 - [API load test](./docs/LOAD_TEST.md)
 - [DB-5.5 backup/restore drill](./docs/PHASE_DB5_BACKUP_RESTORE.md)
 - [AUTH-1 xác minh mật khẩu bất đồng bộ](./docs/PHASE_AUTH1_ASYNC_PASSWORD.md)
+- [AUTH-2 bảo vệ endpoint đăng nhập](./docs/PHASE_AUTH2_LOGIN_PROTECTION.md)
+- [Contract tích hợp Outlook SSO PTIT](./docs/OUTLOOK_SSO_INTEGRATION.md)
 - [Implementation history: Student → production readiness](./docs/IMPLEMENTATION_HISTORY.md)
 - [DB-5 PostgreSQL staging cutover](./docs/PHASE_DB5_POSTGRES_STAGING.md)
 - [Design system](./design-system/ptit-teaching-assistant/MASTER.md)

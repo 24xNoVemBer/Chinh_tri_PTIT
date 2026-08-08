@@ -30,6 +30,12 @@ Session token là chuỗi ngẫu nhiên, chỉ bản băm SHA-256 được lưu 
 `ptit_session` có `HttpOnly`, `SameSite=Lax`, `Path=/`; production bổ sung `Secure`.
 Mật khẩu seed được băm bằng `scrypt`.
 
+`POST /api/auth/login` dùng giới hạn theo tài khoản và cặp nguồn–tài khoản. Khi vượt
+ngân sách, API trả `429`, code `AUTH_RATE_LIMITED`, `retryable: true` cùng các header
+`Retry-After`, `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` và
+`RateLimit-Policy`. Email và IP chỉ được lưu dưới dạng scope SHA-256 trong bảng runtime;
+đăng nhập hợp lệ xóa ngân sách tương ứng.
+
 ## Giảng viên
 
 Tất cả endpoint dưới đây yêu cầu role `lecturer`.

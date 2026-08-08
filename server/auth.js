@@ -12,6 +12,9 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 const PASSWORD_KEY_LENGTH = 64
 const PASSWORD_HASH_HEX_LENGTH = PASSWORD_KEY_LENGTH * 2
 
+export const DUMMY_PASSWORD_HASH =
+  'scrypt$auth-dummy-v1$edca08e3a78b525dc139085fd9ab524b70b75978a70fe825a50e268da13dff6d7361756f8af248a62eedef658b3b8fbb5d704cfed69724e23e92c42557ba0445'
+
 export function hashPassword(password, salt = randomBytes(16).toString('hex')) {
   const derivedKey = scryptSync(password, salt, PASSWORD_KEY_LENGTH).toString('hex')
   return `scrypt$${salt}$${derivedKey}`

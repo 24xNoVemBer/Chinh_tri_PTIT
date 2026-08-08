@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -67,6 +68,7 @@ export function parseOptions(args) {
     'max-requests',
     'email',
     'password',
+    'credentials-path',
     'confirm-host',
   ])
   for (let index = 0; index < args.length; index += 1) {
@@ -219,9 +221,12 @@ export function resolveLoadTestConfig(args, env = process.env) {
       'Do not pass a remote load-test password on the command line; use LOAD_TEST_PASSWORD.',
     )
   }
+  const credentialsPath = String(
+    options['credentials-path'] ?? env.LOAD_TEST_CREDENTIALS_PATH ?? '',
+  ).trim()
   const email = options.email ?? env.LOAD_TEST_EMAIL ?? (isLocal ? 'tuananh@ptit.edu.vn' : '')
   const password = options.password ?? env.LOAD_TEST_PASSWORD ?? (isLocal ? 'Student@123' : '')
-  if (!email || !password) {
+  if (!credentialsPath && (!email || !password)) {
     throw new Error('LOAD_TEST_EMAIL and LOAD_TEST_PASSWORD are required for a remote target.')
   }
 
@@ -234,6 +239,11 @@ export function resolveLoadTestConfig(args, env = process.env) {
       'High-load run blocked. Set LOAD_TEST_ALLOW_HIGH=true, LOAD_TEST_CONFIRM_STAGING=true, and LOAD_TEST_CONFIRM_HOST=' +
         target.host +
         ' after confirming the disposable staging target.',
+    )
+  }
+  if (highRisk && !credentialsPath) {
+    throw new Error(
+      'High-load profiles require LOAD_TEST_CREDENTIALS_PATH so concurrent logins use distinct staging accounts.',
     )
   }
 
@@ -255,12 +265,15 @@ export function resolveLoadTestConfig(args, env = process.env) {
     projectedRequests,
     email,
     password,
+    credentialsPath,
+    requiresCredentialPool: highRisk,
     dryRun: Boolean(options['dry-run']),
     verbose: Boolean(options.verbose),
   })
 }
 
 export async function runLoadTest(config, fetchImpl = fetch) {
+  const credentials = await loadCredentialPool(config)
   const metrics = new Map()
   const ttfbMetrics = new Map()
   const statusCodes = {}
@@ -324,13 +337,14 @@ export async function runLoadTest(config, fetchImpl = fetch) {
     const waitMs = targetStartMs - (performance.now() - loginStartedAt)
     if (waitMs > 0) await delay(waitMs)
 
+    const credential = credentials[index % credentials.length]
     const login = await workloadRequest(
       'login',
       '/api/auth/login',
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: config.email, password: config.password }),
+        body: JSON.stringify(credential),
       },
       async (response) => {
         const cookie = sessionCookieFrom(response.headers)
@@ -425,7 +439,7 @@ export async function runLoadTest(config, fetchImpl = fetch) {
     },
     sessionsCreated: availableSessions.length,
     activeSessions: activeSessions.length,
-    distinctCredentials: 1,
+    distinctCredentials: credentials.length,
     outcomes: {
       ...outcomes,
       errorRate: percentage(errorRate),
@@ -454,6 +468,61 @@ export async function runLoadTest(config, fetchImpl = fetch) {
       passed: violations.length === 0,
     },
   }
+}
+
+export async function loadCredentialPool(config) {
+  let credentials
+  if (Array.isArray(config.credentials)) {
+    credentials = config.credentials
+  } else if (config.credentialsPath) {
+    let parsed
+    try {
+      parsed = JSON.parse(await readFile(resolve(config.credentialsPath), 'utf8'))
+    } catch (error) {
+      throw new Error(
+        'Cannot read LOAD_TEST_CREDENTIALS_PATH: ' +
+          (error instanceof Error ? error.message : String(error)),
+        { cause: error },
+      )
+    }
+    credentials = parsed
+  } else {
+    credentials = [{ email: config.email, password: config.password }]
+  }
+
+  if (!Array.isArray(credentials) || credentials.length === 0) {
+    throw new Error('Load-test credential pool must be a non-empty JSON array.')
+  }
+
+  const normalized = credentials.map((credential, index) => {
+    if (!credential || typeof credential !== 'object' || Array.isArray(credential)) {
+      throw new Error(`Load-test credential at index ${index} must be an object.`)
+    }
+    const email = String(credential.email ?? '')
+      .trim()
+      .toLowerCase()
+    const password = String(credential.password ?? '')
+    if (!email || !password) {
+      throw new Error(`Load-test credential at index ${index} requires email and password.`)
+    }
+    return Object.freeze({ email, password })
+  })
+
+  if (new Set(normalized.map(({ email }) => email)).size !== normalized.length) {
+    throw new Error('Load-test credential pool contains duplicate email addresses.')
+  }
+
+  const requiresCredentialPool =
+    config.requiresCredentialPool ?? (config.profile !== undefined && config.profile !== 'smoke')
+  const requiredCredentials = requiresCredentialPool
+    ? Math.min(config.sessions, config.concurrency)
+    : 1
+  if (normalized.length < requiredCredentials) {
+    throw new Error(
+      `Load-test profile ${config.profile} requires at least ${requiredCredentials} distinct credentials; received ${normalized.length}.`,
+    )
+  }
+  return Object.freeze(normalized)
 }
 
 export function summarize(values) {
@@ -575,6 +644,7 @@ function printHelp() {
       '  --base-url --sessions/--users --active --concurrency --rounds',
       '  --ramp-ms --think-time-ms --timeout-ms',
       '  --max-error-rate --max-login-p95-ms --max-read-p95-ms --max-requests',
+      '  --credentials-path (required for high-load profiles)',
       '  --dry-run --verbose',
     ].join('\n'),
   )
@@ -588,12 +658,14 @@ async function main() {
   }
   const config = resolveLoadTestConfig(rawArgs)
   if (config.dryRun) {
+    const credentials = await loadCredentialPool(config)
     console.log(
       JSON.stringify(
         {
           ...config,
           email: config.email,
           password: '[redacted]',
+          credentialPoolSize: credentials.length,
         },
         null,
         2,

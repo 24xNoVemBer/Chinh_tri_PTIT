@@ -1,9 +1,10 @@
 export class ApiError extends Error {
-  constructor(status, code, message, retryable = false) {
+  constructor(status, code, message, retryable = false, headers = {}) {
     super(message)
     this.status = status
     this.code = code
     this.retryable = retryable
+    this.headers = headers
   }
 }
 
@@ -61,6 +62,7 @@ export function serializeError(error) {
   if (error instanceof ApiError) {
     return {
       status: error.status,
+      headers: error.headers,
       payload: {
         error: {
           code: error.code,

@@ -259,6 +259,14 @@ const SCHEMA = `
     created_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS auth_login_limits (
+    scope_key TEXT PRIMARY KEY,
+    attempt_count INTEGER NOT NULL CHECK (attempt_count > 0),
+    window_started_at TEXT NOT NULL,
+    blocked_until TEXT,
+    updated_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,
     actor_id TEXT REFERENCES users(id),
@@ -282,6 +290,8 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_rag_reviews_response
     ON rag_reviews(response_id, created_at DESC);  CREATE INDEX IF NOT EXISTS idx_search_history_student ON search_history(student_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
+  CREATE INDEX IF NOT EXISTS idx_auth_login_limits_updated
+    ON auth_login_limits(updated_at);
   CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id, created_at DESC);
 `
 
@@ -546,7 +556,7 @@ function seedDatabase(db) {
     }
 
     db.prepare(
-      `INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '2')`,
+      `INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '3')`,
     ).run()
     db.exec('COMMIT')
   } catch (error) {
@@ -659,7 +669,7 @@ export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = tr
     seedDatabase(db)
     seedDemoRagData(db)
   }
-  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '2')`).run()
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '3')`).run()
   return db
 }
 

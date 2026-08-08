@@ -5,6 +5,11 @@ import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const migrationPath = join(dirname(fileURLToPath(import.meta.url)), 'migrations', '001_initial.sql')
+const authMigrationPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'migrations',
+  '002_auth-login-limits.sql',
+)
 
 describe('PostgreSQL initial schema', () => {
   it('contains the complete DB-0 table and index inventory', async () => {
@@ -18,5 +23,12 @@ describe('PostgreSQL initial schema', () => {
   it('does not carry SQLite-only schema statements', async () => {
     const sql = await readFile(migrationPath, 'utf8')
     expect(sql).not.toMatch(/PRAGMA|INSERT\s+OR\s+(IGNORE|REPLACE)|COLLATE\s+NOCASE/i)
+  })
+
+  it('adds shared login rate-limit state as a separate migration', async () => {
+    const sql = await readFile(authMigrationPath, 'utf8')
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS auth_login_limits')
+    expect(sql).toContain('scope_key TEXT PRIMARY KEY')
+    expect(sql).toContain('idx_auth_login_limits_updated')
   })
 })

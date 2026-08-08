@@ -5,7 +5,7 @@
 
 ## Nhóm bảng
 
-- Người dùng và truy cập: `users`, `sessions`.
+- Người dùng và truy cập: `users`, `sessions`, `auth_login_limits`.
 - Chương trình học: `subjects`, `chapters`, `lessons`.
 - Lớp học: `course_classes`, `enrollments`, `enrollment_profiles`, `class_lessons`.
 - Học liệu: `materials`, `material_versions`, `approved_sources`, `class_materials`.
@@ -43,7 +43,8 @@ duyệt, đều có citation và `model_version = demo-ui-v1`. Không seed dữ 
 
 ## Migration
 
-Schema hiện tại là version `2`. Khi đổi schema:
+Schema SQLite hiện tại là version `3`. PostgreSQL bổ sung bảng rate limit qua migration
+`002_auth-login-limits.sql`. Khi đổi schema:
 
 1. Tăng `schema_version`.
 2. Viết migration tiến về phía trước, không sửa dữ liệu seed đã tồn tại.

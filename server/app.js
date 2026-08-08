@@ -4,10 +4,16 @@ import {
   clearSessionCookie,
   createSessionAsync,
   createSessionCookie,
+  DUMMY_PASSWORD_HASH,
   destroySessionAsync,
   getSessionToken,
   verifyPasswordAsync,
 } from './auth.js'
+import {
+  createLoginRateLimiter,
+  DEFAULT_AUTH_RATE_LIMIT_CONFIG,
+  loginRateLimitHeaders,
+} from './authRateLimit.js'
 import { ApiError, readJson, requireFields, requireRole, sendJson, serializeError } from './http.js'
 import { createAsyncRepositories } from './repositoriesAsync.js'
 import { createLiveRagRepository } from './rag/liveRepository.js'
@@ -30,8 +36,11 @@ export function createRequestHandler({
   logger = console,
   ragClient,
   allowDemoRag = true,
+  authConfig = DEFAULT_AUTH_RATE_LIMIT_CONFIG,
+  loginRateLimiter,
 } = {}) {
   if (!db) throw new Error('createRequestHandler requires a database connection.')
+  const authLimiter = loginRateLimiter ?? createLoginRateLimiter({ db, config: authConfig })
   const repositories = createAsyncRepositories(db)
   const liveRagRepository = ragClient
     ? createLiveRagRepository({
@@ -84,6 +93,17 @@ export function createRequestHandler({
         const input = await readJson(request)
         requireFields(input, ['email', 'password'])
         const email = String(input.email).trim().toLowerCase()
+        const clientAddress = authLimiter.clientAddress(request)
+        const rateLimit = await authLimiter.consume(email, clientAddress)
+        if (!rateLimit.allowed) {
+          throw new ApiError(
+            429,
+            'AUTH_RATE_LIMITED',
+            'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau.',
+            true,
+            loginRateLimitHeaders(rateLimit),
+          )
+        }
         const user = await db.one(
           `SELECT id, name, email, role, password_hash
            FROM users
@@ -91,8 +111,11 @@ export function createRequestHandler({
           [email],
         )
 
-        const credentialsValid =
-          user && (await verifyPasswordAsync(String(input.password), user.password_hash))
+        const passwordMatches = await verifyPasswordAsync(
+          String(input.password),
+          user?.password_hash ?? DUMMY_PASSWORD_HASH,
+        )
+        const credentialsValid = Boolean(user) && passwordMatches
         const roleValid = !input.role || input.role === user?.role
         if (!credentialsValid || !roleValid) {
           throw new ApiError(
@@ -102,6 +125,7 @@ export function createRequestHandler({
           )
         }
 
+        await authLimiter.reset(email, clientAddress)
         const session = await createSessionAsync(db, user.id)
         await writeAudit(db, user.id, 'auth.login', 'session', null, {
           role: user.role,
@@ -497,7 +521,7 @@ export function createRequestHandler({
     } catch (error) {
       const result = serializeError(error)
       if (result.status >= 500) logger.error(error)
-      sendJson(response, result.status, result.payload)
+      sendJson(response, result.status, result.payload, result.headers)
     }
   }
 }

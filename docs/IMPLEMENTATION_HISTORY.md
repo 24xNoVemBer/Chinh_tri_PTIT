@@ -1,8 +1,10 @@
 # Nhật ký triển khai: từ redesign Student đến production readiness
 
-**Khoảng thời gian:** 24/07/2026 – 04/08/2026  
-**Nhánh:** `feature/phase-0-contracts`  
-**Commit hiện tại:** `92d88a7`
+**Khoảng thời gian:** 24/07/2026 – 08/08/2026
+
+**Nhánh:** `feature/db5-postgres-staging`
+
+**Mốc hiện tại:** AUTH-2 — shared login rate limit và contract Outlook SSO
 
 Tài liệu này tổng hợp những hạng mục đã triển khai kể từ khi bắt đầu redesign
 không gian sinh viên cho đến lớp backend/database hiện tại. Đây là bản ghi
@@ -87,6 +89,9 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
   async hỗ trợ commit/rollback đúng khi callback trả Promise.
 - AUTH-1: chuyển xác minh mật khẩu trong request đăng nhập từ `scryptSync` sang
   `crypto.scrypt` bất đồng bộ; giữ nguyên hash và HTTP contract.
+- AUTH-2: thêm rate limit nguyên tử qua database cho tài khoản và cặp nguồn–tài
+  khoản, dummy hash chống timing enumeration, 429 retry headers và credential pool
+  cho load test nhiều người dùng.
 - Runtime chọn database qua:
 
   ```text
@@ -112,7 +117,7 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 
 ## 4. Kiểm thử và xác minh hiện tại
 
-- Vitest: **26 test files, 141/141 tests passed**.
+- Vitest: **28 test files, 157/157 tests passed**.
 - ESLint: passed.
 - Contract/OpenAPI validation: 9 schema, 4 examples và 3 OpenAPI documents
   passed.
@@ -138,6 +143,8 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - [DB-5 PostgreSQL staging cutover](./PHASE_DB5_POSTGRES_STAGING.md)
 - [DB-5.5 backup/restore drill](./PHASE_DB5_BACKUP_RESTORE.md)
 - [AUTH-1 async password verification](./PHASE_AUTH1_ASYNC_PASSWORD.md)
+- [AUTH-2 login protection](./PHASE_AUTH2_LOGIN_PROTECTION.md)
+- [Outlook SSO integration contract](./OUTLOOK_SSO_INTEGRATION.md)
 
 ## 6. Trạng thái production readiness
 

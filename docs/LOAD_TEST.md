@@ -35,13 +35,23 @@ npm run load:test:smoke -- --base-url http://127.0.0.1:3001
 
 ## Chạy trên staging
 
-Credential remote bắt buộc lấy từ biến môi trường. Không commit hoặc đưa mật khẩu vào lịch sử
-command dùng chung:
+Smoke có thể dùng một credential. Các profile tải cao bắt buộc dùng credential pool JSON ngoài
+Git để mỗi worker đăng nhập bằng tài khoản staging riêng, không vô tình đo rate limiter của một
+tài khoản thay vì năng lực hệ thống. File có dạng:
+
+```json
+[
+  { "email": "load-student-001@ptit.edu.vn", "password": "..." },
+  { "email": "load-student-002@ptit.edu.vn", "password": "..." }
+]
+```
+
+Pool phải có ít nhất `min(sessions, concurrency)` email phân biệt. Credential remote chỉ được
+đọc từ environment/file secret; không commit hoặc đưa mật khẩu vào lịch sử command dùng chung:
 
 ```powershell
 $env:LOAD_TEST_BASE_URL = "https://staging.example.ptit.edu.vn"
-$env:LOAD_TEST_EMAIL = "load-student@ptit.edu.vn"
-$env:LOAD_TEST_PASSWORD = "..."
+$env:LOAD_TEST_CREDENTIALS_PATH = "C:\secrets\ptit-load-test-credentials.json"
 $env:LOAD_TEST_ALLOW_HIGH = "true"
 $env:LOAD_TEST_CONFIRM_STAGING = "true"
 $env:LOAD_TEST_CONFIRM_HOST = "staging.example.ptit.edu.vn"
@@ -51,7 +61,8 @@ npm run load:test:baseline
 npm run load:test:exam-peak
 ```
 
-Mọi lượt có trên 500 session, trên 200 active hoặc concurrency trên 100 bị chặn nếu thiếu đủ
+Mọi lượt có trên 500 session, trên 200 active hoặc concurrency trên 100 bị chặn nếu thiếu pool
+credential và đủ
 `LOAD_TEST_ALLOW_HIGH=true`, `LOAD_TEST_CONFIRM_STAGING=true` và hostname xác nhận trùng chính
 xác target. Generator tính trước `sessions + active × rounds × 5 routes`; nếu vượt
 `LOAD_TEST_MAX_REQUESTS` (mặc định 20.000), lệnh dừng trước khi gửi request. Dùng `--dry-run` để
@@ -91,7 +102,7 @@ server/database staging disposable đã backup và có người giám sát.
 
 ## Giới hạn hiện tại
 
-Generator hiện dùng một credential và closed-loop worker. Nó xác nhận khả năng giữ 1.000–3.000
+Generator dùng credential pool và closed-loop worker. Nó xác nhận khả năng giữ 1.000–3.000
 session cùng nhóm 100–500 active, nhưng chưa thay thế benchmark open-arrival/soak dài hạn.
-Khi staging PTIT sẵn sàng, cần bổ sung credential pool ngoài Git và bài đo target-RPS/soak để
-loại coordinated omission. RAG được đo bằng playbook riêng sau khi backend chatbot bàn giao.
+Khi staging PTIT sẵn sàng, cần bổ sung bài đo target-RPS/soak để loại coordinated omission. RAG
+được đo bằng playbook riêng sau khi backend chatbot bàn giao.

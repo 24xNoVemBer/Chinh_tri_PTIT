@@ -1,5 +1,21 @@
-import { describe, expect, it } from 'vitest'
-import { LOAD_PROFILES, parseOptions, resolveLoadTestConfig, summarize } from './load-test.mjs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  loadCredentialPool,
+  LOAD_PROFILES,
+  parseOptions,
+  resolveLoadTestConfig,
+  summarize,
+} from './load-test.mjs'
+
+let temporaryDirectory
+
+afterEach(async () => {
+  if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true })
+  temporaryDirectory = undefined
+})
 
 describe('load test configuration', () => {
   it('parses flags and option values', () => {
@@ -89,6 +105,7 @@ describe('load test configuration', () => {
         LOAD_TEST_BASE_URL: 'https://staging.ptit.test',
         LOAD_TEST_EMAIL: 'load-student@ptit.edu.vn',
         LOAD_TEST_PASSWORD: 'secret-from-env',
+        LOAD_TEST_CREDENTIALS_PATH: 'secrets/load-users.json',
         LOAD_TEST_CONFIRM_STAGING: 'true',
       },
     )
@@ -96,8 +113,22 @@ describe('load test configuration', () => {
       sessions: 1000,
       active: 150,
       targetHost: 'staging.ptit.test',
-      email: 'load-student@ptit.edu.vn',
+      credentialsPath: 'secrets/load-users.json',
     })
+  })
+
+  it('requires a credential pool for high-load profiles', () => {
+    expect(() =>
+      resolveLoadTestConfig(
+        ['--profile', 'baseline', '--allow-high', '--confirm-host', 'staging.ptit.test'],
+        {
+          LOAD_TEST_BASE_URL: 'https://staging.ptit.test',
+          LOAD_TEST_EMAIL: 'load-student@ptit.edu.vn',
+          LOAD_TEST_PASSWORD: 'secret-from-env',
+          LOAD_TEST_CONFIRM_STAGING: 'true',
+        },
+      ),
+    ).toThrow('High-load profiles require LOAD_TEST_CREDENTIALS_PATH')
   })
 
   it('calculates and enforces the projected workload request budget', () => {
@@ -117,6 +148,50 @@ describe('load test configuration', () => {
     expect(() => resolveLoadTestConfig(['--sessions', '10', '--active', '11'], {})).toThrow(
       '--active must be an integer between 0 and 10.',
     )
+  })
+})
+
+describe('load test credential pool', () => {
+  it('loads distinct credentials from a secret file and enforces concurrent-user coverage', async () => {
+    temporaryDirectory = await mkdtemp(join(tmpdir(), 'ptit-load-users-'))
+    const credentialsPath = join(temporaryDirectory, 'credentials.json')
+    const credentials = Array.from({ length: 3 }, (_, index) => ({
+      email: `student-${index}@ptit.edu.vn`,
+      password: `secret-${index}`,
+    }))
+    await writeFile(credentialsPath, JSON.stringify(credentials))
+
+    await expect(
+      loadCredentialPool({
+        profile: 'baseline',
+        sessions: 10,
+        concurrency: 3,
+        credentialsPath,
+      }),
+    ).resolves.toEqual(credentials)
+
+    await expect(
+      loadCredentialPool({
+        profile: 'baseline',
+        sessions: 10,
+        concurrency: 4,
+        credentialsPath,
+      }),
+    ).rejects.toThrow('requires at least 4 distinct credentials')
+  })
+
+  it('rejects duplicate accounts before sending load', async () => {
+    await expect(
+      loadCredentialPool({
+        profile: 'smoke',
+        sessions: 2,
+        concurrency: 1,
+        credentials: [
+          { email: 'same@ptit.edu.vn', password: 'one' },
+          { email: 'SAME@ptit.edu.vn', password: 'two' },
+        ],
+      }),
+    ).rejects.toThrow('duplicate email addresses')
   })
 })
 
