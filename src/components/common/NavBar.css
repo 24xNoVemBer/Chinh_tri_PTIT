@@ -216,7 +216,7 @@
   }
 }
 
-@media (max-width: 64rem) {
+@media (max-width: 75rem) {
   .navbar__inner {
     grid-template-columns: minmax(0, 1fr) auto;
     padding-inline: var(--space-4);
