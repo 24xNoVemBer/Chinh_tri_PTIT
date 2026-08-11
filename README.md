@@ -48,6 +48,12 @@ Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục
 - Tiếp nhận, trả lời và lọc câu hỏi theo lớp hoặc học phần.
 - Kiểm duyệt câu trả lời RAG demo trước khi công bố.
 
+## Luyện tập trắc nghiệm
+
+MVP đã có ngân hàng câu hỏi dùng chung theo học phần. Giảng viên nhập thủ công câu hỏi A–D, chọn đáp án đúng, thêm giải thích rồi lưu nháp hoặc xuất bản. Sinh viên chọn học phần/chương, làm từng câu và nhận đáp án cùng giải thích ngay sau khi chọn.
+
+Chi tiết API, schema và hướng mở rộng Excel/Word nằm trong [docs/PRACTICE_QUESTION_BANK.md](./docs/PRACTICE_QUESTION_BANK.md).
+
 ## Công nghệ
 
 | Lớp      | Công nghệ                                                          |

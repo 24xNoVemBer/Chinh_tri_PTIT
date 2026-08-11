@@ -428,6 +428,145 @@ async function getQuestionRowsForLecturer(db, lecturerId) {
   for (const row of rows) questions.push(await mapQuestion(row, db))
   return questions
 }
+
+async function getLecturerSubjectIds(db, lecturerId) {
+  return (
+    await db.many(
+      `SELECT DISTINCT subject_id
+       FROM course_classes
+       WHERE lecturer_id = ?`,
+      [lecturerId],
+    )
+  ).map((row) => row.subject_id)
+}
+
+async function ensureLecturerSubjectAccess(db, lecturerId, subjectId) {
+  if (!(await getLecturerSubjectIds(db, lecturerId)).includes(subjectId)) {
+    throw new ApiError(403, 'FORBIDDEN', 'Bạn không phụ trách học phần này.')
+  }
+}
+
+async function validatePracticeQuestionInput(db, input, lecturerId, { allowMissing = false } = {}) {
+  const content = String(input.content ?? '').trim()
+  const explanation = String(input.explanation ?? '').trim()
+  const difficulty = String(input.difficulty ?? 'medium').trim().toLowerCase()
+  const subjectId = String(input.subjectId ?? '').trim()
+  const chapterId = String(input.chapterId ?? '').trim()
+  const lessonId = input.lessonId ? String(input.lessonId).trim() : null
+  const options = Array.isArray(input.options) ? input.options : []
+
+  if (!subjectId || !chapterId) {
+    throw new ApiError(400, 'VALIDATION', 'Cần chọn học phần và chương.')
+  }
+  if (!allowMissing && content.length < 10) {
+    throw new ApiError(400, 'VALIDATION', 'Nội dung câu hỏi cần có ít nhất 10 ký tự.')
+  }
+  if (!allowMissing && explanation.length < 10) {
+    throw new ApiError(400, 'VALIDATION', 'Phần giải thích cần có ít nhất 10 ký tự.')
+  }
+  if (!['easy', 'medium', 'hard'].includes(difficulty)) {
+    throw new ApiError(400, 'VALIDATION', 'Độ khó không hợp lệ.')
+  }
+  if (!allowMissing && options.length !== 4) {
+    throw new ApiError(400, 'VALIDATION', 'Câu hỏi phải có đúng 4 lựa chọn A, B, C và D.')
+  }
+  const normalizedOptions = options.map((option, index) => ({
+    key: String(option.key ?? String.fromCharCode(65 + index)).trim().toUpperCase(),
+    content: String(option.content ?? '').trim(),
+  }))
+  if (!allowMissing) {
+    if (normalizedOptions.some((option, index) => option.key !== String.fromCharCode(65 + index))) {
+      throw new ApiError(400, 'VALIDATION', 'Lựa chọn phải lần lượt là A, B, C và D.')
+    }
+    if (normalizedOptions.some((option) => option.content.length < 1)) {
+      throw new ApiError(400, 'VALIDATION', 'Không được để trống lựa chọn.')
+    }
+    if (new Set(normalizedOptions.map((option) => option.content.toLocaleLowerCase())).size !== 4) {
+      throw new ApiError(400, 'VALIDATION', 'Các lựa chọn không được trùng nhau.')
+    }
+    const correctKey = String(input.correctOptionKey ?? '').trim().toUpperCase()
+    if (!['A', 'B', 'C', 'D'].includes(correctKey)) {
+      throw new ApiError(400, 'VALIDATION', 'Cần chọn đúng một đáp án.')
+    }
+    normalizedOptions.forEach((option) => {
+      option.isCorrect = option.key === correctKey
+    })
+  }
+
+  await ensureLecturerSubjectAccess(db, lecturerId, subjectId)
+  const chapter = await db.one(
+    `SELECT id, subject_id FROM chapters WHERE id = ?`,
+    [chapterId],
+  )
+  if (!chapter) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy chương.')
+  if (chapter.subject_id !== subjectId) {
+    throw new ApiError(400, 'VALIDATION', 'Chương không thuộc học phần đã chọn.')
+  }
+  if (lessonId) {
+    const lesson = await db.one(
+      `SELECT id, chapter_id FROM lessons WHERE id = ?`,
+      [lessonId],
+    )
+    if (!lesson) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học.')
+    if (lesson.chapter_id !== chapterId) {
+      throw new ApiError(400, 'VALIDATION', 'Bài học không thuộc chương đã chọn.')
+    }
+  }
+  return { subjectId, chapterId, lessonId, content, explanation, difficulty, options: normalizedOptions }
+}
+
+function mapPracticeQuestion(row, options = [], { includeAnswer = true } = {}) {
+  const correctOption = options.find((option) => Number(option.is_correct) === 1)
+  return {
+    id: row.id,
+    subjectId: row.subject_id,
+    subject: row.subject_name ? { id: row.subject_id, name: row.subject_name } : null,
+    chapterId: row.chapter_id,
+    chapter: row.chapter_title ? { id: row.chapter_id, title: row.chapter_title } : null,
+    lessonId: row.lesson_id,
+    content: row.content,
+    explanation: includeAnswer ? row.explanation : undefined,
+    difficulty: row.difficulty,
+    status: row.status,
+    sourceType: row.source_type,
+    createdBy: row.created_by,
+    creatorName: row.creator_name,
+    publishedAt: row.published_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    options: options.map((option) => ({
+      id: option.id,
+      key: option.option_key,
+      content: option.content,
+    })),
+    ...(includeAnswer && correctOption ? { correctOptionId: correctOption.id } : {}),
+  }
+}
+
+async function loadPracticeQuestion(db, questionId, { includeAnswer = true } = {}) {
+  const row = await db.one(
+    `SELECT
+       practice_questions.*,
+       subjects.name AS subject_name,
+       chapters.title AS chapter_title,
+       users.name AS creator_name
+     FROM practice_questions
+     JOIN subjects ON subjects.id = practice_questions.subject_id
+     JOIN chapters ON chapters.id = practice_questions.chapter_id
+     JOIN users ON users.id = practice_questions.created_by
+     WHERE practice_questions.id = ?`,
+    [questionId],
+  )
+  if (!row) return null
+  const options = await db.many(
+    `SELECT id, option_key, content, is_correct, option_order
+     FROM practice_question_options
+     WHERE question_id = ?
+     ORDER BY option_order`,
+    [questionId],
+  )
+  return mapPracticeQuestion(row, options, { includeAnswer })
+}
 export function createAsyncRepositories(db) {
   const classRepository = {
     async listForLecturer(lecturerId) {
@@ -997,6 +1136,437 @@ export function createAsyncRepositories(db) {
         },
       )
       return (await this.getForLecturer(questionId, lecturerId)).lecturerAnswer
+    },
+  }
+  const practiceQuestionRepository = {
+    async listForLecturer(lecturerId, filters = {}) {
+      const rows = await db.many(
+        `SELECT
+           practice_questions.*,
+           subjects.name AS subject_name,
+           chapters.title AS chapter_title,
+           users.name AS creator_name
+         FROM practice_questions
+         JOIN subjects ON subjects.id = practice_questions.subject_id
+         JOIN chapters ON chapters.id = practice_questions.chapter_id
+         JOIN users ON users.id = practice_questions.created_by
+         WHERE EXISTS (
+           SELECT 1 FROM course_classes
+           WHERE course_classes.subject_id = practice_questions.subject_id
+             AND course_classes.lecturer_id = ?
+         )
+         ORDER BY practice_questions.updated_at DESC`,
+        [lecturerId],
+      )
+      const filtered = rows.filter((row) => {
+        if (filters.subjectId && row.subject_id !== filters.subjectId) return false
+        if (filters.chapterId && row.chapter_id !== filters.chapterId) return false
+        if (filters.status && filters.status !== 'all' && row.status !== filters.status) return false
+        if (filters.query && !includesNormalized(row.content, filters.query)) return false
+        return true
+      })
+      return Promise.all(
+        filtered.map(async (row) => {
+          const options = await db.many(
+            `SELECT id, option_key, content, is_correct, option_order
+             FROM practice_question_options
+             WHERE question_id = ? ORDER BY option_order`,
+            [row.id],
+          )
+          return mapPracticeQuestion(row, options)
+        }),
+      )
+    },
+    async getForLecturer(questionId, lecturerId) {
+      const question = await loadPracticeQuestion(db, questionId)
+      if (!question) return null
+      await ensureLecturerSubjectAccess(db, lecturerId, question.subjectId)
+      return question
+    },
+    async create(input, lecturerId) {
+      const normalized = await validatePracticeQuestionInput(db, input, lecturerId)
+      const id = createId('practice_question')
+      const createdAt = nowIso()
+      try {
+        await db.transaction(async (transaction) => {
+          await transaction.execute(
+            `INSERT INTO practice_questions
+             (id, subject_id, chapter_id, lesson_id, content, explanation, difficulty, status,
+              source_type, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'manual', ?, ?, ?)`,
+            [
+              id,
+              normalized.subjectId,
+              normalized.chapterId,
+              normalized.lessonId,
+              normalized.content,
+              normalized.explanation,
+              normalized.difficulty,
+              lecturerId,
+              createdAt,
+              createdAt,
+            ],
+          )
+          for (const [index, option] of normalized.options.entries()) {
+            await transaction.execute(
+              `INSERT INTO practice_question_options
+               (id, question_id, option_key, content, is_correct, option_order)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [createId('practice_option'), id, option.key, option.content, option.isCorrect ? 1 : 0, index + 1],
+            )
+          }
+          await audit(transaction, lecturerId, 'practice_question.created', 'practice_question', id, {
+            subjectId: normalized.subjectId,
+            chapterId: normalized.chapterId,
+            sourceType: 'manual',
+          })
+        })
+      } catch (error) {
+        if (isUniqueConstraint(error)) {
+          throw new ApiError(409, 'CONFLICT', 'Câu hỏi này đã tồn tại trong học phần.')
+        }
+        throw error
+      }
+      return this.getForLecturer(id, lecturerId)
+    },
+    async update(questionId, input, lecturerId) {
+      const existing = await db.one(
+        `SELECT * FROM practice_questions WHERE id = ?`,
+        [questionId],
+      )
+      if (!existing) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+      if (existing.created_by !== lecturerId) {
+        throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được sửa câu hỏi do mình tạo.')
+      }
+      const normalized = await validatePracticeQuestionInput(db, input, lecturerId)
+      const updatedAt = nowIso()
+      try {
+        await db.transaction(async (transaction) => {
+          await transaction.execute(
+            `UPDATE practice_questions
+             SET subject_id = ?, chapter_id = ?, lesson_id = ?, content = ?, explanation = ?,
+                 difficulty = ?, updated_at = ?
+             WHERE id = ?`,
+            [
+              normalized.subjectId,
+              normalized.chapterId,
+              normalized.lessonId,
+              normalized.content,
+              normalized.explanation,
+              normalized.difficulty,
+              updatedAt,
+              questionId,
+            ],
+          )
+          await transaction.execute(
+            'DELETE FROM practice_question_options WHERE question_id = ?',
+            [questionId],
+          )
+          for (const [index, option] of normalized.options.entries()) {
+            await transaction.execute(
+              `INSERT INTO practice_question_options
+               (id, question_id, option_key, content, is_correct, option_order)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [createId('practice_option'), questionId, option.key, option.content, option.isCorrect ? 1 : 0, index + 1],
+            )
+          }
+          await audit(transaction, lecturerId, 'practice_question.updated', 'practice_question', questionId, {
+            subjectId: normalized.subjectId,
+            chapterId: normalized.chapterId,
+          })
+        })
+      } catch (error) {
+        if (isUniqueConstraint(error)) {
+          throw new ApiError(409, 'CONFLICT', 'Câu hỏi này đã tồn tại trong học phần.')
+        }
+        throw error
+      }
+      return this.getForLecturer(questionId, lecturerId)
+    },
+    async publish(questionId, lecturerId) {
+      const question = await db.one('SELECT * FROM practice_questions WHERE id = ?', [questionId])
+      if (!question) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+      if (question.created_by !== lecturerId) {
+        throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được xuất bản câu hỏi do mình tạo.')
+      }
+      await ensureLecturerSubjectAccess(db, lecturerId, question.subject_id)
+      const validation = await db.one(
+        `SELECT
+           COUNT(*) AS option_count,
+           SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count
+         FROM practice_question_options WHERE question_id = ?`,
+        [questionId],
+      )
+      if (Number(validation.option_count) !== 4 || Number(validation.correct_count) !== 1) {
+        throw new ApiError(400, 'VALIDATION', 'Câu hỏi phải có đúng 4 lựa chọn và một đáp án đúng.')
+      }
+      const timestamp = nowIso()
+      await db.execute(
+        `UPDATE practice_questions
+         SET status = 'published', published_by = ?, published_at = ?, updated_at = ?
+         WHERE id = ?`,
+        [lecturerId, timestamp, timestamp, questionId],
+      )
+      await audit(db, lecturerId, 'practice_question.published', 'practice_question', questionId)
+      return this.getForLecturer(questionId, lecturerId)
+    },
+    async archive(questionId, lecturerId) {
+      const question = await db.one('SELECT * FROM practice_questions WHERE id = ?', [questionId])
+      if (!question) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+      if (question.created_by !== lecturerId) {
+        throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được lưu trữ câu hỏi do mình tạo.')
+      }
+      await ensureLecturerSubjectAccess(db, lecturerId, question.subject_id)
+      await db.execute(
+        `UPDATE practice_questions SET status = 'archived', updated_at = ? WHERE id = ?`,
+        [nowIso(), questionId],
+      )
+      await audit(db, lecturerId, 'practice_question.archived', 'practice_question', questionId)
+      return this.getForLecturer(questionId, lecturerId)
+    },
+  }
+  const practiceSessionRepository = {
+    async getConfig(studentId, subjectId) {
+      await ensureStudentSubjectAccess(db, studentId, subjectId)
+      const subject = await db.one('SELECT id, name FROM subjects WHERE id = ?', [subjectId])
+      const chapters = await db.many(
+        `SELECT
+           chapters.id,
+           chapters.title,
+           chapters.chapter_order,
+           COUNT(practice_questions.id) AS question_count
+         FROM chapters
+         LEFT JOIN practice_questions
+           ON practice_questions.chapter_id = chapters.id
+          AND practice_questions.status = 'published'
+         WHERE chapters.subject_id = ?
+         GROUP BY chapters.id, chapters.title, chapters.chapter_order
+         ORDER BY chapters.chapter_order`,
+        [subjectId],
+      )
+      return {
+        subject,
+        chapters: chapters.map((chapter) => ({
+          id: chapter.id,
+          title: chapter.title,
+          order: chapter.chapter_order,
+          questionCount: Number(chapter.question_count ?? 0),
+        })),
+      }
+    },
+    async create(input, studentId) {
+      const subjectId = String(input.subjectId ?? '').trim()
+      const chapterId = input.chapterId ? String(input.chapterId).trim() : null
+      const requestedCount = Number(input.questionCount ?? 10)
+      if (!subjectId) throw new ApiError(400, 'VALIDATION', 'Cần chọn học phần.')
+      if (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 50) {
+        throw new ApiError(400, 'VALIDATION', 'Số câu luyện tập phải từ 1 đến 50.')
+      }
+      await ensureStudentSubjectAccess(db, studentId, subjectId)
+      if (chapterId) {
+        const chapter = await db.one(
+          'SELECT id, subject_id FROM chapters WHERE id = ?',
+          [chapterId],
+        )
+        if (!chapter) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy chương.')
+        if (chapter.subject_id !== subjectId) {
+          throw new ApiError(400, 'VALIDATION', 'Chương không thuộc học phần đã chọn.')
+        }
+      }
+      const filters = chapterId
+        ? `AND practice_questions.chapter_id = ?`
+        : ''
+      const params = chapterId ? [subjectId, chapterId, requestedCount] : [subjectId, requestedCount]
+      const questionRows = await db.many(
+        `SELECT practice_questions.id
+         FROM practice_questions
+         WHERE practice_questions.subject_id = ?
+           AND practice_questions.status = 'published'
+           ${filters}
+         ORDER BY RANDOM()
+         LIMIT ?`,
+        params,
+      )
+      if (questionRows.length === 0) {
+        throw new ApiError(404, 'NOT_FOUND', 'Chưa có câu hỏi đã xuất bản trong phạm vi này.')
+      }
+      const sessionId = createId('practice_session')
+      const startedAt = nowIso()
+      await db.transaction(async (transaction) => {
+        await transaction.execute(
+          `INSERT INTO practice_sessions
+           (id, student_id, subject_id, chapter_id, status, question_count,
+            answered_count, correct_count, started_at, updated_at)
+           VALUES (?, ?, ?, ?, 'in_progress', ?, 0, 0, ?, ?)`,
+          [sessionId, studentId, subjectId, chapterId, questionRows.length, startedAt, startedAt],
+        )
+        for (const [index, question] of questionRows.entries()) {
+          await transaction.execute(
+            `INSERT INTO practice_session_questions
+             (id, session_id, question_id, position)
+             VALUES (?, ?, ?, ?)`,
+            [createId('practice_session_question'), sessionId, question.id, index + 1],
+          )
+        }
+        await audit(transaction, studentId, 'practice_session.created', 'practice_session', sessionId, {
+          subjectId,
+          chapterId,
+          questionCount: questionRows.length,
+        })
+      })
+      return this.get(sessionId, studentId)
+    },
+    async get(sessionId, studentId) {
+      const session = await db.one(
+        `SELECT * FROM practice_sessions WHERE id = ? AND student_id = ?`,
+        [sessionId, studentId],
+      )
+      if (!session) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy phiên luyện tập.')
+      const rows = await db.many(
+        `SELECT id, question_id, position, selected_option_id, is_correct, answered_at
+         FROM practice_session_questions
+         WHERE session_id = ? ORDER BY position`,
+        [sessionId],
+      )
+      const questions = await Promise.all(
+        rows.map(async (row) => ({
+          id: row.id,
+          position: row.position,
+          selectedOptionId: row.selected_option_id,
+          isAnswered: row.selected_option_id !== null,
+          isCorrect: row.is_correct === null ? null : Number(row.is_correct) === 1,
+          answeredAt: row.answered_at,
+          question: await loadPracticeQuestion(db, row.question_id, {
+            includeAnswer: row.selected_option_id !== null,
+          }),
+        })),
+      )
+      return {
+        id: session.id,
+        subjectId: session.subject_id,
+        chapterId: session.chapter_id,
+        status: session.status,
+        questionCount: Number(session.question_count),
+        answeredCount: Number(session.answered_count),
+        correctCount: Number(session.correct_count),
+        startedAt: session.started_at,
+        completedAt: session.completed_at,
+        updatedAt: session.updated_at,
+        currentQuestionId: questions.find((item) => !item.isAnswered)?.id ?? null,
+        questions,
+      }
+    },
+    async answer(sessionId, input, studentId) {
+      const session = await db.one(
+        `SELECT * FROM practice_sessions WHERE id = ? AND student_id = ?`,
+        [sessionId, studentId],
+      )
+      if (!session) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy phiên luyện tập.')
+      if (session.status !== 'in_progress') {
+        throw new ApiError(409, 'CONFLICT', 'Phiên luyện tập đã kết thúc.')
+      }
+      const sessionQuestion = await db.one(
+        `SELECT practice_session_questions.*, practice_questions.explanation
+         FROM practice_session_questions
+         JOIN practice_questions ON practice_questions.id = practice_session_questions.question_id
+         WHERE practice_session_questions.session_id = ?
+           AND practice_session_questions.question_id = ?`,
+        [sessionId, input.questionId],
+      )
+      if (!sessionQuestion) throw new ApiError(404, 'NOT_FOUND', 'Câu hỏi không thuộc phiên này.')
+      if (sessionQuestion.selected_option_id) {
+        throw new ApiError(409, 'CONFLICT', 'Câu hỏi này đã được trả lời.')
+      }
+      const option = await db.one(
+        `SELECT id, question_id, is_correct
+         FROM practice_question_options
+         WHERE id = ? AND question_id = ?`,
+        [input.optionId, input.questionId],
+      )
+      if (!option) throw new ApiError(400, 'VALIDATION', 'Lựa chọn không hợp lệ.')
+      const isCorrect = Number(option.is_correct) === 1
+      const answeredAt = nowIso()
+      await db.transaction(async (transaction) => {
+        const updateResult = await transaction.execute(
+          `UPDATE practice_session_questions
+           SET selected_option_id = ?, is_correct = ?, answered_at = ?
+           WHERE id = ? AND selected_option_id IS NULL`,
+          [option.id, isCorrect ? 1 : 0, answeredAt, sessionQuestion.id],
+        )
+        const changed = Number(updateResult?.changes ?? updateResult?.rowCount ?? 0)
+        if (changed !== 1) throw new ApiError(409, 'CONFLICT', 'Câu hỏi này đã được trả lời.')
+        await transaction.execute(
+          `UPDATE practice_sessions
+           SET answered_count = answered_count + 1,
+               correct_count = correct_count + ?,
+               updated_at = ?
+           WHERE id = ?`,
+          [isCorrect ? 1 : 0, answeredAt, sessionId],
+        )
+      })
+      const question = await loadPracticeQuestion(db, input.questionId, { includeAnswer: true })
+      return {
+        sessionId,
+        questionId: input.questionId,
+        selectedOptionId: option.id,
+        isCorrect,
+        correctOptionId: question.correctOptionId,
+        explanation: question.explanation,
+        answeredCount: Number(session.answered_count) + 1,
+        correctCount: Number(session.correct_count) + (isCorrect ? 1 : 0),
+      }
+    },
+    async complete(sessionId, studentId) {
+      const session = await db.one(
+        `SELECT * FROM practice_sessions WHERE id = ? AND student_id = ?`,
+        [sessionId, studentId],
+      )
+      if (!session) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy phiên luyện tập.')
+      if (session.status === 'completed') return this.get(sessionId, studentId)
+      if (Number(session.answered_count) < Number(session.question_count)) {
+        throw new ApiError(400, 'VALIDATION', 'Cần trả lời hết câu hỏi trước khi hoàn thành.')
+      }
+      const completedAt = nowIso()
+      await db.execute(
+        `UPDATE practice_sessions SET status = 'completed', completed_at = ?, updated_at = ? WHERE id = ?`,
+        [completedAt, completedAt, sessionId],
+      )
+      await audit(db, studentId, 'practice_session.completed', 'practice_session', sessionId, {
+        questionCount: session.question_count,
+        correctCount: session.correct_count,
+      })
+      return this.get(sessionId, studentId)
+    },
+    async listHistory(studentId) {
+      return (
+        await db.many(
+          `SELECT
+             practice_sessions.*,
+             subjects.name AS subject_name,
+             chapters.title AS chapter_title
+           FROM practice_sessions
+           JOIN subjects ON subjects.id = practice_sessions.subject_id
+           LEFT JOIN chapters ON chapters.id = practice_sessions.chapter_id
+           WHERE practice_sessions.student_id = ?
+           ORDER BY practice_sessions.updated_at DESC
+           LIMIT 30`,
+          [studentId],
+        )
+      ).map((row) => ({
+        id: row.id,
+        subjectId: row.subject_id,
+        subjectName: row.subject_name,
+        chapterId: row.chapter_id,
+        chapterTitle: row.chapter_title,
+        status: row.status,
+        questionCount: Number(row.question_count),
+        answeredCount: Number(row.answered_count),
+        correctCount: Number(row.correct_count),
+        accuracy: row.question_count ? Math.round((row.correct_count / row.question_count) * 100) : 0,
+        startedAt: row.started_at,
+        completedAt: row.completed_at,
+        updatedAt: row.updated_at,
+      }))
     },
   }
   const ragRepository = {
@@ -1641,6 +2211,8 @@ export function createAsyncRepositories(db) {
     classContentRepository,
     classRepository,
     learningRepository,
+    practiceQuestionRepository,
+    practiceSessionRepository,
     questionRepository,
     ragRepository,
     searchRepository,

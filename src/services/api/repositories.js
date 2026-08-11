@@ -112,6 +112,69 @@ export const apiQuestionRepository = {
   },
 }
 
+export const apiPracticeQuestionRepository = {
+  listForLecturer(filters = {}) {
+    return apiRequest(withQuery('/api/lecturer/practice-questions', filters))
+  },
+  getForLecturer(questionId) {
+    return apiRequest(`/api/lecturer/practice-questions/${encodeURIComponent(questionId)}`)
+  },
+  create(input) {
+    return apiRequest('/api/lecturer/practice-questions', {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
+  update(questionId, input) {
+    return apiRequest(`/api/lecturer/practice-questions/${encodeURIComponent(questionId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  publish(questionId) {
+    return apiRequest(
+      `/api/lecturer/practice-questions/${encodeURIComponent(questionId)}/publish`,
+      { method: 'POST' },
+    )
+  },
+  archive(questionId) {
+    return apiRequest(
+      `/api/lecturer/practice-questions/${encodeURIComponent(questionId)}/archive`,
+      { method: 'POST' },
+    )
+  },
+}
+
+export const apiPracticeSessionRepository = {
+  getConfig(subjectId) {
+    return apiRequest(`/api/student/practice/config/${encodeURIComponent(subjectId)}`)
+  },
+  create(input) {
+    return apiRequest('/api/student/practice-sessions', {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
+  get(sessionId) {
+    return apiRequest(`/api/student/practice-sessions/${encodeURIComponent(sessionId)}`)
+  },
+  answer(sessionId, input) {
+    return apiRequest(
+      `/api/student/practice-sessions/${encodeURIComponent(sessionId)}/answers`,
+      { method: 'POST', body: jsonBody(input) },
+    )
+  },
+  complete(sessionId) {
+    return apiRequest(
+      `/api/student/practice-sessions/${encodeURIComponent(sessionId)}/complete`,
+      { method: 'POST' },
+    )
+  },
+  listHistory() {
+    return apiRequest('/api/student/practice-sessions/history')
+  },
+}
+
 export const apiLearningRepository = {
   getDashboard() {
     return apiRequest('/api/student/dashboard')

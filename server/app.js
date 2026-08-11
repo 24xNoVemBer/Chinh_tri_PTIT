@@ -207,6 +207,18 @@ export function createRequestHandler({
           pathname,
           /^\/api\/lecturer\/rag\/responses\/([^/]+)\/review$/,
         )
+        const practiceQuestionMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/practice-questions\/([^/]+)$/,
+        )
+        const practiceQuestionPublishMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/practice-questions\/([^/]+)\/publish$/,
+        )
+        const practiceQuestionArchiveMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/practice-questions\/([^/]+)\/archive$/,
+        )
 
         if (method === 'GET' && pathname === '/api/lecturer/classes') {
           sendData(response, await repositories.classRepository.listForLecturer(lecturer.id))
@@ -372,6 +384,67 @@ export function createRequestHandler({
           )
           return
         }
+        if (method === 'GET' && pathname === '/api/lecturer/practice-questions') {
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.listForLecturer(lecturer.id, {
+              subjectId: searchParams.get('subjectId') ?? '',
+              chapterId: searchParams.get('chapterId') ?? '',
+              status: searchParams.get('status') ?? 'all',
+              query: searchParams.get('query') ?? '',
+            }),
+          )
+          return
+        }
+        if (method === 'POST' && pathname === '/api/lecturer/practice-questions') {
+          const input = await readJson(request)
+          requireFields(input, ['subjectId', 'chapterId', 'content', 'explanation', 'options', 'correctOptionKey'])
+          sendData(response, await repositories.practiceQuestionRepository.create(input, lecturer.id), 201)
+          return
+        }
+        if (method === 'GET' && practiceQuestionMatch) {
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.getForLecturer(
+              practiceQuestionMatch[0],
+              lecturer.id,
+            ),
+          )
+          return
+        }
+        if (method === 'PATCH' && practiceQuestionMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['subjectId', 'chapterId', 'content', 'explanation', 'options', 'correctOptionKey'])
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.update(
+              practiceQuestionMatch[0],
+              input,
+              lecturer.id,
+            ),
+          )
+          return
+        }
+        if (method === 'POST' && practiceQuestionPublishMatch) {
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.publish(
+              practiceQuestionPublishMatch[0],
+              lecturer.id,
+            ),
+          )
+          return
+        }
+        if (method === 'POST' && practiceQuestionArchiveMatch) {
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.archive(
+              practiceQuestionArchiveMatch[0],
+              lecturer.id,
+            ),
+          )
+          return
+        }
         if (method === 'GET' && questionMatch) {
           sendData(
             response,
@@ -430,6 +503,19 @@ export function createRequestHandler({
         const lessonMatch = matchPath(pathname, /^\/api\/student\/lessons\/([^/]+)$/)
         const progressMatch = matchPath(pathname, /^\/api\/student\/lessons\/([^/]+)\/progress$/)
         const questionMatch = matchPath(pathname, /^\/api\/student\/questions\/([^/]+)$/)
+        const practiceConfigMatch = matchPath(pathname, /^\/api\/student\/practice\/config\/([^/]+)$/)
+        const practiceSessionAnswersMatch = matchPath(
+          pathname,
+          /^\/api\/student\/practice-sessions\/([^/]+)\/answers$/,
+        )
+        const practiceSessionCompleteMatch = matchPath(
+          pathname,
+          /^\/api\/student\/practice-sessions\/([^/]+)\/complete$/,
+        )
+        const practiceSessionMatch = matchPath(
+          pathname,
+          /^\/api\/student\/practice-sessions\/([^/]+)$/,
+        )
 
         if (method === 'GET' && pathname === '/api/student/dashboard') {
           sendData(response, await repositories.learningRepository.getDashboard(student.id))
@@ -472,6 +558,53 @@ export function createRequestHandler({
               student.id,
               progressMatch[0],
               input.progress,
+            ),
+          )
+          return
+        }
+        if (method === 'GET' && practiceConfigMatch) {
+          sendData(
+            response,
+            await repositories.practiceSessionRepository.getConfig(student.id, practiceConfigMatch[0]),
+          )
+          return
+        }
+        if (method === 'GET' && pathname === '/api/student/practice-sessions/history') {
+          sendData(response, await repositories.practiceSessionRepository.listHistory(student.id))
+          return
+        }
+        if (method === 'POST' && pathname === '/api/student/practice-sessions') {
+          const input = await readJson(request)
+          requireFields(input, ['subjectId'])
+          sendData(response, await repositories.practiceSessionRepository.create(input, student.id), 201)
+          return
+        }
+        if (method === 'GET' && practiceSessionMatch) {
+          sendData(
+            response,
+            await repositories.practiceSessionRepository.get(practiceSessionMatch[0], student.id),
+          )
+          return
+        }
+        if (method === 'POST' && practiceSessionAnswersMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['questionId', 'optionId'])
+          sendData(
+            response,
+            await repositories.practiceSessionRepository.answer(
+              practiceSessionAnswersMatch[0],
+              input,
+              student.id,
+            ),
+          )
+          return
+        }
+        if (method === 'POST' && practiceSessionCompleteMatch) {
+          sendData(
+            response,
+            await repositories.practiceSessionRepository.complete(
+              practiceSessionCompleteMatch[0],
+              student.id,
             ),
           )
           return

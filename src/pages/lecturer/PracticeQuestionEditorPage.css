@@ -1,0 +1,113 @@
+.practice-editor-page {
+  max-width: 72rem;
+}
+
+.practice-editor-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.practice-editor-card {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.practice-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.practice-editor-card label,
+.practice-options-fieldset {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.practice-editor-card label > span,
+.practice-options-fieldset legend {
+  color: var(--color-heading);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.practice-editor-card input[type='text'],
+.practice-editor-card textarea,
+.practice-editor-card select {
+  width: 100%;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.875rem;
+  color: var(--color-foreground);
+  background: var(--color-surface-subtle);
+}
+
+.practice-editor-card textarea {
+  resize: vertical;
+}
+
+.practice-options-fieldset {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.practice-option-row {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.practice-option-row.is-correct {
+  background: var(--color-success-soft);
+}
+
+.practice-option-radio {
+  display: flex !important;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-success) !important;
+}
+
+.practice-option-radio input {
+  accent-color: var(--color-primary);
+}
+
+.practice-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.practice-form-error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+@media (max-width: 46rem) {
+  .practice-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-option-row {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-editor-actions {
+    flex-direction: column-reverse;
+  }
+}

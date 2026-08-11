@@ -16,6 +16,8 @@ const LecturerHome = lazy(() => import('./pages/lecturer/LecturerHome'))
 const QuestionInboxPage = lazy(() => import('./pages/lecturer/QuestionInboxPage'))
 const QuestionDetailPage = lazy(() => import('./pages/lecturer/QuestionDetailPage'))
 const QuestionsPage = lazy(() => import('./pages/lecturer/QuestionsPage'))
+const PracticeQuestionBankPage = lazy(() => import('./pages/lecturer/PracticeQuestionBankPage'))
+const PracticeQuestionEditorPage = lazy(() => import('./pages/lecturer/PracticeQuestionEditorPage'))
 const ReviewQueuePage = lazy(() => import('./pages/lecturer/ReviewQueuePage'))
 const LessonPage = lazy(() => import('./pages/student/LessonPage'))
 const NotificationsPage = lazy(() => import('./pages/student/NotificationsPage'))
@@ -25,6 +27,7 @@ const QuizPage = lazy(() => import('./pages/student/QuizPage'))
 const SearchPage = lazy(() => import('./pages/student/SearchPage'))
 const StudentHome = lazy(() => import('./pages/student/StudentHome'))
 const ChatPage = lazy(() => import('./pages/student/ChatPage'))
+const PracticePage = lazy(() => import('./pages/student/PracticePage'))
 const StudentQuestionDetailPage = lazy(() => import('./pages/student/StudentQuestionDetailPage'))
 const SubjectPage = lazy(() => import('./pages/student/SubjectPage'))
 const SubjectsPage = lazy(() => import('./pages/student/SubjectsPage'))
@@ -58,6 +61,8 @@ export default function App() {
           <Route path="/student" element={<StudentLayout />}>
             <Route index element={<StudentHome />} />
             <Route path="chat" element={<ChatPage />} />
+            <Route path="practice" element={<PracticePage />} />
+            <Route path="practice/:sessionId" element={<PracticePage />} />
             <Route path="subjects" element={<SubjectsPage />} />
             <Route path="subjects/:subjectId" element={<SubjectPage />} />
             <Route path="subjects/:subjectId/qna" element={<QnAPage />} />
@@ -79,6 +84,9 @@ export default function App() {
             <Route path="classes/:classId/lessons" element={<ClassLessonsPage />} />
             <Route path="classes/:classId/materials" element={<ClassMaterialsPage />} />
             <Route path="classes/:classId/questions" element={<QuestionsPage />} />
+            <Route path="practice-questions" element={<PracticeQuestionBankPage />} />
+            <Route path="practice-questions/new" element={<PracticeQuestionEditorPage />} />
+            <Route path="practice-questions/:questionId/edit" element={<PracticeQuestionEditorPage />} />
             <Route path="questions" element={<QuestionInboxPage />} />
             <Route path="questions/:questionId" element={<QuestionDetailPage />} />
             <Route path="review-queue" element={<ReviewQueuePage />} />

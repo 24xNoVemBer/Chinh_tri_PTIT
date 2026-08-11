@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu,
   MessageCircleQuestion,
+  ListChecks,
   School,
   Search,
   X,
@@ -20,12 +21,14 @@ const ROLE_LINKS = {
   student: [
     { label: 'Tổng quan', to: '/student', icon: LayoutDashboard, end: true },
     { label: 'Học phần', to: '/student/subjects', icon: BookOpenText },
+    { label: 'Luyện tập', to: '/student/practice', icon: ListChecks },
     { label: 'Hỏi đáp', to: '/student/questions', icon: MessageCircleQuestion },
     { label: 'Tra cứu', to: '/student/search', icon: Search },
   ],
   lecturer: [
     { label: 'Tổng quan', to: '/lecturer', icon: LayoutDashboard, end: true },
     { label: 'Lớp học', to: '/lecturer/classes', icon: School },
+    { label: 'Ngân hàng câu hỏi', to: '/lecturer/practice-questions', icon: ListChecks },
     { label: 'Hỏi đáp', to: '/lecturer/questions', icon: MessageCircleQuestion },
     { label: 'Chờ duyệt', to: '/lecturer/review-queue', icon: BadgeCheck },
   ],
