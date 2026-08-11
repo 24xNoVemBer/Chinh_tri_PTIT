@@ -1384,6 +1384,64 @@ export function createAsyncRepositories(db) {
       await audit(db, lecturerId, 'practice_question.archived', 'practice_question', questionId)
       return this.getForLecturer(questionId, lecturerId)
     },
+    async restore(questionId, lecturerId) {
+      const question = await db.one('SELECT * FROM practice_questions WHERE id = ?', [questionId])
+      if (!question) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+      if (question.created_by !== lecturerId) {
+        throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được khôi phục câu hỏi do mình tạo.')
+      }
+      await ensureLecturerSubjectAccess(db, lecturerId, question.subject_id)
+      if (question.status !== 'archived') {
+        throw new ApiError(409, 'CONFLICT', 'Chỉ câu hỏi đã lưu trữ mới có thể khôi phục.')
+      }
+      const timestamp = nowIso()
+      await db.execute(
+        `UPDATE practice_questions
+         SET status = 'draft', updated_at = ?
+         WHERE id = ?`,
+        [timestamp, questionId],
+      )
+      await audit(db, lecturerId, 'practice_question.restored', 'practice_question', questionId)
+      return this.getForLecturer(questionId, lecturerId)
+    },
+    async remove(questionId, lecturerId) {
+      const question = await db.one('SELECT * FROM practice_questions WHERE id = ?', [questionId])
+      if (!question) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+      if (question.created_by !== lecturerId) {
+        throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được xóa câu hỏi do mình tạo.')
+      }
+      await ensureLecturerSubjectAccess(db, lecturerId, question.subject_id)
+      if (question.status !== 'archived') {
+        throw new ApiError(409, 'CONFLICT', 'Chỉ câu hỏi đã lưu trữ mới có thể xóa vĩnh viễn.')
+      }
+      const usage = await db.one(
+        `SELECT COUNT(*) AS usage_count
+         FROM practice_session_questions
+         WHERE question_id = ?`,
+        [questionId],
+      )
+      if (Number(usage?.usage_count ?? 0) > 0) {
+        throw new ApiError(
+          409,
+          'CONFLICT',
+          'Câu hỏi đã được dùng trong phiên luyện tập và chỉ có thể lưu trữ.',
+        )
+      }
+      await db.transaction(async (transaction) => {
+        await transaction.execute('DELETE FROM practice_question_options WHERE question_id = ?', [
+          questionId,
+        ])
+        await transaction.execute('DELETE FROM practice_questions WHERE id = ?', [questionId])
+        await audit(
+          transaction,
+          lecturerId,
+          'practice_question.deleted',
+          'practice_question',
+          questionId,
+        )
+      })
+      return { id: questionId, deleted: true }
+    },
   }
   const practiceSessionRepository = {
     async getConfig(studentId, subjectId) {

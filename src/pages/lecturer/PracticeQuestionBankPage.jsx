@@ -1,4 +1,14 @@
-import { Archive, Check, ChevronLeft, ChevronRight, Edit3, Plus, Search } from 'lucide-react'
+import {
+  Archive,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+  Plus,
+  Search,
+  Trash2,
+  Undo2,
+} from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/AsyncState'
@@ -167,6 +177,32 @@ export default function PracticeQuestionBankPage() {
                       <Check aria-hidden="true" size={16} />
                       Xuất bản
                     </button>
+                  )}
+                  {question.status === 'archived' && (
+                    <>
+                      <button
+                        className="button button--secondary"
+                        type="button"
+                        disabled={busyId === question.id}
+                        onClick={() => runAction(question.id, practiceQuestionRepository.restore)}
+                      >
+                        <Undo2 aria-hidden="true" size={16} />
+                        Khôi phục
+                      </button>
+                      <button
+                        className="button button--danger-ghost"
+                        type="button"
+                        disabled={busyId === question.id}
+                        onClick={() => {
+                          if (window.confirm('Xóa vĩnh viễn câu hỏi này?')) {
+                            void runAction(question.id, practiceQuestionRepository.remove)
+                          }
+                        }}
+                      >
+                        <Trash2 aria-hidden="true" size={16} />
+                        Xóa
+                      </button>
+                    </>
                   )}
                   {question.status === 'published' && (
                     <button

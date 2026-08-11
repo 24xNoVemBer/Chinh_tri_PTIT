@@ -73,6 +73,44 @@ describe('practice question bank and sessions', () => {
     expect(publishResponse.status).toBe(200)
     expect((await publishResponse.json()).data.status).toBe('published')
 
+    const archiveResponse = await api(
+      `/api/lecturer/practice-questions/${created.id}/archive`,
+      lecturer,
+      { method: 'POST' },
+    )
+    expect(archiveResponse.status).toBe(200)
+    expect((await archiveResponse.json()).data.status).toBe('archived')
+
+    const restoreResponse = await api(
+      `/api/lecturer/practice-questions/${created.id}/restore`,
+      lecturer,
+      { method: 'POST' },
+    )
+    expect(restoreResponse.status).toBe(200)
+    expect((await restoreResponse.json()).data.status).toBe('draft')
+
+    const republishResponse = await api(
+      `/api/lecturer/practice-questions/${created.id}/publish`,
+      lecturer,
+      { method: 'POST' },
+    )
+    expect(republishResponse.status).toBe(200)
+    expect((await republishResponse.json()).data.status).toBe('published')
+
+    const rearchiveResponse = await api(
+      `/api/lecturer/practice-questions/${created.id}/archive`,
+      lecturer,
+      { method: 'POST' },
+    )
+    expect(rearchiveResponse.status).toBe(200)
+    expect((await rearchiveResponse.json()).data.status).toBe('archived')
+
+    const deleteResponse = await api(`/api/lecturer/practice-questions/${created.id}`, lecturer, {
+      method: 'DELETE',
+    })
+    expect(deleteResponse.status).toBe(200)
+    expect((await deleteResponse.json()).data.deleted).toBe(true)
+
     const listResponse = await api(
       '/api/lecturer/practice-questions?status=all&page=1&pageSize=2',
       lecturer,

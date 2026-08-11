@@ -219,6 +219,10 @@ export function createRequestHandler({
           pathname,
           /^\/api\/lecturer\/practice-questions\/([^/]+)\/archive$/,
         )
+        const practiceQuestionRestoreMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/practice-questions\/([^/]+)\/restore$/,
+        )
 
         if (method === 'GET' && pathname === '/api/lecturer/classes') {
           sendData(response, await repositories.classRepository.listForLecturer(lecturer.id))
@@ -470,6 +474,26 @@ export function createRequestHandler({
             response,
             await repositories.practiceQuestionRepository.archive(
               practiceQuestionArchiveMatch[0],
+              lecturer.id,
+            ),
+          )
+          return
+        }
+        if (method === 'POST' && practiceQuestionRestoreMatch) {
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.restore(
+              practiceQuestionRestoreMatch[0],
+              lecturer.id,
+            ),
+          )
+          return
+        }
+        if (method === 'DELETE' && practiceQuestionMatch) {
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.remove(
+              practiceQuestionMatch[0],
               lecturer.id,
             ),
           )

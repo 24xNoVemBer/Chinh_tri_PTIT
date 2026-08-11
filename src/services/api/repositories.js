@@ -143,6 +143,17 @@ export const apiPracticeQuestionRepository = {
       { method: 'POST' },
     )
   },
+  restore(questionId) {
+    return apiRequest(
+      `/api/lecturer/practice-questions/${encodeURIComponent(questionId)}/restore`,
+      { method: 'POST' },
+    )
+  },
+  remove(questionId) {
+    return apiRequest(`/api/lecturer/practice-questions/${encodeURIComponent(questionId)}`, {
+      method: 'DELETE',
+    })
+  },
 }
 
 export const apiPracticeSessionRepository = {
