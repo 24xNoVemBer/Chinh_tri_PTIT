@@ -29,6 +29,8 @@ export default function PracticeQuestionBankPage() {
   const [status, setStatus] = useState('all')
   const [page, setPage] = useState(1)
   const [busyId, setBusyId] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [actionNotice, setActionNotice] = useState('')
   const loader = useCallback(
     () => practiceQuestionRepository.listForLecturer({ query, status, page, pageSize: 12 }),
     [query, status, page],
@@ -46,11 +48,16 @@ export default function PracticeQuestionBankPage() {
       }
     : (data?.counts ?? { draft: 0, published: 0, archived: 0 })
 
-  const runAction = async (questionId, action) => {
+  const runAction = async (questionId, action, successMessage) => {
     setBusyId(questionId)
+    setActionError('')
+    setActionNotice('')
     try {
       await action(questionId)
+      setActionNotice(successMessage)
       await reload()
+    } catch (actionFailure) {
+      setActionError(actionFailure.message ?? 'Không thể cập nhật câu hỏi. Vui lòng thử lại.')
     } finally {
       setBusyId('')
     }
@@ -72,6 +79,17 @@ export default function PracticeQuestionBankPage() {
           </Link>
         }
       />
+
+      {actionNotice && (
+        <p className="practice-bank-feedback practice-bank-feedback--success" role="status">
+          {actionNotice}
+        </p>
+      )}
+      {actionError && (
+        <p className="practice-bank-feedback practice-bank-feedback--error" role="alert">
+          {actionError}
+        </p>
+      )}
 
       <section className="practice-bank-summary" aria-label="Tổng quan ngân hàng câu hỏi">
         {Object.entries(statusLabels).map(([key, label]) => (
@@ -172,7 +190,13 @@ export default function PracticeQuestionBankPage() {
                       className="button button--secondary"
                       type="button"
                       disabled={busyId === question.id}
-                      onClick={() => runAction(question.id, practiceQuestionRepository.publish)}
+                      onClick={() =>
+                        runAction(
+                          question.id,
+                          practiceQuestionRepository.publish,
+                          'Đã xuất bản câu hỏi.',
+                        )
+                      }
                     >
                       <Check aria-hidden="true" size={16} />
                       Xuất bản
@@ -184,7 +208,13 @@ export default function PracticeQuestionBankPage() {
                         className="button button--secondary"
                         type="button"
                         disabled={busyId === question.id}
-                        onClick={() => runAction(question.id, practiceQuestionRepository.restore)}
+                        onClick={() =>
+                          runAction(
+                            question.id,
+                            practiceQuestionRepository.restore,
+                            'Đã khôi phục câu hỏi về bản nháp.',
+                          )
+                        }
                       >
                         <Undo2 aria-hidden="true" size={16} />
                         Khôi phục
@@ -195,7 +225,11 @@ export default function PracticeQuestionBankPage() {
                         disabled={busyId === question.id}
                         onClick={() => {
                           if (window.confirm('Xóa vĩnh viễn câu hỏi này?')) {
-                            void runAction(question.id, practiceQuestionRepository.remove)
+                            void runAction(
+                              question.id,
+                              practiceQuestionRepository.remove,
+                              'Đã xóa vĩnh viễn câu hỏi.',
+                            )
                           }
                         }}
                       >
@@ -209,7 +243,13 @@ export default function PracticeQuestionBankPage() {
                       className="button button--ghost"
                       type="button"
                       disabled={busyId === question.id}
-                      onClick={() => runAction(question.id, practiceQuestionRepository.archive)}
+                      onClick={() =>
+                        runAction(
+                          question.id,
+                          practiceQuestionRepository.archive,
+                          'Đã lưu trữ câu hỏi.',
+                        )
+                      }
                     >
                       <Archive aria-hidden="true" size={16} />
                       Lưu trữ
