@@ -137,6 +137,11 @@ export const apiPracticeQuestionRepository = {
       { method: 'POST' },
     )
   },
+  saveDraft(questionId) {
+    return apiRequest(`/api/lecturer/practice-questions/${encodeURIComponent(questionId)}/draft`, {
+      method: 'POST',
+    })
+  },
   archive(questionId) {
     return apiRequest(
       `/api/lecturer/practice-questions/${encodeURIComponent(questionId)}/archive`,

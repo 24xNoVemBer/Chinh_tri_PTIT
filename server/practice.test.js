@@ -73,6 +73,22 @@ describe('practice question bank and sessions', () => {
     expect(publishResponse.status).toBe(200)
     expect((await publishResponse.json()).data.status).toBe('published')
 
+    const draftResponse = await api(
+      `/api/lecturer/practice-questions/${created.id}/draft`,
+      lecturer,
+      { method: 'POST' },
+    )
+    expect(draftResponse.status).toBe(200)
+    expect((await draftResponse.json()).data.status).toBe('draft')
+
+    const publishAgainResponse = await api(
+      `/api/lecturer/practice-questions/${created.id}/publish`,
+      lecturer,
+      { method: 'POST' },
+    )
+    expect(publishAgainResponse.status).toBe(200)
+    expect((await publishAgainResponse.json()).data.status).toBe('published')
+
     const archiveResponse = await api(
       `/api/lecturer/practice-questions/${created.id}/archive`,
       lecturer,

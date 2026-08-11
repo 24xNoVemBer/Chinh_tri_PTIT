@@ -223,6 +223,10 @@ export function createRequestHandler({
           pathname,
           /^\/api\/lecturer\/practice-questions\/([^/]+)\/restore$/,
         )
+        const practiceQuestionDraftMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/practice-questions\/([^/]+)\/draft$/,
+        )
 
         if (method === 'GET' && pathname === '/api/lecturer/classes') {
           sendData(response, await repositories.classRepository.listForLecturer(lecturer.id))
@@ -484,6 +488,16 @@ export function createRequestHandler({
             response,
             await repositories.practiceQuestionRepository.restore(
               practiceQuestionRestoreMatch[0],
+              lecturer.id,
+            ),
+          )
+          return
+        }
+        if (method === 'POST' && practiceQuestionDraftMatch) {
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.saveDraft(
+              practiceQuestionDraftMatch[0],
               lecturer.id,
             ),
           )

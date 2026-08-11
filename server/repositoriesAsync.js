@@ -1356,6 +1356,31 @@ export function createAsyncRepositories(db) {
       }
       return this.getForLecturer(questionId, lecturerId)
     },
+    async saveDraft(questionId, lecturerId) {
+      const question = await db.one('SELECT * FROM practice_questions WHERE id = ?', [questionId])
+      if (!question) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+      if (question.created_by !== lecturerId) {
+        throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được lưu nháp câu hỏi do mình tạo.')
+      }
+      await ensureLecturerSubjectAccess(db, lecturerId, question.subject_id)
+      if (question.status === 'archived') {
+        throw new ApiError(409, 'CONFLICT', 'Cần khôi phục câu hỏi trước khi lưu thành bản nháp.')
+      }
+      await db.execute(
+        `UPDATE practice_questions
+         SET status = 'draft', published_by = NULL, published_at = NULL, updated_at = ?
+         WHERE id = ?`,
+        [nowIso(), questionId],
+      )
+      await audit(
+        db,
+        lecturerId,
+        'practice_question.saved_as_draft',
+        'practice_question',
+        questionId,
+      )
+      return this.getForLecturer(questionId, lecturerId)
+    },
     async publish(questionId, lecturerId) {
       const question = await db.one('SELECT * FROM practice_questions WHERE id = ?', [questionId])
       if (!question) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')

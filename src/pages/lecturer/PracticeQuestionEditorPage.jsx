@@ -28,6 +28,26 @@ const emptyForm = {
   ],
 }
 
+function validateQuestionForm(form) {
+  if (!form.subjectId) return 'Vui lòng chọn học phần.'
+  if (!form.chapterId) return 'Vui lòng chọn chương.'
+  if (form.content.trim().length < 10) {
+    return 'Nội dung câu hỏi cần có ít nhất 10 ký tự.'
+  }
+  if (form.options.some((option) => !option.content.trim())) {
+    return 'Vui lòng nhập đầy đủ bốn phương án A, B, C và D.'
+  }
+  const normalizedOptions = form.options.map((option) => option.content.trim().toLocaleLowerCase())
+  if (new Set(normalizedOptions).size !== form.options.length) {
+    return 'Các phương án không được trùng nhau.'
+  }
+  if (!form.correctOptionKey) return 'Vui lòng chọn một đáp án đúng.'
+  if (form.explanation.trim().length < 10) {
+    return 'Phần giải thích đáp án cần có ít nhất 10 ký tự.'
+  }
+  return ''
+}
+
 export default function PracticeQuestionEditorPage() {
   const { questionId } = useParams()
   const navigate = useNavigate()
@@ -124,6 +144,14 @@ export default function PracticeQuestionEditorPage() {
 
   const handleSubmit = async (event, shouldPublish) => {
     event.preventDefault()
+    if (saving) return
+
+    const validationError = validateQuestionForm(form)
+    if (validationError) {
+      setSaveError(validationError)
+      return
+    }
+
     setSaving(true)
     setSaveError('')
     try {
@@ -133,10 +161,12 @@ export default function PracticeQuestionEditorPage() {
         : await practiceQuestionRepository.create(payload)
       if (shouldPublish && saved.status !== 'published') {
         await practiceQuestionRepository.publish(saved.id)
+      } else if (!shouldPublish && saved.status !== 'draft') {
+        await practiceQuestionRepository.saveDraft(saved.id)
       }
       navigate('/lecturer/practice-questions')
     } catch (requestError) {
-      setSaveError(requestError.message)
+      setSaveError(requestError.message ?? 'Không thể lưu câu hỏi. Vui lòng thử lại.')
     } finally {
       setSaving(false)
     }
@@ -158,7 +188,11 @@ export default function PracticeQuestionEditorPage() {
           </Link>
         }
       />
-      <form className="practice-editor-form" onSubmit={(event) => handleSubmit(event, false)}>
+      <form
+        className="practice-editor-form"
+        noValidate
+        onSubmit={(event) => handleSubmit(event, false)}
+      >
         <section className="practice-editor-card">
           <div className="practice-editor-grid">
             <label>
@@ -295,7 +329,7 @@ export default function PracticeQuestionEditorPage() {
           </Link>
           <button className="button button--secondary" type="submit" disabled={saving}>
             <Save aria-hidden="true" size={17} />
-            Lưu nháp
+            {saving ? 'Đang lưu…' : 'Lưu nháp'}
           </button>
           <button
             className="button button--primary"
@@ -304,7 +338,7 @@ export default function PracticeQuestionEditorPage() {
             onClick={(event) => handleSubmit(event, true)}
           >
             <Check aria-hidden="true" size={17} />
-            Lưu và xuất bản
+            {saving ? 'Đang lưu…' : 'Lưu và xuất bản'}
           </button>
         </div>
       </form>
