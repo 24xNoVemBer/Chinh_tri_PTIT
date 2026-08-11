@@ -122,6 +122,80 @@ describe('practice question bank and sessions', () => {
     expect(list).toHaveProperty('total')
   })
 
+  it('keeps option ids when saving a question referenced by practice history', async () => {
+    const lecturer = await login('ductu@ptit.edu.vn', 'Lecturer@123')
+    const createResponse = await api('/api/lecturer/practice-questions', lecturer, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        chapterId: 'chap1',
+        content: 'Câu hỏi dùng để kiểm tra chỉnh sửa sau khi đã luyện tập?',
+        explanation: 'Giải thích đủ dài cho câu hỏi kiểm tra chỉnh sửa lịch sử.',
+        difficulty: 'medium',
+        correctOptionKey: 'B',
+        options: [
+          { key: 'A', content: 'Phương án kiểm tra A' },
+          { key: 'B', content: 'Phương án kiểm tra B' },
+          { key: 'C', content: 'Phương án kiểm tra C' },
+          { key: 'D', content: 'Phương án kiểm tra D' },
+        ],
+      }),
+    })
+    expect(createResponse.status).toBe(201)
+    const created = (await createResponse.json()).data
+
+    const publishResponse = await api(
+      `/api/lecturer/practice-questions/${created.id}/publish`,
+      lecturer,
+      { method: 'POST' },
+    )
+    expect(publishResponse.status).toBe(200)
+
+    const timestamp = new Date().toISOString()
+    await db.execute(
+      `INSERT INTO practice_sessions
+       (id, student_id, subject_id, chapter_id, status, question_count, answered_count,
+        correct_count, started_at, completed_at, updated_at)
+       VALUES (?, 's1', 'sub1', 'chap1', 'completed', 1, 1, 1, ?, ?, ?)`,
+      ['session-option-history', timestamp, timestamp, timestamp],
+    )
+    await db.execute(
+      `INSERT INTO practice_session_questions
+       (id, session_id, question_id, position, selected_option_id, is_correct, answered_at)
+       VALUES ('session-option-history-item', 'session-option-history', ?, 1, ?, 1, ?)`,
+      [created.id, created.correctOptionId, timestamp],
+    )
+
+    await api(`/api/lecturer/practice-questions/${created.id}/archive`, lecturer, {
+      method: 'POST',
+    })
+    await api(`/api/lecturer/practice-questions/${created.id}/restore`, lecturer, {
+      method: 'POST',
+    })
+
+    const updateResponse = await api(`/api/lecturer/practice-questions/${created.id}`, lecturer, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        chapterId: 'chap1',
+        content: 'Câu hỏi đã chỉnh sửa nhưng vẫn giữ lịch sử luyện tập?',
+        explanation: 'Giải thích đã chỉnh sửa và vẫn bảo toàn lịch sử lựa chọn.',
+        difficulty: 'hard',
+        correctOptionKey: 'B',
+        options: [
+          { key: 'A', content: 'Phương án sau chỉnh sửa A' },
+          { key: 'B', content: 'Phương án sau chỉnh sửa B' },
+          { key: 'C', content: 'Phương án sau chỉnh sửa C' },
+          { key: 'D', content: 'Phương án sau chỉnh sửa D' },
+        ],
+      }),
+    })
+    expect(updateResponse.status).toBe(200)
+    const updated = (await updateResponse.json()).data
+    expect(updated.correctOptionId).toBe(created.correctOptionId)
+    expect(updated.status).toBe('draft')
+  })
+
   it('hides answer keys before selection and returns feedback after one answer', async () => {
     const student = await login('tuananh@ptit.edu.vn', 'Student@123')
     const createResponse = await api('/api/student/practice-sessions', student, {

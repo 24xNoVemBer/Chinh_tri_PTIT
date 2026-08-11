@@ -1289,6 +1289,12 @@ export function createAsyncRepositories(db) {
       const updatedAt = nowIso()
       try {
         await db.transaction(async (transaction) => {
+          const existingOptions = await transaction.many(
+            `SELECT id, option_key
+             FROM practice_question_options
+             WHERE question_id = ?`,
+            [questionId],
+          )
           await transaction.execute(
             `UPDATE practice_questions
              SET subject_id = ?, chapter_id = ?, lesson_id = ?, content = ?, explanation = ?,
@@ -1305,23 +1311,30 @@ export function createAsyncRepositories(db) {
               questionId,
             ],
           )
-          await transaction.execute('DELETE FROM practice_question_options WHERE question_id = ?', [
-            questionId,
-          ])
           for (const [index, option] of normalized.options.entries()) {
-            await transaction.execute(
-              `INSERT INTO practice_question_options
-               (id, question_id, option_key, content, is_correct, option_order)
-               VALUES (?, ?, ?, ?, ?, ?)`,
-              [
-                createId('practice_option'),
-                questionId,
-                option.key,
-                option.content,
-                option.isCorrect ? 1 : 0,
-                index + 1,
-              ],
-            )
+            const existingOption = existingOptions.find((item) => item.option_key === option.key)
+            if (existingOption) {
+              await transaction.execute(
+                `UPDATE practice_question_options
+                 SET content = ?, is_correct = ?, option_order = ?
+                 WHERE id = ?`,
+                [option.content, option.isCorrect ? 1 : 0, index + 1, existingOption.id],
+              )
+            } else {
+              await transaction.execute(
+                `INSERT INTO practice_question_options
+                 (id, question_id, option_key, content, is_correct, option_order)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                  createId('practice_option'),
+                  questionId,
+                  option.key,
+                  option.content,
+                  option.isCorrect ? 1 : 0,
+                  index + 1,
+                ],
+              )
+            }
           }
           await audit(
             transaction,
