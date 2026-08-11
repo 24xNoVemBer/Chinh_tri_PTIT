@@ -146,6 +146,12 @@ export const apiPracticeQuestionRepository = {
 }
 
 export const apiPracticeSessionRepository = {
+  getOverview() {
+    return apiRequest('/api/student/practice/overview')
+  },
+  getStats(filters = {}) {
+    return apiRequest(withQuery('/api/student/practice/stats', filters))
+  },
   getConfig(subjectId) {
     return apiRequest(`/api/student/practice/config/${encodeURIComponent(subjectId)}`)
   },
@@ -159,19 +165,24 @@ export const apiPracticeSessionRepository = {
     return apiRequest(`/api/student/practice-sessions/${encodeURIComponent(sessionId)}`)
   },
   answer(sessionId, input) {
-    return apiRequest(
-      `/api/student/practice-sessions/${encodeURIComponent(sessionId)}/answers`,
-      { method: 'POST', body: jsonBody(input) },
-    )
+    return apiRequest(`/api/student/practice-sessions/${encodeURIComponent(sessionId)}/answers`, {
+      method: 'POST',
+      body: jsonBody(input),
+    })
   },
   complete(sessionId) {
-    return apiRequest(
-      `/api/student/practice-sessions/${encodeURIComponent(sessionId)}/complete`,
-      { method: 'POST' },
-    )
+    return apiRequest(`/api/student/practice-sessions/${encodeURIComponent(sessionId)}/complete`, {
+      method: 'POST',
+    })
   },
   listHistory() {
     return apiRequest('/api/student/practice-sessions/history')
+  },
+}
+
+export const apiPracticeAnalyticsRepository = {
+  getForLecturer(filters = {}) {
+    return apiRequest(withQuery('/api/lecturer/practice-analytics', filters))
   },
 }
 

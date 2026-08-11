@@ -355,6 +355,23 @@ async function ensureStudentSubjectAccess(db, studentId, subjectId) {
     throw new ApiError(403, 'FORBIDDEN', 'Bạn chưa được ghi danh vào môn học này.')
   }
 }
+async function getStudentClassOptions(db, studentId, subjectId) {
+  return db.many(
+    `SELECT
+       course_classes.id,
+       course_classes.name,
+       course_classes.subject_id,
+       course_classes.semester,
+       course_classes.lecturer_id,
+       users.name AS lecturer_name
+     FROM enrollments
+     JOIN course_classes ON course_classes.id = enrollments.class_id
+     JOIN users ON users.id = course_classes.lecturer_id
+     WHERE enrollments.student_id = ? AND course_classes.subject_id = ?
+     ORDER BY course_classes.semester DESC, course_classes.name`,
+    [studentId, subjectId],
+  )
+}
 async function getSubjectLessons(db, subjectId) {
   return (
     await db.many(
@@ -449,7 +466,9 @@ async function ensureLecturerSubjectAccess(db, lecturerId, subjectId) {
 async function validatePracticeQuestionInput(db, input, lecturerId, { allowMissing = false } = {}) {
   const content = String(input.content ?? '').trim()
   const explanation = String(input.explanation ?? '').trim()
-  const difficulty = String(input.difficulty ?? 'medium').trim().toLowerCase()
+  const difficulty = String(input.difficulty ?? 'medium')
+    .trim()
+    .toLowerCase()
   const subjectId = String(input.subjectId ?? '').trim()
   const chapterId = String(input.chapterId ?? '').trim()
   const lessonId = input.lessonId ? String(input.lessonId).trim() : null
@@ -471,7 +490,9 @@ async function validatePracticeQuestionInput(db, input, lecturerId, { allowMissi
     throw new ApiError(400, 'VALIDATION', 'Câu hỏi phải có đúng 4 lựa chọn A, B, C và D.')
   }
   const normalizedOptions = options.map((option, index) => ({
-    key: String(option.key ?? String.fromCharCode(65 + index)).trim().toUpperCase(),
+    key: String(option.key ?? String.fromCharCode(65 + index))
+      .trim()
+      .toUpperCase(),
     content: String(option.content ?? '').trim(),
   }))
   if (!allowMissing) {
@@ -484,7 +505,9 @@ async function validatePracticeQuestionInput(db, input, lecturerId, { allowMissi
     if (new Set(normalizedOptions.map((option) => option.content.toLocaleLowerCase())).size !== 4) {
       throw new ApiError(400, 'VALIDATION', 'Các lựa chọn không được trùng nhau.')
     }
-    const correctKey = String(input.correctOptionKey ?? '').trim().toUpperCase()
+    const correctKey = String(input.correctOptionKey ?? '')
+      .trim()
+      .toUpperCase()
     if (!['A', 'B', 'C', 'D'].includes(correctKey)) {
       throw new ApiError(400, 'VALIDATION', 'Cần chọn đúng một đáp án.')
     }
@@ -494,25 +517,27 @@ async function validatePracticeQuestionInput(db, input, lecturerId, { allowMissi
   }
 
   await ensureLecturerSubjectAccess(db, lecturerId, subjectId)
-  const chapter = await db.one(
-    `SELECT id, subject_id FROM chapters WHERE id = ?`,
-    [chapterId],
-  )
+  const chapter = await db.one(`SELECT id, subject_id FROM chapters WHERE id = ?`, [chapterId])
   if (!chapter) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy chương.')
   if (chapter.subject_id !== subjectId) {
     throw new ApiError(400, 'VALIDATION', 'Chương không thuộc học phần đã chọn.')
   }
   if (lessonId) {
-    const lesson = await db.one(
-      `SELECT id, chapter_id FROM lessons WHERE id = ?`,
-      [lessonId],
-    )
+    const lesson = await db.one(`SELECT id, chapter_id FROM lessons WHERE id = ?`, [lessonId])
     if (!lesson) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bài học.')
     if (lesson.chapter_id !== chapterId) {
       throw new ApiError(400, 'VALIDATION', 'Bài học không thuộc chương đã chọn.')
     }
   }
-  return { subjectId, chapterId, lessonId, content, explanation, difficulty, options: normalizedOptions }
+  return {
+    subjectId,
+    chapterId,
+    lessonId,
+    content,
+    explanation,
+    difficulty,
+    options: normalizedOptions,
+  }
 }
 
 function mapPracticeQuestion(row, options = [], { includeAnswer = true } = {}) {
@@ -1161,7 +1186,8 @@ export function createAsyncRepositories(db) {
       const filtered = rows.filter((row) => {
         if (filters.subjectId && row.subject_id !== filters.subjectId) return false
         if (filters.chapterId && row.chapter_id !== filters.chapterId) return false
-        if (filters.status && filters.status !== 'all' && row.status !== filters.status) return false
+        if (filters.status && filters.status !== 'all' && row.status !== filters.status)
+          return false
         if (filters.query && !includesNormalized(row.content, filters.query)) return false
         return true
       })
@@ -1212,14 +1238,28 @@ export function createAsyncRepositories(db) {
               `INSERT INTO practice_question_options
                (id, question_id, option_key, content, is_correct, option_order)
                VALUES (?, ?, ?, ?, ?, ?)`,
-              [createId('practice_option'), id, option.key, option.content, option.isCorrect ? 1 : 0, index + 1],
+              [
+                createId('practice_option'),
+                id,
+                option.key,
+                option.content,
+                option.isCorrect ? 1 : 0,
+                index + 1,
+              ],
             )
           }
-          await audit(transaction, lecturerId, 'practice_question.created', 'practice_question', id, {
-            subjectId: normalized.subjectId,
-            chapterId: normalized.chapterId,
-            sourceType: 'manual',
-          })
+          await audit(
+            transaction,
+            lecturerId,
+            'practice_question.created',
+            'practice_question',
+            id,
+            {
+              subjectId: normalized.subjectId,
+              chapterId: normalized.chapterId,
+              sourceType: 'manual',
+            },
+          )
         })
       } catch (error) {
         if (isUniqueConstraint(error)) {
@@ -1230,10 +1270,7 @@ export function createAsyncRepositories(db) {
       return this.getForLecturer(id, lecturerId)
     },
     async update(questionId, input, lecturerId) {
-      const existing = await db.one(
-        `SELECT * FROM practice_questions WHERE id = ?`,
-        [questionId],
-      )
+      const existing = await db.one(`SELECT * FROM practice_questions WHERE id = ?`, [questionId])
       if (!existing) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
       if (existing.created_by !== lecturerId) {
         throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được sửa câu hỏi do mình tạo.')
@@ -1258,22 +1295,35 @@ export function createAsyncRepositories(db) {
               questionId,
             ],
           )
-          await transaction.execute(
-            'DELETE FROM practice_question_options WHERE question_id = ?',
-            [questionId],
-          )
+          await transaction.execute('DELETE FROM practice_question_options WHERE question_id = ?', [
+            questionId,
+          ])
           for (const [index, option] of normalized.options.entries()) {
             await transaction.execute(
               `INSERT INTO practice_question_options
                (id, question_id, option_key, content, is_correct, option_order)
                VALUES (?, ?, ?, ?, ?, ?)`,
-              [createId('practice_option'), questionId, option.key, option.content, option.isCorrect ? 1 : 0, index + 1],
+              [
+                createId('practice_option'),
+                questionId,
+                option.key,
+                option.content,
+                option.isCorrect ? 1 : 0,
+                index + 1,
+              ],
             )
           }
-          await audit(transaction, lecturerId, 'practice_question.updated', 'practice_question', questionId, {
-            subjectId: normalized.subjectId,
-            chapterId: normalized.chapterId,
-          })
+          await audit(
+            transaction,
+            lecturerId,
+            'practice_question.updated',
+            'practice_question',
+            questionId,
+            {
+              subjectId: normalized.subjectId,
+              chapterId: normalized.chapterId,
+            },
+          )
         })
       } catch (error) {
         if (isUniqueConstraint(error)) {
@@ -1329,6 +1379,7 @@ export function createAsyncRepositories(db) {
     async getConfig(studentId, subjectId) {
       await ensureStudentSubjectAccess(db, studentId, subjectId)
       const subject = await db.one('SELECT id, name FROM subjects WHERE id = ?', [subjectId])
+      const classes = await getStudentClassOptions(db, studentId, subjectId)
       const chapters = await db.many(
         `SELECT
            chapters.id,
@@ -1346,6 +1397,14 @@ export function createAsyncRepositories(db) {
       )
       return {
         subject,
+        classes: classes.map((row) => ({
+          id: row.id,
+          name: row.name,
+          subjectId: row.subject_id,
+          semester: row.semester,
+          lecturerId: row.lecturer_id,
+          lecturerName: row.lecturer_name,
+        })),
         chapters: chapters.map((chapter) => ({
           id: chapter.id,
           title: chapter.title,
@@ -1358,35 +1417,75 @@ export function createAsyncRepositories(db) {
       const subjectId = String(input.subjectId ?? '').trim()
       const chapterId = input.chapterId ? String(input.chapterId).trim() : null
       const requestedCount = Number(input.questionCount ?? 10)
+      const mode = String(input.mode ?? 'standard')
+        .trim()
+        .toLowerCase()
+      const requestedClassId = input.classId ? String(input.classId).trim() : null
+      const sourceSessionId = input.sourceSessionId ? String(input.sourceSessionId).trim() : null
+      if (!['standard', 'retry_wrong'].includes(mode)) {
+        throw new ApiError(400, 'VALIDATION', 'Practice mode is invalid.')
+      }
       if (!subjectId) throw new ApiError(400, 'VALIDATION', 'Cần chọn học phần.')
       if (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 50) {
         throw new ApiError(400, 'VALIDATION', 'Số câu luyện tập phải từ 1 đến 50.')
       }
       await ensureStudentSubjectAccess(db, studentId, subjectId)
+      const classOptions = await getStudentClassOptions(db, studentId, subjectId)
+      const selectedClass = requestedClassId
+        ? classOptions.find((item) => item.id === requestedClassId)
+        : classOptions[0]
+      if (!selectedClass) {
+        throw new ApiError(403, 'FORBIDDEN', 'Class is outside the student enrollment scope.')
+      }
       if (chapterId) {
-        const chapter = await db.one(
-          'SELECT id, subject_id FROM chapters WHERE id = ?',
-          [chapterId],
-        )
+        const chapter = await db.one('SELECT id, subject_id FROM chapters WHERE id = ?', [
+          chapterId,
+        ])
         if (!chapter) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy chương.')
         if (chapter.subject_id !== subjectId) {
           throw new ApiError(400, 'VALIDATION', 'Chương không thuộc học phần đã chọn.')
         }
       }
-      const filters = chapterId
-        ? `AND practice_questions.chapter_id = ?`
-        : ''
-      const params = chapterId ? [subjectId, chapterId, requestedCount] : [subjectId, requestedCount]
-      const questionRows = await db.many(
-        `SELECT practice_questions.id
-         FROM practice_questions
-         WHERE practice_questions.subject_id = ?
-           AND practice_questions.status = 'published'
-           ${filters}
-         ORDER BY RANDOM()
-         LIMIT ?`,
-        params,
-      )
+      let questionRows
+      if (mode === 'retry_wrong') {
+        if (!sourceSessionId) {
+          throw new ApiError(400, 'VALIDATION', 'A source session is required for retry mode.')
+        }
+        const sourceSession = await db.one(
+          `SELECT id, subject_id FROM practice_sessions
+           WHERE id = ? AND student_id = ?`,
+          [sourceSessionId, studentId],
+        )
+        if (!sourceSession)
+          throw new ApiError(404, 'NOT_FOUND', 'Source practice session not found.')
+        if (sourceSession.subject_id !== subjectId) {
+          throw new ApiError(400, 'VALIDATION', 'Source session belongs to another subject.')
+        }
+        questionRows = (
+          await db.many(
+            `SELECT question_id AS id
+           FROM practice_session_questions
+           WHERE session_id = ? AND is_correct = 0
+           ORDER BY position`,
+            [sourceSessionId],
+          )
+        ).slice(0, requestedCount)
+      } else {
+        const filters = chapterId ? `AND practice_questions.chapter_id = ?` : ''
+        const params = chapterId
+          ? [subjectId, chapterId, requestedCount]
+          : [subjectId, requestedCount]
+        questionRows = await db.many(
+          `SELECT practice_questions.id
+           FROM practice_questions
+           WHERE practice_questions.subject_id = ?
+             AND practice_questions.status = 'published'
+             ${filters}
+           ORDER BY RANDOM()
+           LIMIT ?`,
+          params,
+        )
+      }
       if (questionRows.length === 0) {
         throw new ApiError(404, 'NOT_FOUND', 'Chưa có câu hỏi đã xuất bản trong phạm vi này.')
       }
@@ -1395,24 +1494,51 @@ export function createAsyncRepositories(db) {
       await db.transaction(async (transaction) => {
         await transaction.execute(
           `INSERT INTO practice_sessions
-           (id, student_id, subject_id, chapter_id, status, question_count,
-            answered_count, correct_count, started_at, updated_at)
-           VALUES (?, ?, ?, ?, 'in_progress', ?, 0, 0, ?, ?)`,
-          [sessionId, studentId, subjectId, chapterId, questionRows.length, startedAt, startedAt],
+           (id, student_id, subject_id, chapter_id, class_id, mode, source_session_id,
+            status, question_count, answered_count, correct_count, started_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, 0, 0, ?, ?)`,
+          [
+            sessionId,
+            studentId,
+            subjectId,
+            chapterId,
+            selectedClass.id,
+            mode,
+            sourceSessionId,
+            questionRows.length,
+            startedAt,
+            startedAt,
+          ],
         )
         for (const [index, question] of questionRows.entries()) {
           await transaction.execute(
             `INSERT INTO practice_session_questions
-             (id, session_id, question_id, position)
-             VALUES (?, ?, ?, ?)`,
-            [createId('practice_session_question'), sessionId, question.id, index + 1],
+             (id, session_id, question_id, position, started_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+              createId('practice_session_question'),
+              sessionId,
+              question.id,
+              index + 1,
+              index === 0 ? startedAt : null,
+            ],
           )
         }
-        await audit(transaction, studentId, 'practice_session.created', 'practice_session', sessionId, {
-          subjectId,
-          chapterId,
-          questionCount: questionRows.length,
-        })
+        await audit(
+          transaction,
+          studentId,
+          'practice_session.created',
+          'practice_session',
+          sessionId,
+          {
+            subjectId,
+            chapterId,
+            classId: selectedClass.id,
+            mode,
+            sourceSessionId,
+            questionCount: questionRows.length,
+          },
+        )
       })
       return this.get(sessionId, studentId)
     },
@@ -1423,7 +1549,8 @@ export function createAsyncRepositories(db) {
       )
       if (!session) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy phiên luyện tập.')
       const rows = await db.many(
-        `SELECT id, question_id, position, selected_option_id, is_correct, answered_at
+        `SELECT id, question_id, position, selected_option_id, is_correct, answered_at,
+                started_at, answer_duration_ms
          FROM practice_session_questions
          WHERE session_id = ? ORDER BY position`,
         [sessionId],
@@ -1436,6 +1563,8 @@ export function createAsyncRepositories(db) {
           isAnswered: row.selected_option_id !== null,
           isCorrect: row.is_correct === null ? null : Number(row.is_correct) === 1,
           answeredAt: row.answered_at,
+          startedAt: row.started_at,
+          answerDurationMs: row.answer_duration_ms == null ? null : Number(row.answer_duration_ms),
           question: await loadPracticeQuestion(db, row.question_id, {
             includeAnswer: row.selected_option_id !== null,
           }),
@@ -1445,6 +1574,9 @@ export function createAsyncRepositories(db) {
         id: session.id,
         subjectId: session.subject_id,
         chapterId: session.chapter_id,
+        classId: session.class_id,
+        mode: session.mode ?? 'standard',
+        sourceSessionId: session.source_session_id,
         status: session.status,
         questionCount: Number(session.question_count),
         answeredCount: Number(session.answered_count),
@@ -1486,12 +1618,18 @@ export function createAsyncRepositories(db) {
       if (!option) throw new ApiError(400, 'VALIDATION', 'Lựa chọn không hợp lệ.')
       const isCorrect = Number(option.is_correct) === 1
       const answeredAt = nowIso()
+      const answerDurationMs = sessionQuestion.started_at
+        ? Math.max(
+            0,
+            new Date(answeredAt).getTime() - new Date(sessionQuestion.started_at).getTime(),
+          )
+        : null
       await db.transaction(async (transaction) => {
         const updateResult = await transaction.execute(
           `UPDATE practice_session_questions
-           SET selected_option_id = ?, is_correct = ?, answered_at = ?
+           SET selected_option_id = ?, is_correct = ?, answered_at = ?, answer_duration_ms = ?
            WHERE id = ? AND selected_option_id IS NULL`,
-          [option.id, isCorrect ? 1 : 0, answeredAt, sessionQuestion.id],
+          [option.id, isCorrect ? 1 : 0, answeredAt, answerDurationMs, sessionQuestion.id],
         )
         const changed = Number(updateResult?.changes ?? updateResult?.rowCount ?? 0)
         if (changed !== 1) throw new ApiError(409, 'CONFLICT', 'Câu hỏi này đã được trả lời.')
@@ -1503,6 +1641,19 @@ export function createAsyncRepositories(db) {
            WHERE id = ?`,
           [isCorrect ? 1 : 0, answeredAt, sessionId],
         )
+        const nextQuestion = await transaction.one(
+          `SELECT id FROM practice_session_questions
+           WHERE session_id = ? AND selected_option_id IS NULL AND position > ?
+           ORDER BY position LIMIT 1`,
+          [sessionId, sessionQuestion.position],
+        )
+        if (nextQuestion) {
+          await transaction.execute(
+            `UPDATE practice_session_questions SET started_at = ?
+             WHERE id = ? AND started_at IS NULL`,
+            [answeredAt, nextQuestion.id],
+          )
+        }
       })
       const question = await loadPracticeQuestion(db, input.questionId, { includeAnswer: true })
       return {
@@ -1512,6 +1663,7 @@ export function createAsyncRepositories(db) {
         isCorrect,
         correctOptionId: question.correctOptionId,
         explanation: question.explanation,
+        answerDurationMs,
         answeredCount: Number(session.answered_count) + 1,
         correctCount: Number(session.correct_count) + (isCorrect ? 1 : 0),
       }
@@ -1537,6 +1689,96 @@ export function createAsyncRepositories(db) {
       })
       return this.get(sessionId, studentId)
     },
+    async getStats(studentId, filters = {}) {
+      const params = [studentId]
+      const predicates = [
+        'practice_sessions.student_id = ?',
+        'practice_session_questions.selected_option_id IS NOT NULL',
+      ]
+      if (filters.subjectId) {
+        predicates.push('practice_sessions.subject_id = ?')
+        params.push(filters.subjectId)
+      }
+      if (filters.chapterId) {
+        predicates.push('practice_sessions.chapter_id = ?')
+        params.push(filters.chapterId)
+      }
+      const rows = await db.many(
+        `SELECT practice_sessions.subject_id, practice_sessions.chapter_id,
+                practice_session_questions.question_id,
+                practice_session_questions.is_correct,
+                practice_session_questions.answer_duration_ms
+         FROM practice_session_questions
+         JOIN practice_sessions ON practice_sessions.id = practice_session_questions.session_id
+         WHERE ${predicates.join(' AND ')}`,
+        params,
+      )
+      const answered = rows.length
+      const correct = rows.filter((row) => Number(row.is_correct) === 1).length
+      const durations = rows
+        .map((row) => Number(row.answer_duration_ms))
+        .filter((value) => Number.isFinite(value) && value >= 0)
+      const byTopic = new Map()
+      for (const row of rows) {
+        const key = row.chapter_id ?? 'all'
+        const item = byTopic.get(key) ?? { chapterId: row.chapter_id, answered: 0, correct: 0 }
+        item.answered += 1
+        item.correct += Number(row.is_correct) === 1 ? 1 : 0
+        byTopic.set(key, item)
+      }
+      return {
+        answered,
+        correct,
+        accuracy: answered ? Math.round((correct / answered) * 100) : 0,
+        averageAnswerDurationMs: durations.length
+          ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
+          : null,
+        weakTopics: [...byTopic.values()]
+          .filter((item) => item.answered >= 5 && item.correct / item.answered < 0.6)
+          .map((item) => ({
+            chapterId: item.chapterId,
+            answered: item.answered,
+            accuracy: Math.round((item.correct / item.answered) * 100),
+          })),
+      }
+    },
+    async getOverview(studentId) {
+      const currentSession = await db.one(
+        `SELECT id FROM practice_sessions
+         WHERE student_id = ? AND status = 'in_progress'
+         ORDER BY updated_at DESC LIMIT 1`,
+        [studentId],
+      )
+      const subjects = await db.many(
+        `SELECT subjects.id, subjects.name,
+                COUNT(practice_session_questions.id) AS answered_count,
+                SUM(CASE WHEN practice_session_questions.is_correct = 1 THEN 1 ELSE 0 END) AS correct_count
+         FROM practice_sessions
+         JOIN subjects ON subjects.id = practice_sessions.subject_id
+         LEFT JOIN practice_session_questions
+           ON practice_session_questions.session_id = practice_sessions.id
+          AND practice_session_questions.selected_option_id IS NOT NULL
+         WHERE practice_sessions.student_id = ?
+         GROUP BY subjects.id, subjects.name
+         ORDER BY subjects.name`,
+        [studentId],
+      )
+      const stats = await this.getStats(studentId)
+      return {
+        currentSessionId: currentSession?.id ?? null,
+        summary: stats,
+        subjects: subjects.map((row) => ({
+          id: row.id,
+          name: row.name,
+          answered: Number(row.answered_count ?? 0),
+          correct: Number(row.correct_count ?? 0),
+          accuracy: Number(row.answered_count)
+            ? Math.round((Number(row.correct_count ?? 0) / Number(row.answered_count)) * 100)
+            : 0,
+        })),
+        recentSessions: await this.listHistory(studentId),
+      }
+    },
     async listHistory(studentId) {
       return (
         await db.many(
@@ -1558,17 +1800,128 @@ export function createAsyncRepositories(db) {
         subjectName: row.subject_name,
         chapterId: row.chapter_id,
         chapterTitle: row.chapter_title,
+        classId: row.class_id,
+        mode: row.mode ?? 'standard',
+        sourceSessionId: row.source_session_id,
         status: row.status,
         questionCount: Number(row.question_count),
         answeredCount: Number(row.answered_count),
         correctCount: Number(row.correct_count),
-        accuracy: row.question_count ? Math.round((row.correct_count / row.question_count) * 100) : 0,
+        accuracy: row.question_count
+          ? Math.round((row.correct_count / row.question_count) * 100)
+          : 0,
         startedAt: row.started_at,
         completedAt: row.completed_at,
         updatedAt: row.updated_at,
       }))
     },
   }
+  const practiceAnalyticsRepository = {
+    async getForLecturer(lecturerId, filters = {}) {
+      let classIds
+      if (filters.classId) {
+        const owned = await getOwnedClass(db, filters.classId, lecturerId)
+        classIds = [owned.id]
+      } else {
+        classIds = (
+          await db.many('SELECT id FROM course_classes WHERE lecturer_id = ?', [lecturerId])
+        ).map((row) => row.id)
+      }
+      if (classIds.length === 0) {
+        return {
+          summary: {
+            studentCount: 0,
+            activeStudentCount: 0,
+            attemptCount: 0,
+            completedCount: 0,
+            accuracy: 0,
+          },
+          byChapter: [],
+          questions: [],
+        }
+      }
+      const placeholders = classIds.map(() => '?').join(', ')
+      const params = [...classIds]
+      const predicates = [`practice_sessions.class_id IN (${placeholders})`]
+      if (filters.subjectId) {
+        predicates.push('practice_sessions.subject_id = ?')
+        params.push(filters.subjectId)
+      }
+      const sessions = await db.many(
+        `SELECT practice_sessions.id, practice_sessions.student_id, practice_sessions.status,
+                practice_sessions.subject_id, practice_sessions.chapter_id,
+                subjects.name AS subject_name
+         FROM practice_sessions
+         JOIN subjects ON subjects.id = practice_sessions.subject_id
+         WHERE ${predicates.join(' AND ')}`,
+        params,
+      )
+      const sessionIds = sessions.map((row) => row.id)
+      let answers = []
+      if (sessionIds.length) {
+        const answerPlaceholders = sessionIds.map(() => '?').join(', ')
+        answers = await db.many(
+          `SELECT practice_sessions.student_id,
+                  practice_session_questions.question_id,
+                  practice_session_questions.is_correct,
+                  practice_sessions.chapter_id,
+                  practice_questions.content,
+                  practice_questions.difficulty
+           FROM practice_session_questions
+           JOIN practice_sessions ON practice_sessions.id = practice_session_questions.session_id
+           JOIN practice_questions ON practice_questions.id = practice_session_questions.question_id
+           WHERE practice_session_questions.session_id IN (${answerPlaceholders})
+             AND practice_session_questions.selected_option_id IS NOT NULL`,
+          sessionIds,
+        )
+      }
+      const correct = answers.filter((row) => Number(row.is_correct) === 1).length
+      const byChapterMap = new Map()
+      const questionMap = new Map()
+      for (const answer of answers) {
+        const chapter = byChapterMap.get(answer.chapter_id) ?? {
+          chapterId: answer.chapter_id,
+          answered: 0,
+          correct: 0,
+        }
+        chapter.answered += 1
+        chapter.correct += Number(answer.is_correct) === 1 ? 1 : 0
+        byChapterMap.set(answer.chapter_id, chapter)
+        const question = questionMap.get(answer.question_id) ?? {
+          questionId: answer.question_id,
+          content: answer.content,
+          difficulty: answer.difficulty,
+          attempts: 0,
+          correct: 0,
+        }
+        question.attempts += 1
+        question.correct += Number(answer.is_correct) === 1 ? 1 : 0
+        questionMap.set(answer.question_id, question)
+      }
+      return {
+        scope: { classIds, classId: filters.classId ?? null, subjectId: filters.subjectId ?? null },
+        summary: {
+          studentCount: new Set(sessions.map((row) => row.student_id)).size,
+          activeStudentCount: new Set(answers.map((row) => row.student_id)).size,
+          attemptCount: sessions.length,
+          completedCount: sessions.filter((row) => row.status === 'completed').length,
+          answeredCount: answers.length,
+          accuracy: answers.length ? Math.round((correct / answers.length) * 100) : 0,
+        },
+        byChapter: [...byChapterMap.values()].map((item) => ({
+          ...item,
+          accuracy: item.answered ? Math.round((item.correct / item.answered) * 100) : 0,
+        })),
+        questions: [...questionMap.values()]
+          .map((item) => ({
+            ...item,
+            accuracy: item.attempts ? Math.round((item.correct / item.attempts) * 100) : 0,
+          }))
+          .sort((a, b) => a.accuracy - b.accuracy || b.attempts - a.attempts),
+      }
+    },
+  }
+
   const ragRepository = {
     async createDemoChat(input, studentId) {
       const content = String(input.content ?? '').trim()
@@ -2211,6 +2564,7 @@ export function createAsyncRepositories(db) {
     classContentRepository,
     classRepository,
     learningRepository,
+    practiceAnalyticsRepository,
     practiceQuestionRepository,
     practiceSessionRepository,
     questionRepository,

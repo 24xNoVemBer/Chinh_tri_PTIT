@@ -182,6 +182,9 @@ const SCHEMA = `
     student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     subject_id TEXT NOT NULL REFERENCES subjects(id),
     chapter_id TEXT REFERENCES chapters(id),
+    class_id TEXT REFERENCES course_classes(id),
+    mode TEXT NOT NULL DEFAULT 'standard' CHECK (mode IN ('standard', 'retry_wrong')),
+    source_session_id TEXT REFERENCES practice_sessions(id),
     status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed')),
     question_count INTEGER NOT NULL CHECK (question_count > 0),
     answered_count INTEGER NOT NULL DEFAULT 0 CHECK (answered_count >= 0),
@@ -199,6 +202,8 @@ const SCHEMA = `
     selected_option_id TEXT REFERENCES practice_question_options(id),
     is_correct INTEGER CHECK (is_correct IN (0, 1)),
     answered_at TEXT,
+    started_at TEXT,
+    answer_duration_ms INTEGER CHECK (answer_duration_ms IS NULL OR answer_duration_ms >= 0),
     UNIQUE (session_id, question_id),
     UNIQUE (session_id, position)
   );
@@ -343,8 +348,14 @@ const SCHEMA = `
     ON practice_questions(created_by, updated_at DESC);
   CREATE INDEX IF NOT EXISTS idx_practice_sessions_student
     ON practice_sessions(student_id, status, updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_practice_sessions_class_status_updated
+    ON practice_sessions(class_id, status, updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_practice_sessions_student_subject_updated
+    ON practice_sessions(student_id, subject_id, updated_at DESC);
   CREATE INDEX IF NOT EXISTS idx_practice_session_questions_session
     ON practice_session_questions(session_id, position);
+  CREATE INDEX IF NOT EXISTS idx_practice_session_questions_question_correct
+    ON practice_session_questions(question_id, is_correct);
   CREATE INDEX IF NOT EXISTS idx_rag_requests_question
     ON rag_requests(question_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_rag_responses_review
@@ -816,18 +827,56 @@ function seedPracticeQuestions(db) {
   }
 }
 
+function ensurePracticeAnalyticsSchema(db) {
+  const addColumnIfMissing = (table, column, definition) => {
+    const columns = db.many(`PRAGMA table_info(${table})`)
+    if (!columns.some((item) => item.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
+  // Keep local SQLite databases created before the practice analytics work
+  // readable without requiring a destructive reset.
+  addColumnIfMissing('practice_sessions', 'class_id', 'TEXT REFERENCES course_classes(id)')
+  addColumnIfMissing(
+    'practice_sessions',
+    'mode',
+    "TEXT NOT NULL DEFAULT 'standard' CHECK (mode IN ('standard', 'retry_wrong'))",
+  )
+  addColumnIfMissing(
+    'practice_sessions',
+    'source_session_id',
+    'TEXT REFERENCES practice_sessions(id)',
+  )
+  addColumnIfMissing('practice_session_questions', 'started_at', 'TEXT')
+  addColumnIfMissing(
+    'practice_session_questions',
+    'answer_duration_ms',
+    'INTEGER CHECK (answer_duration_ms IS NULL OR answer_duration_ms >= 0)',
+  )
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_practice_sessions_class_status_updated
+      ON practice_sessions(class_id, status, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_practice_sessions_student_subject_updated
+      ON practice_sessions(student_id, subject_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_practice_session_questions_question_correct
+      ON practice_session_questions(question_id, is_correct);
+  `)
+}
+
 export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = true } = {}) {
   if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true })
 
   const db = createSqliteClient(new DatabaseSync(databasePath))
   db.exec(SCHEMA)
+  ensurePracticeAnalyticsSchema(db)
   if (databasePath !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
   if (seed) {
     seedDatabase(db)
     seedPracticeQuestions(db)
     seedDemoRagData(db)
   }
-  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '3')`).run()
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '4')`).run()
   return db
 }
 

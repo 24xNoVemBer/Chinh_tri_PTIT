@@ -124,4 +124,73 @@ describe('practice question bank and sessions', () => {
     })
     expect(response.status).toBe(403)
   })
+
+  it('returns class-scoped practice data and supports retrying wrong answers', async () => {
+    const student = await login('tuananh@ptit.edu.vn', 'Student@123')
+    const configResponse = await api('/api/student/practice/config/sub1', student)
+    expect(configResponse.status).toBe(200)
+    const config = (await configResponse.json()).data
+    expect(config.classes.length).toBeGreaterThan(0)
+
+    const createResponse = await api('/api/student/practice-sessions', student, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        classId: config.classes[0].id,
+        chapterId: 'chap1',
+        questionCount: 2,
+      }),
+    })
+    expect(createResponse.status).toBe(201)
+    const session = (await createResponse.json()).data
+    expect(session.classId).toBe(config.classes[0].id)
+    expect(session.mode).toBe('standard')
+
+    const item = session.questions[0]
+    const correct = db.one(
+      'SELECT id FROM practice_question_options WHERE question_id = ? AND is_correct = 1',
+      [item.question.id],
+    )
+    const wrong = item.question.options.find((option) => option.id !== correct.id)
+    const answerResponse = await api(
+      `/api/student/practice-sessions/${session.id}/answers`,
+      student,
+      {
+        method: 'POST',
+        body: JSON.stringify({ questionId: item.question.id, optionId: wrong.id }),
+      },
+    )
+    expect(answerResponse.status).toBe(200)
+    expect((await answerResponse.json()).data.isCorrect).toBe(false)
+
+    const retryResponse = await api('/api/student/practice-sessions', student, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        classId: config.classes[0].id,
+        mode: 'retry_wrong',
+        sourceSessionId: session.id,
+        questionCount: 5,
+      }),
+    })
+    expect(retryResponse.status).toBe(201)
+    const retry = (await retryResponse.json()).data
+    expect(retry.mode).toBe('retry_wrong')
+    expect(retry.sourceSessionId).toBe(session.id)
+    expect(retry.questionCount).toBe(1)
+
+    const overviewResponse = await api('/api/student/practice/overview', student)
+    expect(overviewResponse.status).toBe(200)
+    expect((await overviewResponse.json()).data.summary.answered).toBeGreaterThan(0)
+  })
+
+  it('returns lecturer practice analytics scoped to owned classes', async () => {
+    const lecturer = await login('ductu@ptit.edu.vn', 'Lecturer@123')
+    const response = await api('/api/lecturer/practice-analytics?classId=class1', lecturer)
+    expect(response.status).toBe(200)
+    const analytics = (await response.json()).data
+    expect(analytics.scope.classId).toBe('class1')
+    expect(analytics.summary).toHaveProperty('studentCount')
+    expect(Array.isArray(analytics.questions)).toBe(true)
+  })
 })

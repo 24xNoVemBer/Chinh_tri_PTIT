@@ -5,6 +5,7 @@ import {
   apiClassRepository,
   apiLearningRepository,
   apiPracticeQuestionRepository,
+  apiPracticeAnalyticsRepository,
   apiPracticeSessionRepository,
   apiQuestionRepository,
   apiSearchRepository,
@@ -26,6 +27,7 @@ export const classContentRepository = useMockData
 export const learningRepository = useMockData ? mockLearningRepository : apiLearningRepository
 export const practiceQuestionRepository = apiPracticeQuestionRepository
 export const practiceSessionRepository = apiPracticeSessionRepository
+export const practiceAnalyticsRepository = apiPracticeAnalyticsRepository
 export const questionRepository = useMockData ? mockQuestionRepository : apiQuestionRepository
 export const searchRepository = useMockData ? mockSearchRepository : apiSearchRepository
 export const subjectRepository = useMockData ? mockSubjectRepository : apiSubjectRepository

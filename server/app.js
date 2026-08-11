@@ -396,10 +396,31 @@ export function createRequestHandler({
           )
           return
         }
+        if (method === 'GET' && pathname === '/api/lecturer/practice-analytics') {
+          sendData(
+            response,
+            await repositories.practiceAnalyticsRepository.getForLecturer(lecturer.id, {
+              classId: searchParams.get('classId') ?? '',
+              subjectId: searchParams.get('subjectId') ?? '',
+            }),
+          )
+          return
+        }
         if (method === 'POST' && pathname === '/api/lecturer/practice-questions') {
           const input = await readJson(request)
-          requireFields(input, ['subjectId', 'chapterId', 'content', 'explanation', 'options', 'correctOptionKey'])
-          sendData(response, await repositories.practiceQuestionRepository.create(input, lecturer.id), 201)
+          requireFields(input, [
+            'subjectId',
+            'chapterId',
+            'content',
+            'explanation',
+            'options',
+            'correctOptionKey',
+          ])
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.create(input, lecturer.id),
+            201,
+          )
           return
         }
         if (method === 'GET' && practiceQuestionMatch) {
@@ -414,7 +435,14 @@ export function createRequestHandler({
         }
         if (method === 'PATCH' && practiceQuestionMatch) {
           const input = await readJson(request)
-          requireFields(input, ['subjectId', 'chapterId', 'content', 'explanation', 'options', 'correctOptionKey'])
+          requireFields(input, [
+            'subjectId',
+            'chapterId',
+            'content',
+            'explanation',
+            'options',
+            'correctOptionKey',
+          ])
           sendData(
             response,
             await repositories.practiceQuestionRepository.update(
@@ -503,7 +531,10 @@ export function createRequestHandler({
         const lessonMatch = matchPath(pathname, /^\/api\/student\/lessons\/([^/]+)$/)
         const progressMatch = matchPath(pathname, /^\/api\/student\/lessons\/([^/]+)\/progress$/)
         const questionMatch = matchPath(pathname, /^\/api\/student\/questions\/([^/]+)$/)
-        const practiceConfigMatch = matchPath(pathname, /^\/api\/student\/practice\/config\/([^/]+)$/)
+        const practiceConfigMatch = matchPath(
+          pathname,
+          /^\/api\/student\/practice\/config\/([^/]+)$/,
+        )
         const practiceSessionAnswersMatch = matchPath(
           pathname,
           /^\/api\/student\/practice-sessions\/([^/]+)\/answers$/,
@@ -519,6 +550,20 @@ export function createRequestHandler({
 
         if (method === 'GET' && pathname === '/api/student/dashboard') {
           sendData(response, await repositories.learningRepository.getDashboard(student.id))
+          return
+        }
+        if (method === 'GET' && pathname === '/api/student/practice/overview') {
+          sendData(response, await repositories.practiceSessionRepository.getOverview(student.id))
+          return
+        }
+        if (method === 'GET' && pathname === '/api/student/practice/stats') {
+          sendData(
+            response,
+            await repositories.practiceSessionRepository.getStats(student.id, {
+              subjectId: searchParams.get('subjectId') ?? '',
+              chapterId: searchParams.get('chapterId') ?? '',
+            }),
+          )
           return
         }
         if (method === 'GET' && pathname === '/api/student/subjects') {
@@ -565,7 +610,10 @@ export function createRequestHandler({
         if (method === 'GET' && practiceConfigMatch) {
           sendData(
             response,
-            await repositories.practiceSessionRepository.getConfig(student.id, practiceConfigMatch[0]),
+            await repositories.practiceSessionRepository.getConfig(
+              student.id,
+              practiceConfigMatch[0],
+            ),
           )
           return
         }
@@ -576,7 +624,11 @@ export function createRequestHandler({
         if (method === 'POST' && pathname === '/api/student/practice-sessions') {
           const input = await readJson(request)
           requireFields(input, ['subjectId'])
-          sendData(response, await repositories.practiceSessionRepository.create(input, student.id), 201)
+          sendData(
+            response,
+            await repositories.practiceSessionRepository.create(input, student.id),
+            201,
+          )
           return
         }
         if (method === 'GET' && practiceSessionMatch) {
