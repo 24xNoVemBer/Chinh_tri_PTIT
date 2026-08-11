@@ -4,8 +4,10 @@ import {
   BookOpenCheck,
   Clock3,
   FileSearch,
+  Gauge,
   MessageCircleQuestion,
   Play,
+  RotateCcw,
   ShieldCheck,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -15,19 +17,24 @@ import { ErrorState, LoadingState } from '../../components/common/AsyncState'
 import ProgressBar from '../../components/common/ProgressBar'
 import { useAuth } from '../../features/auth/useAuth'
 import useAsyncData from '../../hooks/useAsyncData'
-import { learningRepository, questionRepository } from '../../services/appRepositories'
+import {
+  learningRepository,
+  practiceSessionRepository,
+  questionRepository,
+} from '../../services/appRepositories'
 import { formatDateTime } from '../../utils/format'
 import '../common/DashboardHome.css'
 
 export default function StudentHome() {
   const { user: currentStudent } = useAuth()
   const loader = useCallback(async () => {
-    const [subjects, questions, dashboard] = await Promise.all([
+    const [subjects, questions, dashboard, practice] = await Promise.all([
       learningRepository.listSubjectProgress(currentStudent.id),
       questionRepository.listForStudent(currentStudent.id),
       learningRepository.getDashboard(currentStudent.id),
+      practiceSessionRepository.getOverview(),
     ])
-    return { subjects, questions, dashboard }
+    return { subjects, questions, dashboard, practice }
   }, [currentStudent.id])
   const { data, loading, error, reload } = useAsyncData(loader)
 
@@ -143,9 +150,67 @@ export default function StudentHome() {
         </div>
       </section>
 
+      <section
+        className="student-practice-dashboard dashboard-reveal"
+        style={{ '--reveal-order': 1 }}
+        aria-labelledby="student-practice-title"
+      >
+        <div className="student-practice-dashboard__intro">
+          <div>
+            <p className="dashboard-home__role">Ôn tập theo học phần</p>
+            <h2 id="student-practice-title">Luyện tập có hướng dẫn</h2>
+            <p>Chọn một học phần, làm từng câu và xem giải thích ngay sau lựa chọn.</p>
+          </div>
+          <Link className="button button--primary" to="/student/practice">
+            <Gauge aria-hidden="true" size={18} />
+            Bắt đầu luyện tập
+            <ArrowRight aria-hidden="true" size={17} />
+          </Link>
+        </div>
+        <div
+          className="student-practice-dashboard__stats"
+          role="list"
+          aria-label="Thống kê luyện tập"
+        >
+          <article role="listitem">
+            <span>Độ chính xác</span>
+            <strong>{data.practice.summary.accuracy}%</strong>
+          </article>
+          <article role="listitem">
+            <span>Đã trả lời</span>
+            <strong>{data.practice.summary.answered}</strong>
+          </article>
+          <article role="listitem">
+            <span>Đang luyện</span>
+            <strong>{data.practice.currentSessionId ? '1 phiên' : 'Chưa có'}</strong>
+          </article>
+        </div>
+        {data.practice.subjects.length > 0 && (
+          <div className="student-practice-dashboard__subjects">
+            {data.practice.subjects.slice(0, 3).map((subject) => (
+              <Link key={subject.id} to="/student/practice" className="student-practice-subject">
+                <span>
+                  <strong>{subject.name}</strong>
+                  <small>{subject.answered} câu đã làm</small>
+                </span>
+                <span className="student-practice-subject__score">{subject.accuracy}%</span>
+                <ArrowRight aria-hidden="true" size={16} />
+              </Link>
+            ))}
+          </div>
+        )}
+        {data.practice.summary.weakTopics.length > 0 && (
+          <Link className="student-practice-dashboard__retry" to="/student/practice">
+            <RotateCcw aria-hidden="true" size={16} />
+            Ôn lại các chủ đề cần củng cố
+            <ArrowRight aria-hidden="true" size={16} />
+          </Link>
+        )}
+      </section>
+
       <div
         className="dashboard-grid dashboard-grid--student dashboard-reveal"
-        style={{ '--reveal-order': 1 }}
+        style={{ '--reveal-order': 2 }}
       >
         <section className="dashboard-panel" aria-labelledby="student-subjects-title">
           <div className="dashboard-panel__heading">
@@ -226,7 +291,7 @@ export default function StudentHome() {
 
       <aside
         className="dashboard-trust dashboard-reveal"
-        style={{ '--reveal-order': 2 }}
+        style={{ '--reveal-order': 3 }}
         aria-label="Nguyên tắc nguồn học liệu"
       >
         <ShieldCheck aria-hidden="true" size={22} />
