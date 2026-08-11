@@ -14,7 +14,7 @@
   min-width: 0;
   max-width: 100%;
   min-height: var(--nav-height);
-  grid-template-columns: minmax(12rem, 1fr) minmax(0, 1fr) max-content;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   align-items: center;
   gap: var(--space-5);
   margin-inline: auto;
@@ -57,14 +57,8 @@
   max-width: 100%;
   min-width: 0;
   justify-self: stretch;
-  overflow-x: auto;
   gap: var(--space-1);
   justify-content: center;
-  scrollbar-width: none;
-}
-
-.navbar__nav::-webkit-scrollbar {
-  display: none;
 }
 
 .navbar__link {
