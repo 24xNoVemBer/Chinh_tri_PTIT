@@ -17,6 +17,7 @@ const QuestionInboxPage = lazy(() => import('./pages/lecturer/QuestionInboxPage'
 const QuestionDetailPage = lazy(() => import('./pages/lecturer/QuestionDetailPage'))
 const QuestionsPage = lazy(() => import('./pages/lecturer/QuestionsPage'))
 const PracticeQuestionBankPage = lazy(() => import('./pages/lecturer/PracticeQuestionBankPage'))
+const PracticeAnalyticsPage = lazy(() => import('./pages/lecturer/PracticeAnalyticsPage'))
 const PracticeQuestionEditorPage = lazy(() => import('./pages/lecturer/PracticeQuestionEditorPage'))
 const ReviewQueuePage = lazy(() => import('./pages/lecturer/ReviewQueuePage'))
 const LessonPage = lazy(() => import('./pages/student/LessonPage'))
@@ -85,8 +86,12 @@ export default function App() {
             <Route path="classes/:classId/materials" element={<ClassMaterialsPage />} />
             <Route path="classes/:classId/questions" element={<QuestionsPage />} />
             <Route path="practice-questions" element={<PracticeQuestionBankPage />} />
+            <Route path="practice-analytics" element={<PracticeAnalyticsPage />} />
             <Route path="practice-questions/new" element={<PracticeQuestionEditorPage />} />
-            <Route path="practice-questions/:questionId/edit" element={<PracticeQuestionEditorPage />} />
+            <Route
+              path="practice-questions/:questionId/edit"
+              element={<PracticeQuestionEditorPage />}
+            />
             <Route path="questions" element={<QuestionInboxPage />} />
             <Route path="questions/:questionId" element={<QuestionDetailPage />} />
             <Route path="review-queue" element={<ReviewQueuePage />} />

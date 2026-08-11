@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  BarChart3,
   Bell,
   BookOpenText,
   Bot,
@@ -29,6 +30,7 @@ const ROLE_LINKS = {
     { label: 'Tổng quan', to: '/lecturer', icon: LayoutDashboard, end: true },
     { label: 'Lớp học', to: '/lecturer/classes', icon: School },
     { label: 'Ngân hàng câu hỏi', to: '/lecturer/practice-questions', icon: ListChecks },
+    { label: 'Phân tích luyện tập', to: '/lecturer/practice-analytics', icon: BarChart3 },
     { label: 'Hỏi đáp', to: '/lecturer/questions', icon: MessageCircleQuestion },
     { label: 'Chờ duyệt', to: '/lecturer/review-queue', icon: BadgeCheck },
   ],

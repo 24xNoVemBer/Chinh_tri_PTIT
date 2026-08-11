@@ -1875,11 +1875,13 @@ export function createAsyncRepositories(db) {
                   practice_session_questions.question_id,
                   practice_session_questions.is_correct,
                   practice_sessions.chapter_id,
+                  chapters.title AS chapter_title,
                   practice_questions.content,
                   practice_questions.difficulty
            FROM practice_session_questions
            JOIN practice_sessions ON practice_sessions.id = practice_session_questions.session_id
            JOIN practice_questions ON practice_questions.id = practice_session_questions.question_id
+           LEFT JOIN chapters ON chapters.id = practice_sessions.chapter_id
            WHERE practice_session_questions.session_id IN (${answerPlaceholders})
              AND practice_session_questions.selected_option_id IS NOT NULL`,
           sessionIds,
@@ -1891,6 +1893,7 @@ export function createAsyncRepositories(db) {
       for (const answer of answers) {
         const chapter = byChapterMap.get(answer.chapter_id) ?? {
           chapterId: answer.chapter_id,
+          chapterTitle: answer.chapter_title,
           answered: 0,
           correct: 0,
         }
