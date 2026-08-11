@@ -40,7 +40,7 @@
 
 .practice-setup-grid {
   display: grid;
-  grid-template-columns: 1.3fr 1.6fr 0.8fr;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: var(--space-4);
 }
 

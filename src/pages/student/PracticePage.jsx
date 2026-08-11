@@ -12,6 +12,7 @@ export default function PracticePage() {
   const { user } = useAuth()
   const { sessionId } = useParams()
   const [selectedSubjectId, setSelectedSubjectId] = useState('')
+  const [selectedClassId, setSelectedClassId] = useState('')
   const [selectedChapterId, setSelectedChapterId] = useState('')
   const [questionCount, setQuestionCount] = useState(10)
   const [session, setSession] = useState(null)
@@ -53,6 +54,7 @@ export default function PracticePage() {
   }, [loadSession, sessionId])
 
   const selectedConfig = configState.data
+  const effectiveClassId = selectedClassId || selectedConfig?.classes?.[0]?.id || ''
   const availableCount = useMemo(() => {
     if (!selectedConfig) return 0
     if (!selectedChapterId)
@@ -68,6 +70,7 @@ export default function PracticePage() {
     try {
       const created = await practiceSessionRepository.create({
         subjectId: effectiveSubjectId,
+        classId: effectiveClassId || undefined,
         chapterId: selectedChapterId || undefined,
         questionCount: Math.min(questionCount, availableCount),
       })
@@ -143,6 +146,22 @@ export default function PracticePage() {
               ))}
             </select>
           </label>
+          {selectedConfig?.classes?.length > 1 && (
+            <label>
+              <span>Lớp học</span>
+              <select
+                value={effectiveClassId}
+                onChange={(event) => setSelectedClassId(event.target.value)}
+                disabled={configState.loading}
+              >
+                {selectedConfig.classes.map((courseClass) => (
+                  <option key={courseClass.id} value={courseClass.id}>
+                    {courseClass.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             <span>Số câu</span>
             <select
@@ -281,6 +300,16 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
   const answeredCurrent = session.questions.find(
     (item) => item.question.id === question.id && item.isAnswered,
   )
+  const displayFeedback =
+    feedback?.questionId === question.id
+      ? feedback
+      : answeredCurrent
+        ? {
+            questionId: question.id,
+            isCorrect: answeredCurrent.isCorrect,
+            explanation: question.explanation,
+          }
+        : null
   return (
     <div className="page-stack practice-page practice-session-page">
       <PageHeader
@@ -314,10 +343,12 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
             )
           })}
         </div>
-        {feedback?.questionId === question.id && (
-          <div className={`practice-feedback ${feedback.isCorrect ? 'is-correct' : 'is-wrong'}`}>
+        {displayFeedback && (
+          <div
+            className={`practice-feedback ${displayFeedback.isCorrect ? 'is-correct' : 'is-wrong'}`}
+          >
             <strong>{feedback.isCorrect ? 'Chính xác' : 'Chưa chính xác'}</strong>
-            <p>{feedback.explanation}</p>
+            <p>{displayFeedback.explanation}</p>
           </div>
         )}
         {answerError && (
@@ -334,7 +365,7 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
             Xem kết quả <ArrowRight aria-hidden="true" size={17} />
           </button>
         ) : (
-          feedback?.questionId === question.id && (
+          displayFeedback && (
             <button
               className="button button--primary practice-next-button"
               type="button"
