@@ -157,6 +157,24 @@
   gap: var(--space-2);
 }
 
+.practice-bank-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-muted-foreground);
+  font-size: var(--text-sm);
+}
+
+.practice-bank-pagination > div {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.practice-bank-pagination .button {
+  min-height: 2.5rem;
+}
+
 @media (max-width: 46rem) {
   .practice-bank-summary,
   .practice-question-card__options {
@@ -165,12 +183,22 @@
 
   .practice-toolbar,
   .practice-question-card__topline,
-  .practice-question-card__footer {
+  .practice-question-card__footer,
+  .practice-bank-pagination {
     align-items: stretch;
     flex-direction: column;
   }
 
   .practice-toolbar select {
     width: 100%;
+  }
+
+  .practice-bank-pagination > div {
+    width: 100%;
+  }
+
+  .practice-bank-pagination .button {
+    flex: 1;
+    justify-content: center;
   }
 }

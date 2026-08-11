@@ -392,6 +392,8 @@ export function createRequestHandler({
               chapterId: searchParams.get('chapterId') ?? '',
               status: searchParams.get('status') ?? 'all',
               query: searchParams.get('query') ?? '',
+              page: searchParams.get('page') ?? '1',
+              pageSize: searchParams.get('pageSize') ?? '12',
             }),
           )
           return

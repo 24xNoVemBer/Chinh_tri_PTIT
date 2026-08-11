@@ -72,6 +72,16 @@ describe('practice question bank and sessions', () => {
     )
     expect(publishResponse.status).toBe(200)
     expect((await publishResponse.json()).data.status).toBe('published')
+
+    const listResponse = await api(
+      '/api/lecturer/practice-questions?status=all&page=1&pageSize=2',
+      lecturer,
+    )
+    expect(listResponse.status).toBe(200)
+    const list = (await listResponse.json()).data
+    expect(list).toHaveProperty('items')
+    expect(list.items.length).toBeLessThanOrEqual(2)
+    expect(list).toHaveProperty('total')
   })
 
   it('hides answer keys before selection and returns feedback after one answer', async () => {

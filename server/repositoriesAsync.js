@@ -1183,16 +1183,25 @@ export function createAsyncRepositories(db) {
          ORDER BY practice_questions.updated_at DESC`,
         [lecturerId],
       )
-      const filtered = rows.filter((row) => {
+      const scoped = rows.filter((row) => {
         if (filters.subjectId && row.subject_id !== filters.subjectId) return false
         if (filters.chapterId && row.chapter_id !== filters.chapterId) return false
-        if (filters.status && filters.status !== 'all' && row.status !== filters.status)
-          return false
         if (filters.query && !includesNormalized(row.content, filters.query)) return false
         return true
       })
-      return Promise.all(
-        filtered.map(async (row) => {
+      const filtered = scoped.filter(
+        (row) => !filters.status || filters.status === 'all' || row.status === filters.status,
+      )
+      const page = Math.max(Number(filters.page) || 1, 1)
+      const pageSize = Math.min(Math.max(Number(filters.pageSize) || 12, 1), 50)
+      const offset = (page - 1) * pageSize
+      const pageRows = filtered.slice(offset, offset + pageSize)
+      const counts = scoped.reduce(
+        (result, row) => ({ ...result, [row.status]: (result[row.status] ?? 0) + 1 }),
+        { draft: 0, published: 0, archived: 0 },
+      )
+      const items = await Promise.all(
+        pageRows.map(async (row) => {
           const options = await db.many(
             `SELECT id, option_key, content, is_correct, option_order
              FROM practice_question_options
@@ -1202,6 +1211,7 @@ export function createAsyncRepositories(db) {
           return mapPracticeQuestion(row, options)
         }),
       )
+      return { items, total: filtered.length, page, pageSize, counts }
     },
     async getForLecturer(questionId, lecturerId) {
       const question = await loadPracticeQuestion(db, questionId)
