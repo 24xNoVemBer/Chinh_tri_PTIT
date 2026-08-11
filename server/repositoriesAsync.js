@@ -1482,18 +1482,28 @@ export function createAsyncRepositories(db) {
         ).slice(0, requestedCount)
       } else {
         const filters = chapterId ? `AND practice_questions.chapter_id = ?` : ''
-        const params = chapterId
-          ? [subjectId, chapterId, requestedCount]
-          : [subjectId, requestedCount]
+        const scopeParams = chapterId ? [subjectId, chapterId] : [subjectId]
+        const available = await db.one(
+          `SELECT COUNT(*) AS question_count
+           FROM practice_questions
+           WHERE practice_questions.subject_id = ?
+             AND practice_questions.status = 'published'
+             ${filters}`,
+          scopeParams,
+        )
+        const availableCount = Number(available?.question_count ?? 0)
+        const sampleSize = Math.min(requestedCount, availableCount)
+        const maxOffset = Math.max(availableCount - sampleSize, 0)
+        const offset = maxOffset ? Math.floor(Math.random() * (maxOffset + 1)) : 0
         questionRows = await db.many(
           `SELECT practice_questions.id
            FROM practice_questions
            WHERE practice_questions.subject_id = ?
              AND practice_questions.status = 'published'
              ${filters}
-           ORDER BY RANDOM()
-           LIMIT ?`,
-          params,
+           ORDER BY practice_questions.id
+           LIMIT ? OFFSET ?`,
+          [...scopeParams, sampleSize, offset],
         )
       }
       if (questionRows.length === 0) {
