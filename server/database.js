@@ -348,14 +348,8 @@ const SCHEMA = `
     ON practice_questions(created_by, updated_at DESC);
   CREATE INDEX IF NOT EXISTS idx_practice_sessions_student
     ON practice_sessions(student_id, status, updated_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_practice_sessions_class_status_updated
-    ON practice_sessions(class_id, status, updated_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_practice_sessions_student_subject_updated
-    ON practice_sessions(student_id, subject_id, updated_at DESC);
   CREATE INDEX IF NOT EXISTS idx_practice_session_questions_session
     ON practice_session_questions(session_id, position);
-  CREATE INDEX IF NOT EXISTS idx_practice_session_questions_question_correct
-    ON practice_session_questions(question_id, is_correct);
   CREATE INDEX IF NOT EXISTS idx_rag_requests_question
     ON rag_requests(question_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_rag_responses_review
