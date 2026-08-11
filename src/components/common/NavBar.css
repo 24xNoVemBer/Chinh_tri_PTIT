@@ -53,11 +53,13 @@
 }
 
 .navbar__nav {
+  width: 100%;
   max-width: 100%;
   min-width: 0;
-  justify-self: center;
+  justify-self: stretch;
   overflow-x: auto;
   gap: var(--space-1);
+  justify-content: center;
   scrollbar-width: none;
 }
 
@@ -225,7 +227,7 @@
   }
 }
 
-@media (max-width: 75rem) {
+@media (max-width: 90rem) {
   .navbar__inner {
     grid-template-columns: minmax(0, 1fr) auto;
     padding-inline: var(--space-4);
