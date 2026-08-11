@@ -14,7 +14,7 @@
   min-width: 0;
   max-width: 100%;
   min-height: var(--nav-height);
-  grid-template-columns: minmax(12rem, 1fr) auto minmax(16rem, 1fr);
+  grid-template-columns: minmax(12rem, 1fr) minmax(0, 1fr) max-content;
   align-items: center;
   gap: var(--space-5);
   margin-inline: auto;
@@ -53,14 +53,22 @@
 }
 
 .navbar__nav {
+  max-width: 100%;
   min-width: 0;
   justify-self: center;
+  overflow-x: auto;
   gap: var(--space-1);
+  scrollbar-width: none;
+}
+
+.navbar__nav::-webkit-scrollbar {
+  display: none;
 }
 
 .navbar__link {
   position: relative;
   display: inline-flex;
+  flex: 0 0 auto;
   min-height: 2.75rem;
   align-items: center;
   padding-inline: var(--space-3);
@@ -101,6 +109,7 @@
 }
 
 .navbar__account {
+  min-width: max-content;
   justify-self: end;
   gap: var(--space-2);
 }
