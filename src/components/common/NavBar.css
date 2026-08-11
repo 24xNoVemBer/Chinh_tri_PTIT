@@ -11,6 +11,8 @@
 .navbar__inner {
   display: grid;
   width: min(100%, var(--dashboard-content-width));
+  min-width: 0;
+  max-width: 100%;
   min-height: var(--nav-height);
   grid-template-columns: minmax(12rem, 1fr) auto minmax(16rem, 1fr);
   align-items: center;
@@ -23,6 +25,7 @@
 .navbar__nav,
 .navbar__logo {
   display: flex;
+  min-width: 0;
   align-items: center;
 }
 
@@ -192,9 +195,24 @@
   }
 }
 
-@media (max-width: 74rem) {
+@media (max-width: 80rem) {
   .navbar__identity {
     display: none;
+  }
+}
+
+@media (max-width: 70rem) {
+  .navbar__inner {
+    gap: var(--space-3);
+  }
+
+  .navbar__link {
+    padding-inline: var(--space-2);
+  }
+
+  .navbar__link::after {
+    right: var(--space-2);
+    left: var(--space-2);
   }
 }
 

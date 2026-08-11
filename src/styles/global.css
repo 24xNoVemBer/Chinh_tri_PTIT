@@ -83,6 +83,7 @@ h3 {
 
 .app-content {
   width: min(100%, var(--content-width));
+  min-width: 0;
   margin-inline: auto;
 }
 
