@@ -65,10 +65,19 @@ export default function PracticeQuestionBankPage() {
 
       <section className="practice-bank-summary" aria-label="Tổng quan ngân hàng câu hỏi">
         {Object.entries(statusLabels).map(([key, label]) => (
-          <div className="practice-stat" key={key}>
+          <button
+            className={`practice-stat ${status === key ? 'is-active' : ''}`}
+            key={key}
+            type="button"
+            aria-pressed={status === key}
+            onClick={() => {
+              setStatus(key)
+              setPage(1)
+            }}
+          >
             <span>{label}</span>
             <strong>{key === 'all' ? total : counts[key]}</strong>
-          </div>
+          </button>
         ))}
       </section>
 
