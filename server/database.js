@@ -763,6 +763,59 @@ function seedDemoRagData(db) {
     throw error
   }
 }
+
+// Keep the practice bank additive so a local database created by an earlier
+// version receives new demo questions without requiring a destructive reset.
+function seedPracticeQuestions(db) {
+  const insertPracticeQuestion = db.prepare(
+    `INSERT OR IGNORE INTO practice_questions
+     (id, subject_id, chapter_id, lesson_id, content, explanation, difficulty, status,
+      source_type, created_by, published_by, published_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+  const insertPracticeOption = db.prepare(
+    `INSERT OR IGNORE INTO practice_question_options
+     (id, question_id, option_key, content, is_correct, option_order)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    for (const question of practiceQuestions) {
+      insertPracticeQuestion.run(
+        question.id,
+        question.subjectId,
+        question.chapterId,
+        question.lessonId ?? null,
+        question.content,
+        question.explanation,
+        question.difficulty,
+        question.status,
+        'manual',
+        question.createdBy,
+        question.publishedBy ?? null,
+        question.publishedAt ?? null,
+        question.createdAt,
+        question.createdAt,
+      )
+      question.options.forEach((option, index) => {
+        insertPracticeOption.run(
+          option.id,
+          question.id,
+          option.key,
+          option.content,
+          option.isCorrect ? 1 : 0,
+          index + 1,
+        )
+      })
+    }
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+}
+
 export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = true } = {}) {
   if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true })
 
@@ -771,6 +824,7 @@ export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = tr
   if (databasePath !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
   if (seed) {
     seedDatabase(db)
+    seedPracticeQuestions(db)
     seedDemoRagData(db)
   }
   db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '3')`).run()
