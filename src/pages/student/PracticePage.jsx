@@ -225,6 +225,7 @@ function PracticeHistory() {
 
 function PracticeSessionView({ session, onSessionChange, onReset }) {
   const [answering, setAnswering] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [answerError, setAnswerError] = useState('')
   const [feedback, setFeedback] = useState(null)
   const [activePosition, setActivePosition] = useState(
@@ -240,6 +241,24 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
       onSessionChange(result)
     } catch (error) {
       setAnswerError(error.message)
+    }
+  }
+  const retryWrong = async () => {
+    setRetrying(true)
+    setAnswerError('')
+    try {
+      const retrySession = await practiceSessionRepository.create({
+        subjectId: session.subjectId,
+        classId: session.classId || undefined,
+        mode: 'retry_wrong',
+        sourceSessionId: session.id,
+        questionCount: session.questions.filter((item) => item.isCorrect === false).length,
+      })
+      onSessionChange(retrySession)
+    } catch (error) {
+      setAnswerError(error.message)
+    } finally {
+      setRetrying(false)
     }
   }
   const answer = async (optionId) => {
@@ -276,9 +295,19 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
           </strong>
           <span>độ chính xác</span>
           <div className="practice-result-actions">
-            <button className="button button--primary" type="button" onClick={onReset}>
-              <RotateCcw aria-hidden="true" size={17} />
-              Luyện lại
+            {session.questions.some((item) => item.isCorrect === false) && (
+              <button
+                className="button button--primary"
+                type="button"
+                onClick={retryWrong}
+                disabled={retrying}
+              >
+                <RotateCcw aria-hidden="true" size={17} />
+                {retrying ? 'Đang tạo phiên…' : 'Luyện lại câu sai'}
+              </button>
+            )}
+            <button className="button button--secondary" type="button" onClick={onReset}>
+              Phiên mới
             </button>
             <Link className="button button--secondary" to="/student/subjects">
               Về học phần
