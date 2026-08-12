@@ -1,5 +1,121 @@
 import { apiRequest, jsonBody, withQuery } from './client'
 
+export const apiAdminRepository = {
+  listUsers(filters = {}) {
+    return apiRequest(withQuery('/api/admin/users', filters))
+  },
+  updateUser(userId, input) {
+    return apiRequest(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  listSubjects(filters = {}) {
+    return apiRequest(withQuery('/api/admin/subjects', filters))
+  },
+  createSubject(input) {
+    return apiRequest('/api/admin/subjects', { method: 'POST', body: jsonBody(input) })
+  },
+  updateSubject(subjectId, input) {
+    return apiRequest(`/api/admin/subjects/${encodeURIComponent(subjectId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  archiveSubject(subjectId) {
+    return apiRequest(`/api/admin/subjects/${encodeURIComponent(subjectId)}`, {
+      method: 'DELETE',
+    })
+  },
+  listTerms() {
+    return apiRequest('/api/admin/terms')
+  },
+  createTerm(input) {
+    return apiRequest('/api/admin/terms', { method: 'POST', body: jsonBody(input) })
+  },
+  updateTerm(termId, input) {
+    return apiRequest(`/api/admin/terms/${encodeURIComponent(termId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  listClasses(filters = {}) {
+    return apiRequest(withQuery('/api/admin/classes', filters))
+  },
+  createClass(input) {
+    return apiRequest('/api/admin/classes', { method: 'POST', body: jsonBody(input) })
+  },
+  updateClass(classId, input) {
+    return apiRequest(`/api/admin/classes/${encodeURIComponent(classId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  listClassLecturers(classId) {
+    return apiRequest(`/api/admin/classes/${encodeURIComponent(classId)}/lecturers`)
+  },
+  assignLecturer(classId, input) {
+    return apiRequest(`/api/admin/classes/${encodeURIComponent(classId)}/lecturers`, {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
+  endLecturerAssignment(classId, lecturerId) {
+    return apiRequest(
+      `/api/admin/classes/${encodeURIComponent(classId)}/lecturers/${encodeURIComponent(lecturerId)}`,
+      { method: 'DELETE' },
+    )
+  },
+  listChapters(subjectId) {
+    return apiRequest(`/api/admin/subjects/${encodeURIComponent(subjectId)}/chapters`)
+  },
+  createChapter(subjectId, input) {
+    return apiRequest(`/api/admin/subjects/${encodeURIComponent(subjectId)}/chapters`, {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
+  listLessons(chapterId) {
+    return apiRequest(`/api/admin/chapters/${encodeURIComponent(chapterId)}/lessons`)
+  },
+  createLesson(chapterId, input) {
+    return apiRequest(`/api/admin/chapters/${encodeURIComponent(chapterId)}/lessons`, {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
+  listMaterials(subjectId) {
+    return apiRequest(`/api/admin/subjects/${encodeURIComponent(subjectId)}/materials`)
+  },
+  createMaterial(subjectId, input) {
+    return apiRequest(`/api/admin/subjects/${encodeURIComponent(subjectId)}/materials`, {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
+  listSharedQuestions(filters = {}) {
+    return apiRequest(withQuery('/api/admin/practice-questions', filters))
+  },
+  createSharedQuestion(input) {
+    return apiRequest('/api/admin/practice-questions', {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
+  listUnroutedQuestions() {
+    return apiRequest('/api/admin/questions/unrouted')
+  },
+  routeQuestion(questionId, classId) {
+    return apiRequest(`/api/admin/questions/unrouted/${encodeURIComponent(questionId)}/route`, {
+      method: 'POST',
+      body: jsonBody({ classId }),
+    })
+  },
+  listAuditLogs(limit = 100) {
+    return apiRequest(withQuery('/api/admin/audit-logs', { limit }))
+  },
+}
+
 export const apiClassRepository = {
   listForLecturer() {
     return apiRequest('/api/lecturer/classes')

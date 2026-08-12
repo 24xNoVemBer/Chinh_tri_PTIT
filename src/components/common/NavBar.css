@@ -312,6 +312,27 @@
   }
 }
 
+@media (min-width: 72.01rem) and (max-width: 90rem) {
+  .navbar--admin .navbar__inner {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    gap: var(--space-3);
+  }
+
+  .navbar--admin .navbar__nav {
+    display: flex;
+  }
+
+  .navbar--admin .navbar__link {
+    padding-inline: var(--space-2);
+    font-size: var(--text-xs);
+  }
+
+  .navbar--admin .navbar__menu-toggle,
+  .navbar--admin .navbar__mobile-menu {
+    display: none;
+  }
+}
+
 @media (max-width: 40rem) {
   .navbar__avatar,
   .navbar__switch {

@@ -4,6 +4,8 @@ import {
   Bell,
   BookOpenText,
   Bot,
+  ClipboardList,
+  FileClock,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -11,6 +13,8 @@ import {
   ListChecks,
   School,
   Search,
+  Settings2,
+  UsersRound,
   X,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -34,6 +38,15 @@ const ROLE_LINKS = {
     { label: 'Hỏi đáp', to: '/lecturer/questions', icon: MessageCircleQuestion },
     { label: 'Chờ duyệt', to: '/lecturer/review-queue', icon: BadgeCheck },
   ],
+  admin: [
+    { label: 'Tổng quan', to: '/admin', icon: LayoutDashboard, end: true },
+    { label: 'Tài khoản', to: '/admin/users', icon: UsersRound },
+    { label: 'Môn & nội dung', to: '/admin/subjects', icon: BookOpenText },
+    { label: 'Học kỳ', to: '/admin/terms', icon: FileClock },
+    { label: 'Lớp tín chỉ', to: '/admin/classes', icon: School },
+    { label: 'Câu hỏi chung', to: '/admin/question-bank', icon: ClipboardList },
+    { label: 'Vận hành', to: '/admin/operations', icon: Settings2 },
+  ],
 }
 
 export default function NavBar({ role, userName }) {
@@ -42,7 +55,8 @@ export default function NavBar({ role, userName }) {
   const { logout } = useAuth()
   const links = ROLE_LINKS[role] ?? []
   const initial = userName ? userName.charAt(0).toUpperCase() : 'U'
-  const roleLabel = role === 'student' ? 'Sinh viên' : 'Giảng viên'
+  const roleLabel =
+    role === 'student' ? 'Sinh viên' : role === 'lecturer' ? 'Giảng viên' : 'Quản trị viên'
 
   const handleLogout = async () => {
     await logout()
@@ -50,7 +64,7 @@ export default function NavBar({ role, userName }) {
   }
 
   return (
-    <header className={`navbar ${menuOpen ? 'navbar--open' : ''}`}>
+    <header className={`navbar navbar--${role} ${menuOpen ? 'navbar--open' : ''}`}>
       <div className="navbar__inner">
         <NavLink className="navbar__logo" to={`/${role}`} aria-label="Trang chủ PTIT Chính Trị">
           <span className="navbar__mark" aria-hidden="true">

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import RoleGuard from './features/auth/RoleGuard'
 
 const LecturerLayout = lazy(() => import('./layouts/LecturerLayout'))
+const AdminLayout = lazy(() => import('./layouts/AdminLayout'))
 const StudentLayout = lazy(() => import('./layouts/StudentLayout'))
 const HomePage = lazy(() => import('./pages/common/HomePage'))
 const RoleSelector = lazy(() => import('./pages/auth/RoleSelector'))
@@ -33,6 +34,13 @@ const PracticePage = lazy(() => import('./pages/student/PracticePage'))
 const StudentQuestionDetailPage = lazy(() => import('./pages/student/StudentQuestionDetailPage'))
 const SubjectPage = lazy(() => import('./pages/student/SubjectPage'))
 const SubjectsPage = lazy(() => import('./pages/student/SubjectsPage'))
+const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPage'))
+const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
+const AdminSubjectsPage = lazy(() => import('./pages/admin/AdminSubjectsPage'))
+const AdminTermsPage = lazy(() => import('./pages/admin/AdminTermsPage'))
+const AdminClassesPage = lazy(() => import('./pages/admin/AdminClassesPage'))
+const AdminQuestionBankPage = lazy(() => import('./pages/admin/AdminQuestionBankPage'))
+const AdminOperationsPage = lazy(() => import('./pages/admin/AdminOperationsPage'))
 
 function LegacyStudentSubjectRedirect() {
   const { subjectId } = useParams()
@@ -97,6 +105,18 @@ export default function App() {
             <Route path="questions" element={<QuestionInboxPage />} />
             <Route path="questions/:questionId" element={<QuestionDetailPage />} />
             <Route path="review-queue" element={<ReviewQueuePage />} />
+          </Route>
+        </Route>
+
+        <Route element={<RoleGuard role="admin" />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminOverviewPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="subjects" element={<AdminSubjectsPage />} />
+            <Route path="terms" element={<AdminTermsPage />} />
+            <Route path="classes" element={<AdminClassesPage />} />
+            <Route path="question-bank" element={<AdminQuestionBankPage />} />
+            <Route path="operations" element={<AdminOperationsPage />} />
           </Route>
         </Route>
 

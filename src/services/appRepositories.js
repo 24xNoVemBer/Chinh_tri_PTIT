@@ -1,4 +1,5 @@
 import {
+  apiAdminRepository,
   apiAuditRepository,
   apiChatRepository,
   apiClassContentRepository,
@@ -33,3 +34,4 @@ export const searchRepository = useMockData ? mockSearchRepository : apiSearchRe
 export const subjectRepository = useMockData ? mockSubjectRepository : apiSubjectRepository
 export const auditRepository = apiAuditRepository
 export const chatRepository = apiChatRepository
+export const adminRepository = apiAdminRepository

@@ -1,0 +1,15 @@
+.admin-layout {
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+.admin-layout__main {
+  min-width: 0;
+  padding-block: var(--space-8) var(--space-16);
+}
+
+@media (max-width: 48rem) {
+  .admin-layout__main {
+    padding-block: var(--space-5) var(--space-10);
+  }
+}
