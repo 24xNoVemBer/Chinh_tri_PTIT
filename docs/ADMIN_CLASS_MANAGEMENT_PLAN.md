@@ -1,5 +1,8 @@
 # Kế hoạch quản trị môn học và lớp tín chỉ
 
+**Trạng thái:** Plan A đã hoàn thành ở mức code ngày 12/08/2026. Báo cáo nghiệm thu và các cổng
+staging còn lại nằm tại [PHASE_ADMIN9_HARDENING.md](./PHASE_ADMIN9_HARDENING.md).
+
 ## Mục tiêu
 
 Mở rộng PTIT Chính Trị từ mô hình một giảng viên trên mỗi lớp thành mô hình quản trị theo phạm vi:

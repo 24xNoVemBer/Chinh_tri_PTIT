@@ -1,10 +1,10 @@
 # Nhật ký triển khai: từ redesign Student đến production readiness
 
-**Khoảng thời gian:** 24/07/2026 – 08/08/2026
+**Khoảng thời gian:** 24/07/2026 – 12/08/2026
 
 **Nhánh:** `feature/db5-postgres-staging`
 
-**Mốc hiện tại:** AUTH-2 — shared login rate limit và contract Outlook SSO
+**Mốc hiện tại:** Phase 9 — hardening và nghiệm thu Plan A
 
 Tài liệu này tổng hợp những hạng mục đã triển khai kể từ khi bắt đầu redesign
 không gian sinh viên cho đến lớp backend/database hiện tại. Đây là bản ghi
@@ -115,11 +115,26 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - `npm run api:parity`
 - `npm run load:test` và các profile `load:test:smoke|baseline|login-storm|exam-peak`
 
-## 4. Kiểm thử và xác minh hiện tại
+## 4. Quản trị môn học và lớp tín chỉ — Plan A
 
-- Vitest: **28 test files, 157/157 tests passed**.
+- Bổ sung role Admin và workspace quản trị tài khoản, môn học, học kỳ, lớp tín chỉ, chương, bài,
+  học liệu và ngân hàng câu hỏi dùng chung.
+- Một lớp tín chỉ có thể có nhiều giảng viên nhưng tối đa một giảng viên đầu mối; một giảng viên
+  có thể tham gia nhiều lớp.
+- Câu hỏi riêng của giảng viên chỉ phân phối cho lớp được phân công; câu dùng chung toàn môn do
+  Admin quản lý và chỉ đọc đối với giảng viên.
+- Hỏi đáp đi vào hàng đợi chung của lớp, hỗ trợ claim nguyên tử, release, SLA 24 giờ và Admin
+  điều phối/gán lại.
+- Thống kê luyện tập, thi thử, sinh viên và hỏi đáp được tính theo đúng `class_id`, không trộn dữ
+  liệu giữa các lớp cùng môn.
+- Seed demo idempotent cung cấp 2 Admin, 10 Giảng viên, 40 Sinh viên cùng dữ liệu lớp, luyện tập
+  và hỏi đáp; bị vô hiệu hoàn toàn trong production.
+
+## 5. Kiểm thử và xác minh hiện tại
+
+- Vitest: **37 test files, 191/191 tests passed**.
 - ESLint: passed.
-- Contract/OpenAPI validation: 9 schema, 4 examples và 3 OpenAPI documents
+- Contract/OpenAPI validation: 9 schema, 4 examples và 4 OpenAPI documents
   passed.
 - Production build bằng Vite: passed.
 - API read parity và luồng write student → lecturer trên database disposable: passed.
@@ -128,7 +143,7 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 > Các số liệu local dùng SQLite, chỉ là baseline kỹ thuật. Chưa được dùng làm
 > cam kết hiệu năng production.
 
-## 5. Tài liệu đã bổ sung
+## 6. Tài liệu đã bổ sung
 
 - [Chatbot/backend integration contract](./CHATBOT_BACKEND_INTEGRATION.md)
 - [Phase 0 contracts](../contracts/README.md)
@@ -145,8 +160,10 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 - [AUTH-1 async password verification](./PHASE_AUTH1_ASYNC_PASSWORD.md)
 - [AUTH-2 login protection](./PHASE_AUTH2_LOGIN_PROTECTION.md)
 - [Outlook SSO integration contract](./OUTLOOK_SSO_INTEGRATION.md)
+- [Plan quản trị môn học và lớp tín chỉ](./ADMIN_CLASS_MANAGEMENT_PLAN.md)
+- [Phase 9 hardening và nghiệm thu Plan A](./PHASE_ADMIN9_HARDENING.md)
 
-## 6. Trạng thái production readiness
+## 7. Trạng thái production readiness
 
 ### Đã sẵn sàng ở mức code
 
@@ -167,7 +184,7 @@ implementation, không thay thế checklist nghiệm thu staging của PTIT.
 7. RAG model thật vẫn cần endpoint, auth, timeout, citation và policy dữ liệu từ
    đội chatbot PTIT.
 
-## 7. Quy trình tiếp theo
+## 8. Quy trình tiếp theo
 
 ```text
 Cấp PostgreSQL staging + credential test
@@ -187,7 +204,7 @@ Cấp PostgreSQL staging + credential test
 Không đưa password, connection string hoặc token thật vào Git. Chỉ đặt chúng
 trong environment/secret manager của máy hoặc server chạy kiểm thử.
 
-## 8. Các commit chính
+## 9. Các commit chính
 
 | Commit    | Nội dung                                                              |
 | --------- | --------------------------------------------------------------------- |

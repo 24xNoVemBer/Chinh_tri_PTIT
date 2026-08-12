@@ -1,5 +1,12 @@
 # Kế hoạch phát triển nền tảng hỗ trợ giảng dạy Chính trị PTIT
 
+> **Cập nhật 12/08/2026:** Plan A quản trị môn học và lớp tín chỉ đã hoàn thành ở mức code và
+> development. Phạm vi hiện tại gồm Admin, phân công nhiều giảng viên trên một lớp, ngân hàng câu
+> hỏi dùng chung/riêng, hàng đợi hỏi đáp theo lớp, thống kê lớp và seed demo quy mô lớn. Xem
+> [kế hoạch quản trị](./docs/ADMIN_CLASS_MANAGEMENT_PLAN.md) và
+> [báo cáo nghiệm thu Phase 9](./docs/PHASE_ADMIN9_HARDENING.md). PostgreSQL staging thật, Outlook
+> SSO và RAG thật vẫn là các cổng tích hợp bên ngoài repository.
+
 ## 1. Mục tiêu sản phẩm
 
 Xây dựng nền tảng phục vụ hai mục đích chính:

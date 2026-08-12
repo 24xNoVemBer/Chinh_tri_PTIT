@@ -10,7 +10,9 @@ Nền tảng học tập các học phần lý luận chính trị dành cho sin
 
 ## Trạng thái hiện tại
 
-Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục bộ phục vụ luồng nghiệp vụ:
+**Plan A quản trị môn học và lớp tín chỉ đã hoàn thành ở mức code và development.** Backend hiện
+hỗ trợ ba role `admin`, `lecturer`, `student`; PostgreSQL staging thật vẫn cần credential và hạ tầng
+PTIT để chạy cutover, tải và restore drill:
 
 - Trang giới thiệu theo định hướng PTIT, có motion, khung trình chiếu học phần và hình ảnh lịch sử phù hợp từng môn.
 - Trang đăng nhập tự xác định luồng sinh viên hoặc giảng viên từ loại tài khoản; người dùng không chọn vai trò thủ công.
@@ -24,6 +26,10 @@ Dự án đang ở giai đoạn **demo UI/UX hoàn chỉnh** với backend cục
   giảng viên tập trung vào ngoại lệ thay vì phải duyệt toàn bộ.
 - Backend Node.js cung cấp JSON API, runtime SQLite/PostgreSQL, session cookie HttpOnly, RBAC,
   rate limit đăng nhập dùng chung giữa các instance và audit log.
+- Admin quản lý tài khoản, môn, học kỳ, lớp tín chỉ, phân công nhiều giảng viên, nội dung dùng
+  chung và nhật ký hệ thống.
+- Giảng viên quản lý ngân hàng câu hỏi riêng theo lớp được phân công, nhận hàng đợi hỏi đáp chung
+  và xem thống kê tách biệt cho từng lớp tín chỉ.
 
 > [!IMPORTANT]
 > **Mô hình RAG chưa được kết nối.** Chat API hiện tạo nội dung demo có nhãn chưa kiểm duyệt để
@@ -91,6 +97,7 @@ Sao chép `.env.example` thành `.env` nếu cần thay đổi cấu hình mặc
 
 | Vai trò    | Email                 | Mật khẩu       |
 | ---------- | --------------------- | -------------- |
+| Admin      | `admin01@ptit.edu.vn` | `Admin@123`    |
 | Sinh viên  | `tuananh@ptit.edu.vn` | `Student@123`  |
 | Giảng viên | `ductu@ptit.edu.vn`   | `Lecturer@123` |
 
@@ -235,6 +242,8 @@ docs/                    API, database và frontend contracts
 - [AUTH-2 bảo vệ endpoint đăng nhập](./docs/PHASE_AUTH2_LOGIN_PROTECTION.md)
 - [Contract tích hợp Outlook SSO PTIT](./docs/OUTLOOK_SSO_INTEGRATION.md)
 - [Implementation history: Student → production readiness](./docs/IMPLEMENTATION_HISTORY.md)
+- [Kế hoạch quản trị môn học và lớp tín chỉ](./docs/ADMIN_CLASS_MANAGEMENT_PLAN.md)
+- [Nghiệm thu Plan A và Phase 9 hardening](./docs/PHASE_ADMIN9_HARDENING.md)
 - [DB-5 PostgreSQL staging cutover](./docs/PHASE_DB5_POSTGRES_STAGING.md)
 - [Design system](./design-system/ptit-teaching-assistant/MASTER.md)
 
