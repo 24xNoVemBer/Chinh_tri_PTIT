@@ -18,6 +18,12 @@ paths:
       responses:
         '200': { description: Role updated and stale sessions revoked }
         '409': { description: Last administrator cannot be demoted }
+  /api/admin/users/{userId}:
+    patch:
+      operationId: updateManagedUser
+      responses:
+        '200': { description: Role or status updated and stale sessions revoked }
+        '409': { description: Last active administrator cannot be disabled }
   /api/admin/subjects:
     get:
       operationId: listManagedSubjects
@@ -40,9 +46,50 @@ paths:
       operationId: createManagedChapter
       responses: { '201': { description: Chapter created } }
   /api/admin/chapters/{chapterId}/lessons:
+    get:
+      operationId: listManagedLessons
+      responses: { '200': { description: Chapter lessons } }
     post:
       operationId: createManagedLesson
       responses: { '201': { description: Lesson created } }
+  /api/admin/chapters/{chapterId}:
+    patch:
+      operationId: updateManagedChapter
+      responses: { '200': { description: Chapter updated } }
+    delete:
+      operationId: deleteManagedChapter
+      responses:
+        '200': { description: Empty chapter deleted }
+        '409': { description: Chapter still contains lessons }
+  /api/admin/lessons/{lessonId}:
+    patch:
+      operationId: updateManagedLesson
+      responses: { '200': { description: Lesson updated } }
+    delete:
+      operationId: deleteManagedLesson
+      responses:
+        '200': { description: Unused lesson deleted }
+        '409': { description: Lesson is in use }
+  /api/admin/subjects/{subjectId}/materials:
+    get:
+      operationId: listManagedMaterials
+      responses: { '200': { description: Subject materials } }
+    post:
+      operationId: createManagedMaterial
+      responses: { '201': { description: Material created } }
+  /api/admin/materials/{materialId}:
+    patch:
+      operationId: updateManagedMaterial
+      responses: { '200': { description: Material updated } }
+    delete:
+      operationId: deleteManagedMaterial
+      responses:
+        '200': { description: Unused material deleted }
+        '409': { description: Material is in use }
+  /api/admin/materials/{materialId}/versions:
+    post:
+      operationId: createManagedMaterialVersion
+      responses: { '201': { description: Material version created } }
   /api/admin/terms:
     get:
       operationId: listAcademicTerms
@@ -50,6 +97,10 @@ paths:
     post:
       operationId: createAcademicTerm
       responses: { '201': { description: Academic term created } }
+  /api/admin/terms/{termId}:
+    patch:
+      operationId: updateAcademicTerm
+      responses: { '200': { description: Academic term updated } }
   /api/admin/classes:
     get:
       operationId: listManagedClasses
@@ -85,10 +136,23 @@ paths:
     post:
       operationId: createSharedPracticeQuestion
       responses: { '201': { description: Shared question created } }
+  /api/admin/practice-questions/{questionId}:
+    patch:
+      operationId: updateSharedPracticeQuestion
+      responses: { '200': { description: Shared question updated } }
+    delete:
+      operationId: archiveSharedPracticeQuestion
+      responses: { '200': { description: Shared question archived } }
   /api/admin/questions/unrouted:
     get:
       operationId: listUnroutedQuestions
       responses: { '200': { description: Questions requiring administrative routing } }
+  /api/admin/questions/unrouted/{questionId}/route:
+    post:
+      operationId: routeUnroutedQuestion
+      responses:
+        '200': { description: Question routed to a matching credit class }
+        '409': { description: Student is not enrolled in the selected class }
   /api/admin/audit-logs:
     get:
       operationId: listAdministrativeAuditLogs

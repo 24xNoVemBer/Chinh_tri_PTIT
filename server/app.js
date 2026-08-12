@@ -14,6 +14,7 @@ import {
   DEFAULT_AUTH_RATE_LIMIT_CONFIG,
   loginRateLimitHeaders,
 } from './authRateLimit.js'
+import { createAdminRepository } from './adminRepository.js'
 import { ApiError, readJson, requireFields, requireRole, sendJson, serializeError } from './http.js'
 import { createAsyncRepositories } from './repositoriesAsync.js'
 import { createLiveRagRepository } from './rag/liveRepository.js'
@@ -42,6 +43,7 @@ export function createRequestHandler({
   if (!db) throw new Error('createRequestHandler requires a database connection.')
   const authLimiter = loginRateLimiter ?? createLoginRateLimiter({ db, config: authConfig })
   const repositories = createAsyncRepositories(db)
+  const adminRepository = createAdminRepository(db)
   const liveRagRepository = ragClient
     ? createLiveRagRepository({
         db,
@@ -156,6 +158,337 @@ export function createRequestHandler({
           'Set-Cookie': clearSessionCookie({ secure: secureCookies }),
         })
         return
+      }
+
+      if (pathname.startsWith('/api/admin/')) {
+        const admin = requireRole(auth, ['admin'])
+        const userRoleMatch = matchPath(pathname, /^\/api\/admin\/users\/([^/]+)\/role$/)
+        const userMatch = matchPath(pathname, /^\/api\/admin\/users\/([^/]+)$/)
+        const subjectMatch = matchPath(pathname, /^\/api\/admin\/subjects\/([^/]+)$/)
+        const subjectChaptersMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/subjects\/([^/]+)\/chapters$/,
+        )
+        const subjectMaterialsMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/subjects\/([^/]+)\/materials$/,
+        )
+        const chapterMatch = matchPath(pathname, /^\/api\/admin\/chapters\/([^/]+)$/)
+        const chapterLessonsMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/chapters\/([^/]+)\/lessons$/,
+        )
+        const lessonMatch = matchPath(pathname, /^\/api\/admin\/lessons\/([^/]+)$/)
+        const termMatch = matchPath(pathname, /^\/api\/admin\/terms\/([^/]+)$/)
+        const classMatch = matchPath(pathname, /^\/api\/admin\/classes\/([^/]+)$/)
+        const classLecturersMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/classes\/([^/]+)\/lecturers$/,
+        )
+        const classLecturerMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/classes\/([^/]+)\/lecturers\/([^/]+)$/,
+        )
+        const materialVersionsMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/materials\/([^/]+)\/versions$/,
+        )
+        const materialMatch = matchPath(pathname, /^\/api\/admin\/materials\/([^/]+)$/)
+        const sharedPracticeQuestionMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/practice-questions\/([^/]+)$/,
+        )
+        const unroutedQuestionMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/questions\/unrouted\/([^/]+)\/route$/,
+        )
+
+        if (method === 'GET' && pathname === '/api/admin/users') {
+          sendData(
+            response,
+            await adminRepository.listUsers({
+              query: searchParams.get('query') ?? '',
+              role: searchParams.get('role') ?? 'all',
+              status: searchParams.get('status') ?? 'all',
+            }),
+          )
+          return
+        }
+        if (method === 'PATCH' && (userRoleMatch || userMatch)) {
+          sendData(
+            response,
+            await adminRepository.updateUser(
+              (userRoleMatch ?? userMatch)[0],
+              await readJson(request),
+              admin.id,
+            ),
+          )
+          return
+        }
+        if (method === 'GET' && pathname === '/api/admin/subjects') {
+          sendData(
+            response,
+            await adminRepository.listSubjects({
+              status: searchParams.get('status') ?? 'all',
+            }),
+          )
+          return
+        }
+        if (method === 'POST' && pathname === '/api/admin/subjects') {
+          const input = await readJson(request)
+          requireFields(input, ['name', 'credits'])
+          sendData(response, await adminRepository.createSubject(input, admin.id), 201)
+          return
+        }
+        if (method === 'PATCH' && subjectMatch) {
+          sendData(
+            response,
+            await adminRepository.updateSubject(subjectMatch[0], await readJson(request), admin.id),
+          )
+          return
+        }
+        if (method === 'DELETE' && subjectMatch) {
+          sendData(response, await adminRepository.archiveSubject(subjectMatch[0], admin.id))
+          return
+        }
+        if (method === 'GET' && pathname === '/api/admin/terms') {
+          sendData(response, await adminRepository.listTerms())
+          return
+        }
+        if (method === 'POST' && pathname === '/api/admin/terms') {
+          const input = await readJson(request)
+          requireFields(input, ['code', 'name'])
+          sendData(response, await adminRepository.createTerm(input, admin.id), 201)
+          return
+        }
+        if (method === 'PATCH' && termMatch) {
+          sendData(
+            response,
+            await adminRepository.updateTerm(termMatch[0], await readJson(request), admin.id),
+          )
+          return
+        }
+        if (method === 'GET' && pathname === '/api/admin/classes') {
+          sendData(
+            response,
+            await adminRepository.listClasses({
+              subjectId: searchParams.get('subjectId') ?? '',
+              termId: searchParams.get('termId') ?? '',
+              status: searchParams.get('status') ?? 'all',
+            }),
+          )
+          return
+        }
+        if (method === 'POST' && pathname === '/api/admin/classes') {
+          const input = await readJson(request)
+          requireFields(input, ['subjectId', 'academicTermId', 'groupNumber', 'classCode'])
+          sendData(response, await adminRepository.createClass(input, admin.id), 201)
+          return
+        }
+        if (method === 'PATCH' && classMatch) {
+          sendData(
+            response,
+            await adminRepository.updateClass(classMatch[0], await readJson(request), admin.id),
+          )
+          return
+        }
+        if (method === 'DELETE' && classMatch) {
+          sendData(response, await adminRepository.archiveClass(classMatch[0], admin.id))
+          return
+        }
+        if (method === 'GET' && classLecturersMatch) {
+          sendData(response, await adminRepository.listClassLecturers(classLecturersMatch[0]))
+          return
+        }
+        if (method === 'POST' && classLecturersMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['lecturerId'])
+          sendData(
+            response,
+            await adminRepository.assignLecturer(classLecturersMatch[0], input, admin.id),
+            201,
+          )
+          return
+        }
+        if (method === 'PATCH' && classLecturerMatch) {
+          sendData(
+            response,
+            await adminRepository.updateLecturerAssignment(
+              classLecturerMatch[0],
+              classLecturerMatch[1],
+              await readJson(request),
+              admin.id,
+            ),
+          )
+          return
+        }
+        if (method === 'DELETE' && classLecturerMatch) {
+          sendData(
+            response,
+            await adminRepository.endLecturerAssignment(
+              classLecturerMatch[0],
+              classLecturerMatch[1],
+              admin.id,
+            ),
+          )
+          return
+        }
+        if (method === 'GET' && subjectChaptersMatch) {
+          sendData(response, await adminRepository.listChapters(subjectChaptersMatch[0]))
+          return
+        }
+        if (method === 'POST' && subjectChaptersMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['title', 'order'])
+          sendData(
+            response,
+            await adminRepository.createChapter(subjectChaptersMatch[0], input, admin.id),
+            201,
+          )
+          return
+        }
+        if (method === 'PATCH' && chapterMatch) {
+          sendData(
+            response,
+            await adminRepository.updateChapter(chapterMatch[0], await readJson(request), admin.id),
+          )
+          return
+        }
+        if (method === 'DELETE' && chapterMatch) {
+          sendData(response, await adminRepository.deleteChapter(chapterMatch[0], admin.id))
+          return
+        }
+        if (method === 'GET' && chapterLessonsMatch) {
+          sendData(response, await adminRepository.listLessons(chapterLessonsMatch[0]))
+          return
+        }
+        if (method === 'POST' && chapterLessonsMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['title', 'order', 'contentHtml'])
+          sendData(
+            response,
+            await adminRepository.createLesson(chapterLessonsMatch[0], input, admin.id),
+            201,
+          )
+          return
+        }
+        if (method === 'PATCH' && lessonMatch) {
+          sendData(
+            response,
+            await adminRepository.updateLesson(lessonMatch[0], await readJson(request), admin.id),
+          )
+          return
+        }
+        if (method === 'DELETE' && lessonMatch) {
+          sendData(response, await adminRepository.deleteLesson(lessonMatch[0], admin.id))
+          return
+        }
+        if (method === 'GET' && subjectMaterialsMatch) {
+          sendData(response, await adminRepository.listMaterials(subjectMaterialsMatch[0]))
+          return
+        }
+        if (method === 'POST' && subjectMaterialsMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['title', 'type', 'author'])
+          sendData(
+            response,
+            await adminRepository.createMaterial(subjectMaterialsMatch[0], input, admin.id),
+            201,
+          )
+          return
+        }
+        if (method === 'POST' && materialVersionsMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['year', 'fileUrl'])
+          sendData(
+            response,
+            await adminRepository.createMaterialVersion(materialVersionsMatch[0], input, admin.id),
+            201,
+          )
+          return
+        }
+        if (method === 'PATCH' && materialMatch) {
+          sendData(
+            response,
+            await adminRepository.updateMaterial(
+              materialMatch[0],
+              await readJson(request),
+              admin.id,
+            ),
+          )
+          return
+        }
+        if (method === 'DELETE' && materialMatch) {
+          sendData(response, await adminRepository.deleteMaterial(materialMatch[0], admin.id))
+          return
+        }
+        if (method === 'GET' && pathname === '/api/admin/practice-questions') {
+          sendData(
+            response,
+            await adminRepository.listSharedQuestions({
+              subjectId: searchParams.get('subjectId') ?? '',
+              status: searchParams.get('status') ?? 'all',
+            }),
+          )
+          return
+        }
+        if (method === 'POST' && pathname === '/api/admin/practice-questions') {
+          const input = await readJson(request)
+          requireFields(input, [
+            'subjectId',
+            'chapterId',
+            'content',
+            'explanation',
+            'options',
+            'correctOptionKey',
+          ])
+          sendData(response, await adminRepository.createSharedQuestion(input, admin.id), 201)
+          return
+        }
+        if (method === 'PATCH' && sharedPracticeQuestionMatch) {
+          const input = await readJson(request)
+          requireFields(input, [
+            'subjectId',
+            'chapterId',
+            'content',
+            'explanation',
+            'options',
+            'correctOptionKey',
+          ])
+          sendData(
+            response,
+            await adminRepository.updateSharedQuestion(
+              sharedPracticeQuestionMatch[0],
+              input,
+              admin.id,
+            ),
+          )
+          return
+        }
+        if (method === 'DELETE' && sharedPracticeQuestionMatch) {
+          sendData(
+            response,
+            await adminRepository.archiveSharedQuestion(sharedPracticeQuestionMatch[0], admin.id),
+          )
+          return
+        }
+        if (method === 'GET' && pathname === '/api/admin/questions/unrouted') {
+          sendData(response, await adminRepository.listUnroutedQuestions())
+          return
+        }
+        if (method === 'POST' && unroutedQuestionMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['classId'])
+          sendData(
+            response,
+            await adminRepository.routeQuestion(unroutedQuestionMatch[0], input.classId, admin.id),
+          )
+          return
+        }
+        if (method === 'GET' && pathname === '/api/admin/audit-logs') {
+          sendData(response, await adminRepository.listAuditLogs(searchParams.get('limit')))
+          return
+        }
       }
 
       if (pathname.startsWith('/api/lecturer/')) {
@@ -291,32 +624,18 @@ export function createRequestHandler({
           return
         }
         if (method === 'POST' && classLessonsMatch) {
-          const input = await readJson(request)
-          requireFields(input, ['lessonId', 'date'])
-          sendData(
-            response,
-            await repositories.classContentRepository.scheduleLesson(
-              classLessonsMatch[0],
-              input,
-              lecturer.id,
-            ),
-            201,
+          throw new ApiError(
+            403,
+            'ADMIN_ONLY_CURRICULUM',
+            'Chỉ quản trị viên được thay đổi nội dung môn học.',
           )
-          return
         }
         if (method === 'PATCH' && classLessonMatch) {
-          const input = await readJson(request)
-          requireFields(input, ['status'])
-          sendData(
-            response,
-            await repositories.classContentRepository.updateLessonStatus(
-              classLessonMatch[0],
-              classLessonMatch[1],
-              input.status,
-              lecturer.id,
-            ),
+          throw new ApiError(
+            403,
+            'ADMIN_ONLY_CURRICULUM',
+            'Chỉ quản trị viên được thay đổi nội dung môn học.',
           )
-          return
         }
         if (method === 'GET' && classMaterialsMatch) {
           sendData(
@@ -339,46 +658,25 @@ export function createRequestHandler({
           return
         }
         if (method === 'POST' && classMaterialsMatch) {
-          const input = await readJson(request)
-          requireFields(input, ['materialId'])
-          sendData(
-            response,
-            await repositories.classContentRepository.attachMaterial(
-              classMaterialsMatch[0],
-              input,
-              lecturer.id,
-            ),
-            201,
+          throw new ApiError(
+            403,
+            'ADMIN_ONLY_CURRICULUM',
+            'Chỉ quản trị viên được thay đổi học liệu.',
           )
-          return
         }
         if (method === 'PATCH' && classMaterialMatch) {
-          const input = await readJson(request)
-          requireFields(input, ['status'])
-          sendData(
-            response,
-            await repositories.classContentRepository.updateMaterialStatus(
-              classMaterialMatch[0],
-              classMaterialMatch[1],
-              input.status,
-              lecturer.id,
-            ),
+          throw new ApiError(
+            403,
+            'ADMIN_ONLY_CURRICULUM',
+            'Chỉ quản trị viên được thay đổi học liệu.',
           )
-          return
         }
         if (method === 'POST' && materialVersionMatch) {
-          const input = await readJson(request)
-          requireFields(input, ['year', 'fileUrl'])
-          sendData(
-            response,
-            await repositories.classContentRepository.addMaterialVersion(
-              materialVersionMatch[0],
-              input,
-              lecturer.id,
-            ),
-            201,
+          throw new ApiError(
+            403,
+            'ADMIN_ONLY_CURRICULUM',
+            'Chỉ quản trị viên được thêm phiên bản học liệu.',
           )
-          return
         }
         if (method === 'GET' && pathname === '/api/lecturer/questions') {
           sendData(

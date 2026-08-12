@@ -124,7 +124,7 @@ describe('Phase 4 API', () => {
     )
   })
 
-  it('returns a stable conflict error for duplicate class content', async () => {
+  it('keeps shared curriculum read-only for lecturers', async () => {
     const lecturerCookie = await login('ductu@ptit.edu.vn', 'Lecturer@123')
     const availableResponse = await api(
       '/api/lecturer/classes/class1/lessons/available',
@@ -138,15 +138,9 @@ describe('Phase 4 API', () => {
       method: 'POST',
       body: JSON.stringify(input),
     })
-    expect(firstResponse.status).toBe(201)
-
-    const duplicateResponse = await api('/api/lecturer/classes/class1/lessons', lecturerCookie, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    })
-    expect(duplicateResponse.status).toBe(409)
-    await expect(duplicateResponse.json()).resolves.toMatchObject({
-      error: { code: 'CONFLICT' },
+    expect(firstResponse.status).toBe(403)
+    await expect(firstResponse.json()).resolves.toMatchObject({
+      error: { code: 'ADMIN_ONLY_CURRICULUM' },
     })
   })
 
