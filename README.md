@@ -96,6 +96,16 @@ Sao chép `.env.example` thành `.env` nếu cần thay đổi cấu hình mặc
 
 Các tài khoản trên chỉ phục vụ development và review cục bộ.
 
+Để nạp bộ demo đầy đủ gồm 52 tài khoản, 10 lớp tín chỉ và dữ liệu luyện tập/hỏi đáp:
+
+```bash
+npm run db:seed:demo -- --confirm-demo-seed
+```
+
+Danh sách toàn bộ tài khoản và mật khẩu nằm tại
+[docs/DEMO_ACCOUNTS.md](./docs/DEMO_ACCOUNTS.md). Seed chạy lặp lại không nhân bản và bị khóa hoàn
+toàn khi `NODE_ENV=production`.
+
 ## Biến môi trường
 
 | Biến                                      | Mặc định                              | Mô tả                                                                            |

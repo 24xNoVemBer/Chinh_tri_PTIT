@@ -21,6 +21,7 @@
     "mock:rag": "node --no-warnings scripts/start-rag-mock.mjs",
     "db:baseline": "node scripts/db-baseline.mjs",
     "db:migrate": "node --no-warnings scripts/db-migrate.mjs",
+    "db:seed:demo": "node --no-warnings scripts/db-seed-demo.mjs",
     "db:export": "node --no-warnings scripts/db-export.mjs",
     "db:import": "node --no-warnings scripts/db-import.mjs",
     "db:validate:staging": "node --no-warnings scripts/db-validate-staging.mjs",
