@@ -80,10 +80,19 @@ export function createSession(db, userId) {
   const now = new Date()
   const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000)
 
+  const user = db.prepare('SELECT auth_version FROM users WHERE id = ?').get(userId)
+  if (!user) throw new Error('Cannot create a session for an unknown user.')
   db.prepare(
-    `INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(randomUUID(), userId, hashToken(token), expiresAt.toISOString(), now.toISOString())
+    `INSERT INTO sessions (id, user_id, token_hash, auth_version, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(
+    randomUUID(),
+    userId,
+    hashToken(token),
+    user.auth_version,
+    expiresAt.toISOString(),
+    now.toISOString(),
+  )
 
   return { token, expiresAt }
 }
@@ -102,10 +111,13 @@ export function authenticateRequest(db, request) {
       `SELECT
          sessions.id AS session_id,
          sessions.expires_at,
+         sessions.auth_version AS session_auth_version,
          users.id,
          users.name,
          users.email,
-         users.role
+         users.role,
+         users.status,
+         users.auth_version AS user_auth_version
        FROM sessions
        JOIN users ON users.id = sessions.user_id
        WHERE sessions.token_hash = ?`,
@@ -113,7 +125,11 @@ export function authenticateRequest(db, request) {
     .get(hashToken(token))
 
   if (!session) return null
-  if (session.expires_at <= now) {
+  if (
+    session.expires_at <= now ||
+    session.status !== 'active' ||
+    session.session_auth_version !== session.user_auth_version
+  ) {
     db.prepare('DELETE FROM sessions WHERE id = ?').run(session.session_id)
     return null
   }
@@ -157,10 +173,19 @@ export async function createSessionAsync(client, userId) {
   const now = new Date()
   const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000)
 
+  const user = await client.one('SELECT auth_version FROM users WHERE id = ?', [userId])
+  if (!user) throw new Error('Cannot create a session for an unknown user.')
   await client.execute(
-    `INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    [randomUUID(), userId, hashToken(token), expiresAt.toISOString(), now.toISOString()],
+    `INSERT INTO sessions (id, user_id, token_hash, auth_version, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      randomUUID(),
+      userId,
+      hashToken(token),
+      user.auth_version,
+      expiresAt.toISOString(),
+      now.toISOString(),
+    ],
   )
 
   return { token, expiresAt }
@@ -175,10 +200,13 @@ export async function authenticateRequestAsync(client, request) {
     `SELECT
        sessions.id AS session_id,
        sessions.expires_at,
+       sessions.auth_version AS session_auth_version,
        users.id,
        users.name,
        users.email,
-       users.role
+       users.role,
+       users.status,
+       users.auth_version AS user_auth_version
      FROM sessions
      JOIN users ON users.id = sessions.user_id
      WHERE sessions.token_hash = ?`,
@@ -186,7 +214,11 @@ export async function authenticateRequestAsync(client, request) {
   )
 
   if (!session) return null
-  if (session.expires_at <= now) {
+  if (
+    session.expires_at <= now ||
+    session.status !== 'active' ||
+    session.session_auth_version !== session.user_auth_version
+  ) {
     await client.execute('DELETE FROM sessions WHERE id = ?', [session.session_id])
     return null
   }

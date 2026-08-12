@@ -61,10 +61,17 @@ function getOwnedClass(db, classId, lecturerId) {
     )
     .get(classId)
   if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy lớp học.')
-  if (row.lecturer_id !== lecturerId) {
+  const assignment = db
+    .prepare(
+      `SELECT assignment_role
+       FROM class_lecturer_assignments
+       WHERE class_id = ? AND lecturer_id = ? AND status = 'active'`,
+    )
+    .get(classId, lecturerId)
+  if (!assignment) {
     throw new ApiError(403, 'FORBIDDEN', 'Bạn không có quyền quản lý lớp học này.')
   }
-  return row
+  return { ...row, assignment_role: assignment.assignment_role }
 }
 
 function mapClass(row) {
@@ -73,6 +80,7 @@ function mapClass(row) {
     subjectId: row.subject_id,
     name: row.name,
     lecturerId: row.lecturer_id,
+    assignmentRole: row.assignment_role ?? null,
     semester: row.semester,
     subject: {
       id: row.subject_id,
@@ -153,7 +161,15 @@ const QUESTION_SELECT = `
     chapters.chapter_order,
     course_classes.id AS class_id,
     course_classes.name AS class_name,
-    course_classes.lecturer_id AS class_lecturer_id,
+    (
+      SELECT class_lead.lecturer_id
+      FROM class_lecturer_assignments AS class_lead
+      WHERE class_lead.class_id = course_classes.id
+        AND class_lead.status = 'active'
+      ORDER BY CASE WHEN class_lead.assignment_role = 'lead' THEN 0 ELSE 1 END,
+               class_lead.assigned_at
+      LIMIT 1
+    ) AS class_lecturer_id,
     course_classes.semester AS class_semester,
     lecturer_answers.id AS answer_id,
     lecturer_answers.lecturer_id AS answer_lecturer_id,
@@ -200,11 +216,8 @@ const QUESTION_SELECT = `
       LIMIT 1
     )
   LEFT JOIN rag_responses ON rag_responses.request_id = rag_requests.id
-  LEFT JOIN enrollments
-    ON enrollments.student_id = questions.student_id
   LEFT JOIN course_classes
-    ON course_classes.id = enrollments.class_id
-   AND course_classes.subject_id = questions.subject_id
+    ON course_classes.id = questions.class_id
 `
 
 function getRagCitations(db, responseId) {
@@ -371,6 +384,18 @@ function ensureStudentSubjectAccess(db, studentId, subjectId) {
   }
 }
 
+function getStudentClassOptions(db, studentId, subjectId) {
+  return db
+    .prepare(
+      `SELECT course_classes.id, course_classes.subject_id
+       FROM enrollments
+       JOIN course_classes ON course_classes.id = enrollments.class_id
+       WHERE enrollments.student_id = ? AND course_classes.subject_id = ?
+       ORDER BY course_classes.semester DESC, course_classes.name`,
+    )
+    .all(studentId, subjectId)
+}
+
 function getSubjectLessons(db, subjectId) {
   return db
     .prepare(
@@ -435,7 +460,17 @@ function getQuestionRows(db) {
 
 function getQuestionRowsForLecturer(db, lecturerId) {
   return db
-    .prepare(`${QUESTION_SELECT} WHERE course_classes.lecturer_id = ? GROUP BY questions.id`)
+    .prepare(
+      `${QUESTION_SELECT}
+       WHERE EXISTS (
+         SELECT 1
+         FROM class_lecturer_assignments
+         WHERE class_lecturer_assignments.class_id = course_classes.id
+           AND class_lecturer_assignments.lecturer_id = ?
+           AND class_lecturer_assignments.status = 'active'
+       )
+       GROUP BY questions.id`,
+    )
     .all(lecturerId)
     .map((row) => mapQuestion(row, db))
 }
@@ -447,6 +482,7 @@ export function createRepositories(db) {
         .prepare(
           `SELECT
              course_classes.*,
+             class_lecturer_assignments.assignment_role,
              subjects.name AS subject_name,
              subjects.credits AS subject_credits,
              (SELECT COUNT(*) FROM enrollments WHERE class_id = course_classes.id) AS student_count,
@@ -466,8 +502,11 @@ export function createRepositories(db) {
                  AND questions.status = 'unanswered'
              ) AS unanswered_count
            FROM course_classes
+           JOIN class_lecturer_assignments
+             ON class_lecturer_assignments.class_id = course_classes.id
            JOIN subjects ON subjects.id = course_classes.subject_id
-           WHERE course_classes.lecturer_id = ?
+           WHERE class_lecturer_assignments.lecturer_id = ?
+             AND class_lecturer_assignments.status = 'active'
            ORDER BY course_classes.name`,
         )
         .all(lecturerId)
@@ -828,9 +867,13 @@ export function createRepositories(db) {
            FROM materials
            WHERE materials.id = ?
              AND EXISTS (
-               SELECT 1 FROM course_classes
+               SELECT 1
+               FROM course_classes
+               JOIN class_lecturer_assignments
+                 ON class_lecturer_assignments.class_id = course_classes.id
                WHERE course_classes.subject_id = materials.subject_id
-                 AND course_classes.lecturer_id = ?
+                 AND class_lecturer_assignments.lecturer_id = ?
+                 AND class_lecturer_assignments.status = 'active'
              )`,
         )
         .get(materialId, lecturerId)
@@ -943,15 +986,50 @@ export function createRepositories(db) {
 
       const id = createId('question')
       const createdAt = nowIso()
+      const classOptions = getStudentClassOptions(db, studentId, input.subjectId)
+      const courseClass = input.classId
+        ? classOptions.find((item) => item.id === input.classId)
+        : classOptions.length === 1
+          ? classOptions[0]
+          : null
+      if (input.classId && !courseClass) {
+        throw new ApiError(403, 'FORBIDDEN', 'Lớp tín chỉ không thuộc tài khoản sinh viên.')
+      }
+      if (!input.classId && classOptions.length > 1) {
+        throw new ApiError(400, 'VALIDATION', 'Vui lòng chọn lớp tín chỉ cần gửi câu hỏi.')
+      }
+      const activeLecturers = courseClass
+        ? db
+            .prepare(
+              `SELECT COUNT(*) AS count
+               FROM class_lecturer_assignments
+               WHERE class_id = ? AND status = 'active'`,
+            )
+            .get(courseClass.id)
+        : { count: 0 }
+      const routingStatus = courseClass && Number(activeLecturers.count) > 0 ? 'queued' : 'unrouted'
       db.prepare(
         `INSERT INTO questions
-         (id, lesson_id, subject_id, student_id, content, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'unanswered', ?, ?)`,
-      ).run(id, input.lessonId ?? null, input.subjectId, studentId, content, createdAt, createdAt)
+         (id, lesson_id, subject_id, student_id, class_id, routing_status,
+          content, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'unanswered', ?, ?)`,
+      ).run(
+        id,
+        input.lessonId ?? null,
+        input.subjectId,
+        studentId,
+        courseClass?.id ?? null,
+        routingStatus,
+        content,
+        createdAt,
+        createdAt,
+      )
 
       audit(db, studentId, 'question.created', 'question', id, {
         subjectId: input.subjectId,
         lessonId: input.lessonId ?? null,
+        classId: courseClass?.id ?? null,
+        routingStatus,
       })
       return this.getForStudent(id, studentId)
     },
@@ -1074,14 +1152,46 @@ export function createRepositories(db) {
         subjectId: input.subjectId,
         hasPageCitation: Boolean(source.sample_page_number),
       })
+      const classOptions = getStudentClassOptions(db, studentId, input.subjectId)
+      const courseClass = input.classId
+        ? classOptions.find((item) => item.id === input.classId)
+        : classOptions.length === 1
+          ? classOptions[0]
+          : null
+      if (input.classId && !courseClass) {
+        throw new ApiError(403, 'FORBIDDEN', 'Lớp tín chỉ không thuộc tài khoản sinh viên.')
+      }
+      if (!input.classId && classOptions.length > 1) {
+        throw new ApiError(400, 'VALIDATION', 'Vui lòng chọn lớp tín chỉ cần gửi câu hỏi.')
+      }
+      const activeLecturers = courseClass
+        ? db
+            .prepare(
+              `SELECT COUNT(*) AS count
+               FROM class_lecturer_assignments
+               WHERE class_id = ? AND status = 'active'`,
+            )
+            .get(courseClass.id)
+        : { count: 0 }
+      const routingStatus = courseClass && Number(activeLecturers.count) > 0 ? 'queued' : 'unrouted'
 
       db.exec('BEGIN IMMEDIATE')
       try {
         db.prepare(
           `INSERT INTO questions
-           (id, lesson_id, subject_id, student_id, content, status, created_at, updated_at)
-           VALUES (?, NULL, ?, ?, ?, 'unanswered', ?, ?)`,
-        ).run(questionId, input.subjectId, studentId, content, timestamp, timestamp)
+           (id, lesson_id, subject_id, student_id, class_id, routing_status,
+            content, status, created_at, updated_at)
+           VALUES (?, NULL, ?, ?, ?, ?, ?, 'unanswered', ?, ?)`,
+        ).run(
+          questionId,
+          input.subjectId,
+          studentId,
+          courseClass?.id ?? null,
+          routingStatus,
+          content,
+          timestamp,
+          timestamp,
+        )
         db.prepare(
           `INSERT INTO rag_requests
            (id, question_id, student_id, subject_id, lesson_id, status, attempt_count,
@@ -1636,11 +1746,12 @@ export function createRepositories(db) {
                 AND EXISTS (
                   SELECT 1
                   FROM questions
-                  JOIN enrollments ON enrollments.student_id = questions.student_id
-                  JOIN course_classes ON course_classes.id = enrollments.class_id
-                    AND course_classes.subject_id = questions.subject_id
+                  JOIN course_classes ON course_classes.id = questions.class_id
+                  JOIN class_lecturer_assignments
+                    ON class_lecturer_assignments.class_id = course_classes.id
                   WHERE questions.id = audit_logs.entity_id
-                    AND course_classes.lecturer_id = ?
+                    AND class_lecturer_assignments.lecturer_id = ?
+                    AND class_lecturer_assignments.status = 'active'
                 )
               )
            ORDER BY audit_logs.created_at DESC

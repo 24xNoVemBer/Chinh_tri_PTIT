@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './useAuth'
 
-export default function RoleGuard({ role }) {
+export default function RoleGuard({ role, roles }) {
   const location = useLocation()
   const { isLoading, user } = useAuth()
 
@@ -14,7 +14,8 @@ export default function RoleGuard({ role }) {
   }
 
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  if (user.role !== role) return <Navigate to={`/${user.role}`} replace />
+  const allowedRoles = roles ?? [role]
+  if (!allowedRoles.includes(user.role)) return <Navigate to={`/${user.role}`} replace />
 
   return <Outlet />
 }

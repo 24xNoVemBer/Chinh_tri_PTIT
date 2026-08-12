@@ -15,6 +15,11 @@ const adminClassMigrationPath = join(
   'migrations',
   '006_admin-class-management.sql',
 )
+const sessionVersionMigrationPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'migrations',
+  '007_session-auth-version.sql',
+)
 
 describe('PostgreSQL initial schema', () => {
   it('contains the complete DB-0 table and index inventory', async () => {
@@ -47,5 +52,11 @@ describe('PostgreSQL initial schema', () => {
     expect(sql).toContain(
       "routing_status IN ('unrouted', 'queued', 'claimed', 'answered', 'closed')",
     )
+  })
+
+  it('pins sessions to the account authorization version', async () => {
+    const sql = await readFile(sessionVersionMigrationPath, 'utf8')
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS auth_version')
+    expect(sql).toContain('SET auth_version = users.auth_version')
   })
 })

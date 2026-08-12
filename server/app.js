@@ -105,7 +105,7 @@ export function createRequestHandler({
           )
         }
         const user = await db.one(
-          `SELECT id, name, email, role, password_hash
+          `SELECT id, name, email, role, status, password_hash
            FROM users
            WHERE lower(email) = ?`,
           [email],
@@ -115,7 +115,7 @@ export function createRequestHandler({
           String(input.password),
           user?.password_hash ?? DUMMY_PASSWORD_HASH,
         )
-        const credentialsValid = Boolean(user) && passwordMatches
+        const credentialsValid = Boolean(user) && user.status === 'active' && passwordMatches
         const roleValid = !input.role || input.role === user?.role
         if (!credentialsValid || !roleValid) {
           throw new ApiError(
@@ -142,7 +142,7 @@ export function createRequestHandler({
       const auth = await authenticateRequestAsync(db, request)
 
       if (method === 'GET' && pathname === '/api/auth/me') {
-        const user = requireRole(auth, ['student', 'lecturer'])
+        const user = requireRole(auth, ['student', 'lecturer', 'admin'])
         sendData(response, user)
         return
       }

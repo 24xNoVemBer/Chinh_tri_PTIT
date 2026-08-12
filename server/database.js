@@ -366,6 +366,7 @@ const SCHEMA = `
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash TEXT NOT NULL UNIQUE,
+    auth_version INTEGER NOT NULL DEFAULT 1 CHECK (auth_version > 0),
     expires_at TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
@@ -1061,6 +1062,11 @@ function ensureAdminClassManagementSchema(db) {
     'practice_questions',
     'scope',
     "TEXT NOT NULL DEFAULT 'lecturer_owned' CHECK (scope IN ('subject_shared', 'lecturer_owned'))",
+  )
+  addColumnIfMissing(
+    'sessions',
+    'auth_version',
+    'INTEGER NOT NULL DEFAULT 1 CHECK (auth_version > 0)',
   )
 
   const classes = db.many(

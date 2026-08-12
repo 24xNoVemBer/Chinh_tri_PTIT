@@ -80,6 +80,26 @@ export function createLiveRagRepository({ db, ragClient, questionRepository }) {
          WHERE student_id = ? AND subject_id = ?`,
         [studentId, input.subjectId],
       )
+      const courseClass = input.classId
+        ? classRows.find((item) => item.id === input.classId)
+        : classRows.length === 1
+          ? classRows[0]
+          : null
+      if (input.classId && !courseClass) {
+        throw new ApiError(403, 'FORBIDDEN', 'Lớp tín chỉ không thuộc tài khoản sinh viên.')
+      }
+      if (!input.classId && classRows.length > 1) {
+        throw new ApiError(400, 'VALIDATION', 'Vui lòng chọn lớp tín chỉ cần gửi câu hỏi.')
+      }
+      const lecturerCount = courseClass
+        ? await db.one(
+            `SELECT COUNT(*) AS count
+             FROM class_lecturer_assignments
+             WHERE class_id = ? AND status = 'active'`,
+            [courseClass.id],
+          )
+        : { count: 0 }
+      const routingStatus = courseClass && Number(lecturerCount.count) > 0 ? 'queued' : 'unrouted'
       const request = {
         schemaVersion: '1.0',
         requestId,
@@ -112,13 +132,17 @@ export function createLiveRagRepository({ db, ragClient, questionRepository }) {
 
       await db.transaction(async (transaction) => {
         await transaction.execute(
-          `INSERT INTO questions (id, lesson_id, subject_id, student_id, content, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'unanswered', ?, ?)`,
+          `INSERT INTO questions
+           (id, lesson_id, subject_id, student_id, class_id, routing_status,
+            content, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'unanswered', ?, ?)`,
           [
             questionId,
             input.lessonId ?? null,
             input.subjectId,
             studentId,
+            courseClass?.id ?? null,
+            routingStatus,
             content,
             createdAt,
             createdAt,
@@ -216,6 +240,8 @@ export function createLiveRagRepository({ db, ragClient, questionRepository }) {
           requestId,
           responseId,
           live: true,
+          classId: courseClass?.id ?? null,
+          routingStatus,
         })
       })
 
