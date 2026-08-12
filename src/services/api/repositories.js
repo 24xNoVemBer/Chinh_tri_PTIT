@@ -120,6 +120,9 @@ export const apiAdminRepository = {
       body: jsonBody({ lecturerId }),
     })
   },
+  getClassAnalytics(classId) {
+    return apiRequest(`/api/admin/classes/${encodeURIComponent(classId)}/analytics`)
+  },
   listAuditLogs(limit = 100) {
     return apiRequest(withQuery('/api/admin/audit-logs', { limit }))
   },
@@ -352,6 +355,9 @@ export const apiPracticeSessionRepository = {
 export const apiPracticeAnalyticsRepository = {
   getForLecturer(filters = {}) {
     return apiRequest(withQuery('/api/lecturer/practice-analytics', filters))
+  },
+  getForClass(classId) {
+    return apiRequest(`/api/lecturer/classes/${encodeURIComponent(classId)}/analytics`)
   },
 }
 

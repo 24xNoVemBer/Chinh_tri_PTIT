@@ -45,6 +45,7 @@ const ROLE_LINKS = {
     { label: 'Học kỳ', to: '/admin/terms', icon: FileClock },
     { label: 'Lớp tín chỉ', to: '/admin/classes', icon: School },
     { label: 'Câu hỏi chung', to: '/admin/question-bank', icon: ClipboardList },
+    { label: 'Thống kê', to: '/admin/analytics', icon: BarChart3 },
     { label: 'Vận hành', to: '/admin/operations', icon: Settings2 },
   ],
 }

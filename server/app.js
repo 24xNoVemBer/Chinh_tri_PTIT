@@ -181,6 +181,10 @@ export function createRequestHandler({
         const lessonMatch = matchPath(pathname, /^\/api\/admin\/lessons\/([^/]+)$/)
         const termMatch = matchPath(pathname, /^\/api\/admin\/terms\/([^/]+)$/)
         const classMatch = matchPath(pathname, /^\/api\/admin\/classes\/([^/]+)$/)
+        const classAnalyticsMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/classes\/([^/]+)\/analytics$/,
+        )
         const classLecturersMatch = matchPath(
           pathname,
           /^\/api\/admin\/classes\/([^/]+)\/lecturers$/,
@@ -287,6 +291,13 @@ export function createRequestHandler({
           const input = await readJson(request)
           requireFields(input, ['subjectId', 'academicTermId', 'groupNumber', 'classCode'])
           sendData(response, await adminRepository.createClass(input, admin.id), 201)
+          return
+        }
+        if (method === 'GET' && classAnalyticsMatch) {
+          sendData(
+            response,
+            await repositories.practiceAnalyticsRepository.getForAdmin(classAnalyticsMatch[0]),
+          )
           return
         }
         if (method === 'PATCH' && classMatch) {
@@ -574,6 +585,10 @@ export function createRequestHandler({
           pathname,
           /^\/api\/lecturer\/classes\/([^/]+)\/practice-questions$/,
         )
+        const classAnalyticsMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/classes\/([^/]+)\/analytics$/,
+        )
         const classQuestionQueueMatch = matchPath(
           pathname,
           /^\/api\/lecturer\/classes\/([^/]+)\/question-queue$/,
@@ -803,6 +818,15 @@ export function createRequestHandler({
             await repositories.practiceAnalyticsRepository.getForLecturer(lecturer.id, {
               classId: searchParams.get('classId') ?? '',
               subjectId: searchParams.get('subjectId') ?? '',
+            }),
+          )
+          return
+        }
+        if (method === 'GET' && classAnalyticsMatch) {
+          sendData(
+            response,
+            await repositories.practiceAnalyticsRepository.getForLecturer(lecturer.id, {
+              classId: classAnalyticsMatch[0],
             }),
           )
           return

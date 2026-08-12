@@ -126,6 +126,7 @@ export default function App() {
             <Route path="terms" element={<AdminTermsPage />} />
             <Route path="classes" element={<AdminClassesPage />} />
             <Route path="question-bank" element={<AdminQuestionBankPage />} />
+            <Route path="analytics" element={<PracticeAnalyticsPage />} />
             <Route path="operations" element={<AdminOperationsPage />} />
           </Route>
         </Route>

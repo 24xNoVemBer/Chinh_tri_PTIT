@@ -312,7 +312,7 @@
   }
 }
 
-@media (min-width: 72.01rem) and (max-width: 90rem) {
+@media (min-width: 86.01rem) and (max-width: 90rem) {
   .navbar--admin .navbar__inner {
     grid-template-columns: max-content minmax(0, 1fr) max-content;
     gap: var(--space-3);

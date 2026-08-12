@@ -50,6 +50,11 @@
   background: var(--color-primary-soft);
 }
 
+.practice-analytics-metric--warning .practice-analytics-metric__icon {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
 .practice-analytics-metric > div {
   display: grid;
   gap: 0.15rem;
@@ -155,6 +160,103 @@
   line-height: 1.45;
 }
 
+.practice-analytics-student-list,
+.practice-analytics-lecturer-list {
+  display: grid;
+}
+
+.practice-analytics-student-list article,
+.practice-analytics-lecturer-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.practice-analytics-student-list article:first-child,
+.practice-analytics-lecturer-list article:first-child {
+  padding-top: 0;
+}
+
+.practice-analytics-student-list article:last-child,
+.practice-analytics-lecturer-list article:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.practice-analytics-student-list strong,
+.practice-analytics-student-list span,
+.practice-analytics-lecturer-list strong,
+.practice-analytics-lecturer-list span {
+  display: block;
+}
+
+.practice-analytics-student-list span,
+.practice-analytics-lecturer-list span,
+.practice-analytics-student-result small,
+.practice-analytics-lecturer-list dt {
+  color: var(--color-muted-foreground);
+  font-size: var(--text-xs);
+}
+
+.practice-analytics-student-result {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+  text-align: right;
+}
+
+.analytics-state {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.analytics-state--not_started {
+  color: var(--color-muted-foreground) !important;
+  background: var(--color-surface-subtle);
+}
+
+.analytics-state--needs_support {
+  color: var(--color-warning) !important;
+  background: var(--color-warning-soft);
+}
+
+.practice-analytics-lecturer-list article {
+  align-items: flex-start;
+}
+
+.practice-analytics-lecturer-list dl {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0;
+  text-align: right;
+}
+
+.practice-analytics-lecturer-list dl div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.practice-analytics-lecturer-list dd {
+  margin: 0;
+  color: var(--color-heading);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-analytics-updated {
+  margin: 0;
+  color: var(--color-subtle-foreground);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
 .practice-analytics-empty {
   margin: 0;
   color: var(--color-muted-foreground);
@@ -174,5 +276,20 @@
 
   .practice-analytics-class-select {
     width: 100%;
+  }
+
+  .practice-analytics-student-list article,
+  .practice-analytics-lecturer-list article {
+    display: grid;
+  }
+
+  .practice-analytics-student-result {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .practice-analytics-lecturer-list dl {
+    justify-content: space-between;
+    text-align: left;
   }
 }

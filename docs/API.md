@@ -80,6 +80,17 @@ giảng viên `lead` của lớp.
 | `GET`  | `/api/admin/questions/routed`             | Câu hỏi đã vào hàng đợi nhưng chưa được trả lời |
 | `POST` | `/api/admin/questions/:id/reassign`       | Chuyển người xử lý trong cùng lớp               |
 
+### Thống kê lớp tín chỉ
+
+| Method | Endpoint                                     | Mô tả                                                 |
+| ------ | -------------------------------------------- | ----------------------------------------------------- |
+| `GET`  | `/api/lecturer/classes/:classId/analytics`   | Thống kê lớp đang được phân công                      |
+| `GET`  | `/api/lecturer/practice-analytics?classId=…` | Endpoint tương thích cho màn hình thống kê giảng viên |
+| `GET`  | `/api/admin/classes/:classId/analytics`      | Toàn bộ thống kê của một lớp cho quản trị viên        |
+
+Payload gồm `summary`, `qna`, `byChapter`, `questions`, `students` và `lecturerActivity`. Tất cả
+truy vấn đều lọc trực tiếp bằng `class_id`; dữ liệu của các tổ cùng môn không được cộng lẫn.
+
 ### Ngân hàng câu hỏi luyện tập
 
 | Method  | Endpoint                                            | Mô tả                                               |

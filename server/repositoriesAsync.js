@@ -2528,6 +2528,295 @@ export function createAsyncRepositories(db) {
       }))
     },
   }
+  async function buildClassAnalytics(classIds, filters = {}) {
+    if (classIds.length === 0) {
+      return {
+        scope: { classIds: [], classId: filters.classId ?? null, subjectId: null },
+        courseClass: null,
+        summary: {
+          studentCount: 0,
+          activeStudentCount: 0,
+          participationRate: 0,
+          attemptCount: 0,
+          practiceAttemptCount: 0,
+          mockExamAttemptCount: 0,
+          completedCount: 0,
+          answeredCount: 0,
+          accuracy: 0,
+          averageScore: 0,
+          lecturerCount: 0,
+        },
+        qna: { total: 0, pending: 0, answered: 0, overdue: 0, averageResponseHours: 0 },
+        byChapter: [],
+        questions: [],
+        students: [],
+        lecturerActivity: [],
+      }
+    }
+
+    const placeholders = classIds.map(() => '?').join(', ')
+    const classes = await db.many(
+      `SELECT course_classes.id, course_classes.name, course_classes.class_code,
+              course_classes.group_number, course_classes.semester,
+              subjects.id AS subject_id, subjects.name AS subject_name
+       FROM course_classes
+       JOIN subjects ON subjects.id = course_classes.subject_id
+       WHERE course_classes.id IN (${placeholders})`,
+      classIds,
+    )
+    const enrollments = await db.many(
+      `SELECT enrollments.class_id, users.id AS student_id, users.name, users.email,
+              enrollment_profiles.status AS profile_status,
+              enrollment_profiles.last_active_at
+       FROM enrollments
+       JOIN users ON users.id = enrollments.student_id
+       LEFT JOIN enrollment_profiles ON enrollment_profiles.enrollment_id = enrollments.id
+       WHERE enrollments.class_id IN (${placeholders})
+       ORDER BY users.name`,
+      classIds,
+    )
+    const params = [...classIds]
+    const predicates = [`practice_sessions.class_id IN (${placeholders})`]
+    if (filters.subjectId) {
+      predicates.push('practice_sessions.subject_id = ?')
+      params.push(filters.subjectId)
+    }
+    const sessions = await db.many(
+      `SELECT practice_sessions.id, practice_sessions.student_id, practice_sessions.status,
+              practice_sessions.subject_id, practice_sessions.chapter_id,
+              practice_sessions.session_type, practice_sessions.question_count,
+              practice_sessions.answered_count, practice_sessions.correct_count,
+              practice_sessions.started_at, practice_sessions.completed_at,
+              practice_sessions.updated_at, subjects.name AS subject_name
+       FROM practice_sessions
+       JOIN subjects ON subjects.id = practice_sessions.subject_id
+       WHERE ${predicates.join(' AND ')}`,
+      params,
+    )
+    const sessionIds = sessions.map((row) => row.id)
+    let answers = []
+    if (sessionIds.length) {
+      const answerPlaceholders = sessionIds.map(() => '?').join(', ')
+      answers = await db.many(
+        `SELECT practice_sessions.student_id,
+                practice_session_questions.question_id,
+                practice_session_questions.is_correct,
+                COALESCE(practice_sessions.chapter_id, practice_questions.chapter_id) AS chapter_id,
+                chapters.title AS chapter_title,
+                practice_questions.content
+         FROM practice_session_questions
+         JOIN practice_sessions ON practice_sessions.id = practice_session_questions.session_id
+         JOIN practice_questions ON practice_questions.id = practice_session_questions.question_id
+         LEFT JOIN chapters
+           ON chapters.id = COALESCE(practice_sessions.chapter_id, practice_questions.chapter_id)
+         WHERE practice_session_questions.session_id IN (${answerPlaceholders})
+           AND practice_session_questions.selected_option_id IS NOT NULL`,
+        sessionIds,
+      )
+    }
+    const qnaRows = await db.many(
+      `SELECT questions.id, questions.status, questions.routing_status, questions.claimed_by,
+              questions.created_at, questions.updated_at,
+              lecturer_answers.lecturer_id AS answer_lecturer_id,
+              lecturer_answers.created_at AS answer_created_at
+       FROM questions
+       LEFT JOIN lecturer_answers ON lecturer_answers.question_id = questions.id
+       WHERE questions.class_id IN (${placeholders})`,
+      classIds,
+    )
+    const lecturerRows = await db.many(
+      `SELECT class_lecturer_assignments.class_id, class_lecturer_assignments.lecturer_id,
+              class_lecturer_assignments.assignment_role, users.name, users.email
+       FROM class_lecturer_assignments
+       JOIN users ON users.id = class_lecturer_assignments.lecturer_id
+       WHERE class_lecturer_assignments.class_id IN (${placeholders})
+         AND class_lecturer_assignments.status = 'active'
+         AND users.status = 'active'
+       ORDER BY CASE WHEN class_lecturer_assignments.assignment_role = 'lead' THEN 0 ELSE 1 END,
+                users.name`,
+      classIds,
+    )
+
+    const correct = answers.filter((row) => Number(row.is_correct) === 1).length
+    const byChapterMap = new Map()
+    const questionMap = new Map()
+    for (const answer of answers) {
+      const chapterKey = answer.chapter_id ?? 'unassigned'
+      const chapter = byChapterMap.get(chapterKey) ?? {
+        chapterId: answer.chapter_id,
+        chapterTitle: answer.chapter_title,
+        answered: 0,
+        correct: 0,
+      }
+      chapter.answered += 1
+      chapter.correct += Number(answer.is_correct) === 1 ? 1 : 0
+      byChapterMap.set(chapterKey, chapter)
+      const question = questionMap.get(answer.question_id) ?? {
+        questionId: answer.question_id,
+        content: answer.content,
+        attempts: 0,
+        correct: 0,
+      }
+      question.attempts += 1
+      question.correct += Number(answer.is_correct) === 1 ? 1 : 0
+      questionMap.set(answer.question_id, question)
+    }
+
+    const sessionsByStudent = new Map()
+    const answersByStudent = new Map()
+    for (const session of sessions) {
+      const current = sessionsByStudent.get(session.student_id) ?? []
+      current.push(session)
+      sessionsByStudent.set(session.student_id, current)
+    }
+    for (const answer of answers) {
+      const current = answersByStudent.get(answer.student_id) ?? []
+      current.push(answer)
+      answersByStudent.set(answer.student_id, current)
+    }
+    const students = enrollments.map((enrollment) => {
+      const studentSessions = sessionsByStudent.get(enrollment.student_id) ?? []
+      const studentAnswers = answersByStudent.get(enrollment.student_id) ?? []
+      const studentCorrect = studentAnswers.filter((row) => Number(row.is_correct) === 1).length
+      const accuracy = studentAnswers.length
+        ? Math.round((studentCorrect / studentAnswers.length) * 100)
+        : 0
+      const lastSessionAt = studentSessions
+        .map((row) => row.updated_at)
+        .filter(Boolean)
+        .sort()
+        .at(-1)
+      const participationStatus =
+        studentSessions.length === 0
+          ? 'not_started'
+          : accuracy < 60 || enrollment.profile_status === 'attention'
+            ? 'needs_support'
+            : 'on_track'
+      return {
+        id: enrollment.student_id,
+        classId: enrollment.class_id,
+        name: enrollment.name,
+        email: enrollment.email,
+        sessionCount: studentSessions.length,
+        completedCount: studentSessions.filter((row) => row.status === 'completed').length,
+        answeredCount: studentAnswers.length,
+        accuracy,
+        lastActiveAt: lastSessionAt ?? enrollment.last_active_at ?? null,
+        participationStatus,
+      }
+    })
+    const activeStudentCount = students.filter((student) => student.sessionCount > 0).length
+    const completedSessions = sessions.filter((row) => row.status === 'completed')
+    const averageScore = completedSessions.length
+      ? Math.round(
+          completedSessions.reduce(
+            (sum, row) => sum + (Number(row.correct_count) / Number(row.question_count)) * 100,
+            0,
+          ) / completedSessions.length,
+        )
+      : 0
+    const now = Date.now()
+    const pendingQna = qnaRows.filter((row) => row.status === 'unanswered')
+    const answeredQna = qnaRows.filter((row) => row.status === 'answered')
+    const responseDurations = answeredQna
+      .map((row) => {
+        const respondedAt = row.answer_created_at ?? row.updated_at
+        return (new Date(respondedAt).getTime() - new Date(row.created_at).getTime()) / 3_600_000
+      })
+      .filter((value) => Number.isFinite(value) && value >= 0)
+    const lecturerActivity = lecturerRows.map((lecturer) => {
+      const answered = qnaRows.filter((row) => row.answer_lecturer_id === lecturer.lecturer_id)
+      const durations = answered
+        .map(
+          (row) =>
+            (new Date(row.answer_created_at ?? row.updated_at).getTime() -
+              new Date(row.created_at).getTime()) /
+            3_600_000,
+        )
+        .filter((value) => Number.isFinite(value) && value >= 0)
+      return {
+        id: lecturer.lecturer_id,
+        name: lecturer.name,
+        email: lecturer.email,
+        assignmentRole: lecturer.assignment_role,
+        openClaims: pendingQna.filter((row) => row.claimed_by === lecturer.lecturer_id).length,
+        answeredCount: answered.length,
+        averageResponseHours: durations.length
+          ? Math.round((durations.reduce((sum, value) => sum + value, 0) / durations.length) * 10) /
+            10
+          : 0,
+      }
+    })
+
+    return {
+      scope: {
+        classIds,
+        classId: filters.classId ?? null,
+        subjectId: filters.subjectId ?? classes[0]?.subject_id ?? null,
+      },
+      courseClass:
+        classes.length === 1
+          ? {
+              id: classes[0].id,
+              name: classes[0].name,
+              classCode: classes[0].class_code,
+              groupNumber: classes[0].group_number,
+              semester: classes[0].semester,
+              subjectId: classes[0].subject_id,
+              subjectName: classes[0].subject_name,
+            }
+          : null,
+      summary: {
+        studentCount: students.length,
+        activeStudentCount,
+        participationRate: students.length
+          ? Math.round((activeStudentCount / students.length) * 100)
+          : 0,
+        attemptCount: sessions.length,
+        practiceAttemptCount: sessions.filter((row) => row.session_type !== 'mock_exam').length,
+        mockExamAttemptCount: sessions.filter((row) => row.session_type === 'mock_exam').length,
+        completedCount: completedSessions.length,
+        answeredCount: answers.length,
+        accuracy: answers.length ? Math.round((correct / answers.length) * 100) : 0,
+        averageScore,
+        lecturerCount: lecturerRows.length,
+      },
+      qna: {
+        total: qnaRows.length,
+        pending: pendingQna.length,
+        answered: answeredQna.length,
+        overdue: pendingQna.filter(
+          (row) => now - new Date(row.created_at).getTime() >= QUESTION_SLA_HOURS * 3_600_000,
+        ).length,
+        averageResponseHours: responseDurations.length
+          ? Math.round(
+              (responseDurations.reduce((sum, value) => sum + value, 0) /
+                responseDurations.length) *
+                10,
+            ) / 10
+          : 0,
+      },
+      byChapter: [...byChapterMap.values()].map((item) => ({
+        ...item,
+        accuracy: item.answered ? Math.round((item.correct / item.answered) * 100) : 0,
+      })),
+      questions: [...questionMap.values()]
+        .map((item) => ({
+          ...item,
+          accuracy: item.attempts ? Math.round((item.correct / item.attempts) * 100) : 0,
+        }))
+        .sort((a, b) => a.accuracy - b.accuracy || b.attempts - a.attempts),
+      students: students.sort((a, b) => {
+        const priority = { needs_support: 0, not_started: 1, on_track: 2 }
+        return (
+          priority[a.participationStatus] - priority[b.participationStatus] ||
+          a.name.localeCompare(b.name, 'vi')
+        )
+      }),
+      lecturerActivity,
+    }
+  }
+
   const practiceAnalyticsRepository = {
     async getForLecturer(lecturerId, filters = {}) {
       let classIds
@@ -2546,101 +2835,12 @@ export function createAsyncRepositories(db) {
           )
         ).map((row) => row.id)
       }
-      if (classIds.length === 0) {
-        return {
-          summary: {
-            studentCount: 0,
-            activeStudentCount: 0,
-            attemptCount: 0,
-            completedCount: 0,
-            accuracy: 0,
-          },
-          byChapter: [],
-          questions: [],
-        }
-      }
-      const placeholders = classIds.map(() => '?').join(', ')
-      const params = [...classIds]
-      const predicates = [`practice_sessions.class_id IN (${placeholders})`]
-      if (filters.subjectId) {
-        predicates.push('practice_sessions.subject_id = ?')
-        params.push(filters.subjectId)
-      }
-      const sessions = await db.many(
-        `SELECT practice_sessions.id, practice_sessions.student_id, practice_sessions.status,
-                practice_sessions.subject_id, practice_sessions.chapter_id,
-                subjects.name AS subject_name
-         FROM practice_sessions
-         JOIN subjects ON subjects.id = practice_sessions.subject_id
-         WHERE ${predicates.join(' AND ')}`,
-        params,
-      )
-      const sessionIds = sessions.map((row) => row.id)
-      let answers = []
-      if (sessionIds.length) {
-        const answerPlaceholders = sessionIds.map(() => '?').join(', ')
-        answers = await db.many(
-          `SELECT practice_sessions.student_id,
-                  practice_session_questions.question_id,
-                  practice_session_questions.is_correct,
-                  practice_sessions.chapter_id,
-                  chapters.title AS chapter_title,
-                  practice_questions.content,
-                  practice_questions.difficulty
-           FROM practice_session_questions
-           JOIN practice_sessions ON practice_sessions.id = practice_session_questions.session_id
-           JOIN practice_questions ON practice_questions.id = practice_session_questions.question_id
-           LEFT JOIN chapters ON chapters.id = practice_sessions.chapter_id
-           WHERE practice_session_questions.session_id IN (${answerPlaceholders})
-             AND practice_session_questions.selected_option_id IS NOT NULL`,
-          sessionIds,
-        )
-      }
-      const correct = answers.filter((row) => Number(row.is_correct) === 1).length
-      const byChapterMap = new Map()
-      const questionMap = new Map()
-      for (const answer of answers) {
-        const chapter = byChapterMap.get(answer.chapter_id) ?? {
-          chapterId: answer.chapter_id,
-          chapterTitle: answer.chapter_title,
-          answered: 0,
-          correct: 0,
-        }
-        chapter.answered += 1
-        chapter.correct += Number(answer.is_correct) === 1 ? 1 : 0
-        byChapterMap.set(answer.chapter_id, chapter)
-        const question = questionMap.get(answer.question_id) ?? {
-          questionId: answer.question_id,
-          content: answer.content,
-          difficulty: answer.difficulty,
-          attempts: 0,
-          correct: 0,
-        }
-        question.attempts += 1
-        question.correct += Number(answer.is_correct) === 1 ? 1 : 0
-        questionMap.set(answer.question_id, question)
-      }
-      return {
-        scope: { classIds, classId: filters.classId ?? null, subjectId: filters.subjectId ?? null },
-        summary: {
-          studentCount: new Set(sessions.map((row) => row.student_id)).size,
-          activeStudentCount: new Set(answers.map((row) => row.student_id)).size,
-          attemptCount: sessions.length,
-          completedCount: sessions.filter((row) => row.status === 'completed').length,
-          answeredCount: answers.length,
-          accuracy: answers.length ? Math.round((correct / answers.length) * 100) : 0,
-        },
-        byChapter: [...byChapterMap.values()].map((item) => ({
-          ...item,
-          accuracy: item.answered ? Math.round((item.correct / item.answered) * 100) : 0,
-        })),
-        questions: [...questionMap.values()]
-          .map((item) => ({
-            ...item,
-            accuracy: item.attempts ? Math.round((item.correct / item.attempts) * 100) : 0,
-          }))
-          .sort((a, b) => a.accuracy - b.accuracy || b.attempts - a.attempts),
-      }
+      return buildClassAnalytics(classIds, filters)
+    },
+    async getForAdmin(classId) {
+      const courseClass = await db.one('SELECT id FROM course_classes WHERE id = ?', [classId])
+      if (!courseClass) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy lớp tín chỉ.')
+      return buildClassAnalytics([classId], { classId })
     },
   }
 

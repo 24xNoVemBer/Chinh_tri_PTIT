@@ -115,6 +115,13 @@ paths:
     delete:
       operationId: archiveManagedClass
       responses: { '200': { description: Credit class archived } }
+  /api/admin/classes/{classId}/analytics:
+    get:
+      operationId: getAdministrativeClassAnalytics
+      description: Returns class-scoped practice, mock exam, student, lecturer and Q&A analytics.
+      responses:
+        '200': { description: Complete analytics for one credit class }
+        '404': { description: Credit class not found }
   /api/admin/classes/{classId}/lecturers:
     get:
       operationId: listClassLecturers
@@ -197,7 +204,10 @@ paths:
   /api/lecturer/classes/{classId}/analytics:
     get:
       operationId: getClassLearningAnalytics
-      responses: { '200': { description: Class-scoped learning and Q&A metrics } }
+      description: Returns analytics only when the lecturer has an active assignment in this class.
+      responses:
+        '200': { description: Class-scoped learning and Q&A metrics }
+        '403': { description: Lecturer is not actively assigned to the class }
 components:
   securitySchemes:
     sessionCookie:
