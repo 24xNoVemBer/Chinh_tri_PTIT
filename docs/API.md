@@ -59,6 +59,27 @@ Tất cả endpoint dưới đây yêu cầu role `lecturer`.
 | `POST`     | `/api/lecturer/questions/:id/answer`                 | Tạo hoặc cập nhật câu trả lời        |
 | `GET`      | `/api/lecturer/audit-logs`                           | Nhật ký hoạt động liên quan          |
 
+### Hàng đợi hỏi đáp theo lớp
+
+| Method | Endpoint                                                            | Mô tả                                        |
+| ------ | ------------------------------------------------------------------- | -------------------------------------------- |
+| `GET`  | `/api/lecturer/classes/:classId/question-queue`                     | Hàng đợi chung, người nhận và trạng thái SLA |
+| `POST` | `/api/lecturer/classes/:classId/question-queue/:questionId/claim`   | Nhận xử lý câu hỏi bằng cập nhật nguyên tử   |
+| `POST` | `/api/lecturer/classes/:classId/question-queue/:questionId/release` | Trả câu hỏi về hàng đợi                      |
+
+Một câu hỏi chỉ có một người nhận tại một thời điểm. Endpoint trả lời và kiểm duyệt RAG từ chối
+giảng viên khác nếu câu hỏi đã được nhận. SLA mặc định là 24 giờ; cảnh báo quá hạn chỉ được bật cho
+giảng viên `lead` của lớp.
+
+### Điều phối hỏi đáp của quản trị viên
+
+| Method | Endpoint                                  | Mô tả                                           |
+| ------ | ----------------------------------------- | ----------------------------------------------- |
+| `GET`  | `/api/admin/questions/unrouted`           | Câu hỏi chưa xác định được lớp                  |
+| `POST` | `/api/admin/questions/unrouted/:id/route` | Điều phối câu hỏi vào lớp có giảng viên         |
+| `GET`  | `/api/admin/questions/routed`             | Câu hỏi đã vào hàng đợi nhưng chưa được trả lời |
+| `POST` | `/api/admin/questions/:id/reassign`       | Chuyển người xử lý trong cùng lớp               |
+
 ### Ngân hàng câu hỏi luyện tập
 
 | Method  | Endpoint                                            | Mô tả                                               |

@@ -202,6 +202,10 @@ export function createRequestHandler({
           pathname,
           /^\/api\/admin\/questions\/unrouted\/([^/]+)\/route$/,
         )
+        const reassignQuestionMatch = matchPath(
+          pathname,
+          /^\/api\/admin\/questions\/([^/]+)\/reassign$/,
+        )
 
         if (method === 'GET' && pathname === '/api/admin/users') {
           sendData(
@@ -476,12 +480,34 @@ export function createRequestHandler({
           sendData(response, await adminRepository.listUnroutedQuestions())
           return
         }
+        if (method === 'GET' && pathname === '/api/admin/questions/routed') {
+          sendData(
+            response,
+            await adminRepository.listRoutedQuestions({
+              classId: searchParams.get('classId') ?? '',
+            }),
+          )
+          return
+        }
         if (method === 'POST' && unroutedQuestionMatch) {
           const input = await readJson(request)
           requireFields(input, ['classId'])
           sendData(
             response,
             await adminRepository.routeQuestion(unroutedQuestionMatch[0], input.classId, admin.id),
+          )
+          return
+        }
+        if (method === 'POST' && reassignQuestionMatch) {
+          const input = await readJson(request)
+          requireFields(input, ['lecturerId'])
+          sendData(
+            response,
+            await adminRepository.reassignQuestion(
+              reassignQuestionMatch[0],
+              input.lecturerId,
+              admin.id,
+            ),
           )
           return
         }
@@ -547,6 +573,18 @@ export function createRequestHandler({
         const classPracticeQuestionsMatch = matchPath(
           pathname,
           /^\/api\/lecturer\/classes\/([^/]+)\/practice-questions$/,
+        )
+        const classQuestionQueueMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/classes\/([^/]+)\/question-queue$/,
+        )
+        const classQuestionClaimMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/classes\/([^/]+)\/question-queue\/([^/]+)\/claim$/,
+        )
+        const classQuestionReleaseMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/classes\/([^/]+)\/question-queue\/([^/]+)\/release$/,
         )
         const practiceQuestionPublishMatch = matchPath(
           pathname,
@@ -691,6 +729,43 @@ export function createRequestHandler({
               status: searchParams.get('status') ?? 'all',
               query: searchParams.get('query') ?? '',
             }),
+          )
+          return
+        }
+        if (method === 'GET' && classQuestionQueueMatch) {
+          sendData(
+            response,
+            await repositories.questionRepository.listQueue(
+              classQuestionQueueMatch[0],
+              lecturer.id,
+              {
+                status: searchParams.get('status') ?? 'all',
+                routingStatus: searchParams.get('routingStatus') ?? 'all',
+                query: searchParams.get('query') ?? '',
+              },
+            ),
+          )
+          return
+        }
+        if (method === 'POST' && classQuestionClaimMatch) {
+          sendData(
+            response,
+            await repositories.questionRepository.claim(
+              classQuestionClaimMatch[1],
+              classQuestionClaimMatch[0],
+              lecturer.id,
+            ),
+          )
+          return
+        }
+        if (method === 'POST' && classQuestionReleaseMatch) {
+          sendData(
+            response,
+            await repositories.questionRepository.release(
+              classQuestionReleaseMatch[1],
+              classQuestionReleaseMatch[0],
+              lecturer.id,
+            ),
           )
           return
         }

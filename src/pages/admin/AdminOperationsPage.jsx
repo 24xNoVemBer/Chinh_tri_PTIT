@@ -7,15 +7,32 @@ import './AdminPage.css'
 
 export default function AdminOperationsPage() {
   const loader = useCallback(async () => {
-    const [questions, classes, auditLogs] = await Promise.all([
+    const [questions, routedQuestions, classes, auditLogs] = await Promise.all([
       adminRepository.listUnroutedQuestions(),
+      adminRepository.listRoutedQuestions(),
       adminRepository.listClasses({ status: 'active' }),
       adminRepository.listAuditLogs(100),
     ])
-    return { questions, classes, auditLogs }
+    const lecturerEntries = await Promise.all(
+      classes.map(async (courseClass) => [
+        courseClass.id,
+        (await adminRepository.listClassLecturers(courseClass.id)).filter(
+          (assignment) => assignment.status === 'active' && assignment.user_status === 'active',
+        ),
+      ]),
+    )
+    return {
+      questions,
+      routedQuestions,
+      classes,
+      auditLogs,
+      lecturersByClass: Object.fromEntries(lecturerEntries),
+    }
   }, [])
   const { data, loading, error, reload } = useAsyncData(loader)
   const [selections, setSelections] = useState({})
+  const [assigneeSelections, setAssigneeSelections] = useState({})
+  const [busyQuestionId, setBusyQuestionId] = useState('')
   const [feedback, setFeedback] = useState('')
   async function route(question) {
     const classId = selections[question.id]
@@ -29,6 +46,23 @@ export default function AdminOperationsPage() {
       reload()
     } catch (cause) {
       setFeedback(cause.message)
+    }
+  }
+  async function reassign(question) {
+    const lecturerId = assigneeSelections[question.id]
+    if (!lecturerId) {
+      setFeedback('Hãy chọn giảng viên thuộc lớp tín chỉ này.')
+      return
+    }
+    setBusyQuestionId(question.id)
+    try {
+      await adminRepository.reassignQuestion(question.id, lecturerId)
+      setFeedback('Đã chuyển người xử lý câu hỏi.')
+      await reload()
+    } catch (cause) {
+      setFeedback(cause.message)
+    } finally {
+      setBusyQuestionId('')
     }
   }
   if (loading) return <LoadingState label="Đang tải dữ liệu vận hành…" />
@@ -108,6 +142,84 @@ export default function AdminOperationsPage() {
           </table>
         </div>
         {!data.questions.length && <p className="admin-empty">Không có câu hỏi chờ điều phối.</p>}
+      </section>
+      <section className="admin-panel">
+        <div className="admin-panel__header">
+          <div>
+            <h2>Điều phối người xử lý</h2>
+            <p>{data.routedQuestions.length} câu chưa trả lời trong các hàng đợi lớp.</p>
+          </div>
+        </div>
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th scope="col">Câu hỏi</th>
+                <th scope="col">Lớp</th>
+                <th scope="col">Người xử lý hiện tại</th>
+                <th scope="col">Chuyển cho</th>
+                <th scope="col">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.routedQuestions.map((question) => (
+                <tr key={question.id}>
+                  <td>
+                    <strong>{question.content}</strong>
+                    <small>{question.student_name}</small>
+                  </td>
+                  <td>
+                    <strong>{question.class_code}</strong>
+                    <small>Tổ {question.group_number}</small>
+                  </td>
+                  <td>
+                    {question.claimed_by_name ? (
+                      <>
+                        <strong>{question.claimed_by_name}</strong>
+                        <small>{question.claimed_by_email}</small>
+                      </>
+                    ) : (
+                      <span className="admin-status admin-status--muted">Chưa có người nhận</span>
+                    )}
+                  </td>
+                  <td>
+                    <select
+                      aria-label={`Người xử lý mới cho câu hỏi ${question.id}`}
+                      value={assigneeSelections[question.id] ?? ''}
+                      onChange={(event) =>
+                        setAssigneeSelections((current) => ({
+                          ...current,
+                          [question.id]: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Chọn giảng viên</option>
+                      {(data.lecturersByClass[question.class_id] ?? []).map((assignment) => (
+                        <option key={assignment.id} value={assignment.lecturer_id}>
+                          {assignment.name}
+                          {assignment.assignment_role === 'lead' ? ' · Phụ trách chính' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <button
+                      className="button button--secondary"
+                      type="button"
+                      disabled={busyQuestionId === question.id}
+                      onClick={() => reassign(question)}
+                    >
+                      {busyQuestionId === question.id ? 'Đang chuyển…' : 'Chuyển xử lý'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!data.routedQuestions.length && (
+          <p className="admin-empty">Không có câu hỏi nào cần điều phối người xử lý.</p>
+        )}
       </section>
       <section className="admin-panel">
         <div className="admin-panel__header">

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { ArrowLeft, Check, MessageCircleQuestion, RotateCcw, Send, X } from 'lucide-react'
+import { ArrowLeft, Check, Hand, MessageCircleQuestion, RotateCcw, Send, X } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import {
   EmptyState,
@@ -237,6 +237,8 @@ function AnswerForm({ lecturerId, question, onReload }) {
 export default function QuestionDetailPage() {
   const { user: currentLecturer } = useAuth()
   const { questionId } = useParams()
+  const [queueBusy, setQueueBusy] = useState('')
+  const [queueError, setQueueError] = useState('')
   const loader = useCallback(
     () => questionRepository.getForLecturer(questionId, currentLecturer.id),
     [questionId, currentLecturer.id],
@@ -251,6 +253,26 @@ export default function QuestionDetailPage() {
   const backPath = question.courseClass
     ? `/lecturer/classes/${question.courseClass.id}/questions`
     : '/lecturer/questions'
+  const isUnanswered = question.status === 'unanswered'
+  const isClaimedByCurrentLecturer = question.claimedBy?.id === currentLecturer.id
+  const isClaimedByAnother = Boolean(question.claimedBy) && !isClaimedByCurrentLecturer
+  const ownsExistingAnswer = question.lecturerAnswer?.lecturerId === currentLecturer.id
+  const canRespond = isClaimedByCurrentLecturer || ownsExistingAnswer
+
+  const updateQueue = async (action) => {
+    if (!question.courseClass) return
+    setQueueBusy(action)
+    setQueueError('')
+    try {
+      await questionRepository[action](question.id, question.courseClass.id)
+      await reload()
+    } catch (cause) {
+      setQueueError(cause.message ?? 'Không thể cập nhật người xử lý câu hỏi.')
+      await reload()
+    } finally {
+      setQueueBusy('')
+    }
+  }
 
   return (
     <div className="page-stack page-stack--narrow">
@@ -266,7 +288,23 @@ export default function QuestionDetailPage() {
 
       <article className="question-detail">
         <div className="question-card__header">
-          <StatusLabel type={question.status} />
+          <div className="question-card__badges">
+            <StatusLabel type={question.status} />
+            {isUnanswered && (
+              <span className={`queue-label queue-label--${question.routingStatus}`}>
+                {question.routingStatus === 'queued'
+                  ? 'Chưa có người nhận'
+                  : isClaimedByCurrentLecturer
+                    ? 'Bạn đang xử lý'
+                    : `${question.claimedBy?.name ?? 'Giảng viên khác'} đang xử lý`}
+              </span>
+            )}
+            {isUnanswered && question.sla && question.sla.status !== 'on_track' && (
+              <span className={`sla-label sla-label--${question.sla.status}`}>
+                {question.sla.status === 'overdue' ? 'Quá hạn SLA' : 'Sắp đến hạn SLA'}
+              </span>
+            )}
+          </div>
           <time dateTime={question.createdAt}>{formatDateTime(question.createdAt)}</time>
         </div>
         <div className="question-detail__icon">
@@ -289,8 +327,56 @@ export default function QuestionDetailPage() {
         </dl>
       </article>
 
+      {queueError && (
+        <p className="field-error" role="alert">
+          {queueError}
+        </p>
+      )}
+      {isUnanswered && question.routingStatus === 'queued' && (
+        <section className="queue-action-panel" aria-labelledby="queue-action-title">
+          <div>
+            <p className="section-heading__eyebrow">Hàng đợi chung</p>
+            <h2 id="queue-action-title">Nhận câu hỏi trước khi trả lời</h2>
+            <p>Thao tác này khóa người xử lý để tránh hai giảng viên trả lời cùng một câu.</p>
+          </div>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={Boolean(queueBusy)}
+            onClick={() => updateQueue('claim')}
+          >
+            <Hand aria-hidden="true" size={18} />
+            {queueBusy === 'claim' ? 'Đang nhận…' : 'Nhận xử lý'}
+          </button>
+        </section>
+      )}
+      {isUnanswered && isClaimedByCurrentLecturer && (
+        <section className="queue-action-panel queue-action-panel--claimed">
+          <div>
+            <p className="section-heading__eyebrow">Đang xử lý</p>
+            <h2>Câu hỏi đang được giao cho bạn</h2>
+            <p>Bạn có thể trả lời hoặc trả câu hỏi về hàng đợi để giảng viên khác tiếp nhận.</p>
+          </div>
+          <button
+            className="button button--secondary"
+            type="button"
+            disabled={Boolean(queueBusy)}
+            onClick={() => updateQueue('release')}
+          >
+            <RotateCcw aria-hidden="true" size={18} />
+            {queueBusy === 'release' ? 'Đang trả lại…' : 'Trả lại hàng đợi'}
+          </button>
+        </section>
+      )}
+      {isUnanswered && isClaimedByAnother && (
+        <div className="feedback-banner feedback-banner--warning" role="status">
+          Câu hỏi đang do {question.claimedBy.name ?? 'một giảng viên khác'} xử lý. Bạn có thể theo
+          dõi nhưng không thể thay đổi câu trả lời.
+        </div>
+      )}
+
       {question.ragResponse && <RagAnswerPanel response={question.ragResponse} />}
-      {question.ragResponse && (
+      {question.ragResponse && canRespond && (
         <RagReviewForm
           key={`${question.ragResponse.id}-${question.ragResponse.reviewStatus}`}
           lecturerId={currentLecturer.id}
@@ -299,12 +385,20 @@ export default function QuestionDetailPage() {
         />
       )}
 
-      <AnswerForm
-        key={`${question.id}-${question.lecturerAnswer?.updatedAt ?? 'new'}`}
-        lecturerId={currentLecturer.id}
-        question={question}
-        onReload={reload}
-      />
+      {canRespond ? (
+        <AnswerForm
+          key={`${question.id}-${question.lecturerAnswer?.updatedAt ?? 'new'}`}
+          lecturerId={currentLecturer.id}
+          question={question}
+          onReload={reload}
+        />
+      ) : (
+        !isUnanswered && (
+          <div className="feedback-banner" role="status">
+            Câu hỏi đã được giảng viên phụ trách trả lời. Nội dung được hiển thị ở phía trên.
+          </div>
+        )
+      )}
     </div>
   )
 }

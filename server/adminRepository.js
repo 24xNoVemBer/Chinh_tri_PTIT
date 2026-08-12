@@ -845,13 +845,38 @@ export function createAdminRepository(db) {
          FROM questions
          JOIN users ON users.id = questions.student_id
          JOIN subjects ON subjects.id = questions.subject_id
-         WHERE questions.class_id IS NULL OR questions.routing_status = 'unrouted'
+         WHERE questions.status = 'unanswered'
+           AND (questions.class_id IS NULL OR questions.routing_status = 'unrouted')
          ORDER BY questions.created_at`,
       )
     },
 
+    async listRoutedQuestions(filters = {}) {
+      const rows = await db.many(
+        `SELECT questions.*, students.name AS student_name, students.email AS student_email,
+           subjects.name AS subject_name, course_classes.name AS class_name,
+           course_classes.class_code, course_classes.group_number,
+           claimers.name AS claimed_by_name, claimers.email AS claimed_by_email
+         FROM questions
+         JOIN users AS students ON students.id = questions.student_id
+         JOIN subjects ON subjects.id = questions.subject_id
+         JOIN course_classes ON course_classes.id = questions.class_id
+         LEFT JOIN users AS claimers ON claimers.id = questions.claimed_by
+         WHERE questions.status = 'unanswered'
+           AND questions.routing_status IN ('queued', 'claimed')
+         ORDER BY questions.created_at`,
+      )
+      return rows.filter((row) => !filters.classId || row.class_id === filters.classId)
+    },
+
     async routeQuestion(questionId, classId, actorId) {
       const question = await requireEntity(db, 'questions', questionId, 'câu hỏi')
+      if (question.status !== 'unanswered') {
+        throw new ApiError(409, 'QUESTION_ALREADY_ANSWERED', 'Câu hỏi đã được trả lời.')
+      }
+      if (question.class_id && question.routing_status !== 'unrouted') {
+        throw new ApiError(409, 'QUESTION_ALREADY_ROUTED', 'Câu hỏi đã được điều phối vào lớp.')
+      }
       const courseClass = await requireEntity(db, 'course_classes', classId, 'lớp tín chỉ')
       if (question.subject_id !== courseClass.subject_id) {
         throw new ApiError(400, 'SUBJECT_MISMATCH', 'Câu hỏi và lớp tín chỉ không cùng môn.')
@@ -867,12 +892,72 @@ export function createAdminRepository(db) {
           'Sinh viên không thuộc lớp tín chỉ đã chọn.',
         )
       }
+      const activeLecturers = await db.one(
+        `SELECT COUNT(*) AS count
+         FROM class_lecturer_assignments
+         JOIN users ON users.id = class_lecturer_assignments.lecturer_id
+         WHERE class_lecturer_assignments.class_id = ?
+           AND class_lecturer_assignments.status = 'active'
+           AND users.status = 'active'`,
+        [classId],
+      )
+      if (Number(activeLecturers.count) === 0) {
+        throw new ApiError(
+          409,
+          'NO_ACTIVE_LECTURER',
+          'Lớp tín chỉ chưa có giảng viên đang hoạt động để nhận câu hỏi.',
+        )
+      }
       await db.execute(
         `UPDATE questions SET class_id = ?, routing_status = 'queued', claimed_by = NULL,
          claimed_at = NULL, row_version = row_version + 1, updated_at = ? WHERE id = ?`,
         [classId, nowIso(), questionId],
       )
       await writeAudit(db, actorId, 'admin.question.routed', 'question', questionId, { classId })
+      return requireEntity(db, 'questions', questionId, 'câu hỏi')
+    },
+
+    async reassignQuestion(questionId, lecturerId, actorId) {
+      const question = await requireEntity(db, 'questions', questionId, 'câu hỏi')
+      if (!question.class_id || question.routing_status === 'unrouted') {
+        throw new ApiError(
+          409,
+          'QUESTION_NOT_ROUTED',
+          'Cần điều phối câu hỏi vào lớp trước khi gán giảng viên.',
+        )
+      }
+      if (question.status !== 'unanswered') {
+        throw new ApiError(409, 'QUESTION_ALREADY_ANSWERED', 'Câu hỏi đã được trả lời.')
+      }
+      const assignment = await db.one(
+        `SELECT class_lecturer_assignments.id
+         FROM class_lecturer_assignments
+         JOIN users ON users.id = class_lecturer_assignments.lecturer_id
+         WHERE class_lecturer_assignments.class_id = ?
+           AND class_lecturer_assignments.lecturer_id = ?
+           AND class_lecturer_assignments.status = 'active'
+           AND users.status = 'active'`,
+        [question.class_id, lecturerId],
+      )
+      if (!assignment) {
+        throw new ApiError(
+          409,
+          'LECTURER_NOT_ASSIGNED',
+          'Giảng viên không được phân công vào lớp tín chỉ này.',
+        )
+      }
+      const previousClaimedBy = question.claimed_by ?? null
+      const timestamp = nowIso()
+      await db.execute(
+        `UPDATE questions SET claimed_by = ?, claimed_at = ?, routing_status = 'claimed',
+         row_version = row_version + 1, updated_at = ? WHERE id = ?`,
+        [lecturerId, timestamp, timestamp, questionId],
+      )
+      await writeAudit(db, actorId, 'admin.question.reassigned', 'question', questionId, {
+        classId: question.class_id,
+        previousClaimedBy,
+        lecturerId,
+      })
       return requireEntity(db, 'questions', questionId, 'câu hỏi')
     },
 

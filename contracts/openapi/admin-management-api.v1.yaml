@@ -153,6 +153,19 @@ paths:
       responses:
         '200': { description: Question routed to a matching credit class }
         '409': { description: Student is not enrolled in the selected class }
+  /api/admin/questions/routed:
+    get:
+      operationId: listRoutedQuestions
+      description: Lists unanswered queued or claimed questions, optionally filtered by class.
+      responses: { '200': { description: Questions available for administrative reassignment } }
+  /api/admin/questions/{questionId}/reassign:
+    post:
+      operationId: reassignRoutedQuestion
+      description: Assigns an unanswered routed question to an active lecturer of the same class.
+      responses:
+        '200': { description: Question reassigned }
+        '409':
+          { description: Question is not routed, already answered, or lecturer is not assigned }
   /api/admin/audit-logs:
     get:
       operationId: listAdministrativeAuditLogs
@@ -165,7 +178,10 @@ paths:
   /api/lecturer/classes/{classId}/question-queue:
     get:
       operationId: listClassQuestionQueue
-      responses: { '200': { description: Shared class Q&A queue } }
+      description: Returns the shared queue, claim ownership and 24-hour SLA state for an assigned lecturer.
+      responses:
+        '200': { description: Shared class Q&A queue }
+        '403': { description: Lecturer is not actively assigned to the class }
   /api/lecturer/classes/{classId}/question-queue/{questionId}/claim:
     post:
       operationId: claimClassQuestion
@@ -175,7 +191,9 @@ paths:
   /api/lecturer/classes/{classId}/question-queue/{questionId}/release:
     post:
       operationId: releaseClassQuestion
-      responses: { '200': { description: Question returned to the queue } }
+      responses:
+        '200': { description: Question returned to the queue }
+        '409': { description: Question is not currently claimed by this lecturer }
   /api/lecturer/classes/{classId}/analytics:
     get:
       operationId: getClassLearningAnalytics

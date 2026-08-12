@@ -105,10 +105,19 @@ export const apiAdminRepository = {
   listUnroutedQuestions() {
     return apiRequest('/api/admin/questions/unrouted')
   },
+  listRoutedQuestions(filters = {}) {
+    return apiRequest(withQuery('/api/admin/questions/routed', filters))
+  },
   routeQuestion(questionId, classId) {
     return apiRequest(`/api/admin/questions/unrouted/${encodeURIComponent(questionId)}/route`, {
       method: 'POST',
       body: jsonBody({ classId }),
+    })
+  },
+  reassignQuestion(questionId, lecturerId) {
+    return apiRequest(`/api/admin/questions/${encodeURIComponent(questionId)}/reassign`, {
+      method: 'POST',
+      body: jsonBody({ lecturerId }),
     })
   },
   listAuditLogs(limit = 100) {
@@ -190,6 +199,23 @@ export const apiQuestionRepository = {
   },
   listForLecturer(_lecturerId, filters = {}) {
     return apiRequest(withQuery('/api/lecturer/questions', filters))
+  },
+  listQueue(classId, filters = {}) {
+    return apiRequest(
+      withQuery(`/api/lecturer/classes/${encodeURIComponent(classId)}/question-queue`, filters),
+    )
+  },
+  claim(questionId, classId) {
+    return apiRequest(
+      `/api/lecturer/classes/${encodeURIComponent(classId)}/question-queue/${encodeURIComponent(questionId)}/claim`,
+      { method: 'POST' },
+    )
+  },
+  release(questionId, classId) {
+    return apiRequest(
+      `/api/lecturer/classes/${encodeURIComponent(classId)}/question-queue/${encodeURIComponent(questionId)}/release`,
+      { method: 'POST' },
+    )
   },
   getForLecturer(questionId) {
     return apiRequest(`/api/lecturer/questions/${encodeURIComponent(questionId)}`)

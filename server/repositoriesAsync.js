@@ -5,6 +5,7 @@ import { buildDemoChatContent, classifyDemoModeration } from './chatDemo.js'
 import { ApiError } from './http.js'
 const nowIso = () => new Date().toISOString()
 const createId = (prefix) => `${prefix}_${randomUUID()}`
+const QUESTION_SLA_HOURS = 24
 function getExcerpt(value, maxLength = 240) {
   const plainText = String(value ?? '')
     .replace(/<[^>]+>/g, ' ')
@@ -139,6 +140,10 @@ const QUESTION_SELECT = `
     questions.student_id,
     questions.content,
     questions.status,
+    questions.routing_status,
+    questions.claimed_by,
+    questions.claimed_at,
+    questions.row_version,
     questions.created_at,
     questions.updated_at,
     students.name AS student_name,
@@ -162,6 +167,8 @@ const QUESTION_SELECT = `
       LIMIT 1
     ) AS class_lecturer_id,
     course_classes.semester AS class_semester,
+    claimers.name AS claimed_by_name,
+    claimers.email AS claimed_by_email,
     lecturer_answers.id AS answer_id,
     lecturer_answers.lecturer_id AS answer_lecturer_id,
     lecturer_answers.content AS answer_content,
@@ -197,6 +204,7 @@ const QUESTION_SELECT = `
   LEFT JOIN lessons ON lessons.id = questions.lesson_id
   LEFT JOIN chapters ON chapters.id = lessons.chapter_id
   LEFT JOIN lecturer_answers ON lecturer_answers.question_id = questions.id
+  LEFT JOIN users AS claimers ON claimers.id = questions.claimed_by
   LEFT JOIN mock_responses ON mock_responses.question_id = questions.id
   LEFT JOIN rag_requests
     ON rag_requests.id = (
@@ -254,6 +262,15 @@ async function mapQuestion(row, db) {
     requiresReview: true,
     reason: 'Dữ liệu demo cũ chưa có kết quả phân loại ưu tiên.',
   }
+  const ageHours = Math.max((Date.now() - new Date(row.created_at).getTime()) / 3_600_000, 0)
+  const slaStatus =
+    row.status === 'answered'
+      ? 'resolved'
+      : ageHours >= QUESTION_SLA_HOURS
+        ? 'overdue'
+        : ageHours >= QUESTION_SLA_HOURS * 0.75
+          ? 'due_soon'
+          : 'on_track'
   return {
     id: row.id,
     lessonId: row.lesson_id,
@@ -261,6 +278,21 @@ async function mapQuestion(row, db) {
     studentId: row.student_id,
     content: row.content,
     status: row.status,
+    routingStatus: row.routing_status,
+    claimedBy: row.claimed_by
+      ? {
+          id: row.claimed_by,
+          name: row.claimed_by_name,
+          email: row.claimed_by_email,
+        }
+      : null,
+    claimedAt: row.claimed_at,
+    rowVersion: Number(row.row_version ?? 0),
+    sla: {
+      hours: QUESTION_SLA_HOURS,
+      ageHours: Math.round(ageHours * 10) / 10,
+      status: slaStatus,
+    },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     student: {
@@ -1159,6 +1191,91 @@ export function createAsyncRepositories(db) {
         .filter((question) => question.studentId === studentId)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     },
+    async listQueue(classId, lecturerId, filters = {}) {
+      const courseClass = await getOwnedClass(db, classId, lecturerId)
+      const questions = (await this.listForLecturer(lecturerId, { classId, query: filters.query }))
+        .filter(
+          (question) =>
+            !filters.routingStatus ||
+            filters.routingStatus === 'all' ||
+            question.routingStatus === filters.routingStatus,
+        )
+        .filter(
+          (question) =>
+            !filters.status || filters.status === 'all' || question.status === filters.status,
+        )
+      const overdueCount = questions.filter(
+        (question) => question.status === 'unanswered' && question.sla.status === 'overdue',
+      ).length
+      return {
+        classId,
+        viewerRole: courseClass.assignment_role,
+        slaHours: QUESTION_SLA_HOURS,
+        overdueCount,
+        leadAlert: courseClass.assignment_role === 'lead' && overdueCount > 0,
+        items: questions,
+      }
+    },
+    async claim(questionId, classId, lecturerId) {
+      await getOwnedClass(db, classId, lecturerId)
+      const timestamp = nowIso()
+      const result = await db.execute(
+        `UPDATE questions
+         SET claimed_by = ?, claimed_at = ?, routing_status = 'claimed',
+             row_version = row_version + 1, updated_at = ?
+         WHERE id = ? AND class_id = ? AND status = 'unanswered'
+           AND routing_status = 'queued' AND claimed_by IS NULL`,
+        [lecturerId, timestamp, timestamp, questionId, classId],
+      )
+      const changed = Number(result?.changes ?? result?.rowCount ?? 0)
+      if (changed) {
+        await audit(db, lecturerId, 'question.claimed', 'question', questionId, { classId })
+      }
+      if (!changed) {
+        const current = await db.one(
+          'SELECT class_id, status, routing_status, claimed_by FROM questions WHERE id = ?',
+          [questionId],
+        )
+        if (!current) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+        if (current.class_id !== classId) {
+          throw new ApiError(403, 'FORBIDDEN', 'Câu hỏi không thuộc lớp tín chỉ này.')
+        }
+        if (current.claimed_by === lecturerId && current.routing_status === 'claimed') {
+          return this.getForLecturer(questionId, lecturerId)
+        }
+        throw new ApiError(
+          409,
+          'QUESTION_ALREADY_CLAIMED',
+          current.status === 'answered'
+            ? 'Câu hỏi đã được trả lời.'
+            : 'Câu hỏi đã được giảng viên khác nhận xử lý.',
+        )
+      }
+      return this.getForLecturer(questionId, lecturerId)
+    },
+    async release(questionId, classId, lecturerId) {
+      await getOwnedClass(db, classId, lecturerId)
+      const timestamp = nowIso()
+      const result = await db.execute(
+        `UPDATE questions
+         SET claimed_by = NULL, claimed_at = NULL, routing_status = 'queued',
+             row_version = row_version + 1, updated_at = ?
+         WHERE id = ? AND class_id = ? AND status = 'unanswered'
+           AND routing_status = 'claimed' AND claimed_by = ?`,
+        [timestamp, questionId, classId, lecturerId],
+      )
+      if (Number(result?.changes ?? result?.rowCount ?? 0) === 0) {
+        const current = await db.one('SELECT id FROM questions WHERE id = ?', [questionId])
+        if (!current) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+        throw new ApiError(
+          409,
+          'QUESTION_NOT_OWNED',
+          'Bạn chỉ có thể trả lại câu hỏi đang do chính mình nhận xử lý.',
+        )
+      }
+      await audit(db, lecturerId, 'question.released', 'question', questionId, { classId })
+      return this.getForLecturer(questionId, lecturerId)
+    },
     async getForLecturer(questionId, lecturerId) {
       const question = (await this.listForLecturer(lecturerId)).find(
         (item) => item.id === questionId,
@@ -1257,6 +1374,23 @@ export function createAsyncRepositories(db) {
       const existing = await db.one('SELECT * FROM lecturer_answers WHERE question_id = ?', [
         questionId,
       ])
+      if (question.status === 'unanswered' && question.claimedBy?.id !== lecturerId) {
+        if (question.claimedBy) {
+          throw new ApiError(
+            409,
+            'QUESTION_ALREADY_CLAIMED',
+            'Câu hỏi đang được giảng viên khác xử lý.',
+          )
+        }
+        await this.claim(questionId, question.courseClass.id, lecturerId)
+      }
+      if (existing && existing.lecturer_id !== lecturerId) {
+        throw new ApiError(
+          409,
+          'ANSWER_OWNED_BY_ANOTHER_LECTURER',
+          'Câu trả lời thuộc giảng viên khác; quản trị viên cần điều phối lại nếu cần.',
+        )
+      }
       const timestamp = nowIso()
       let answerId
       if (existing) {
@@ -1278,9 +1412,10 @@ export function createAsyncRepositories(db) {
       }
       await db.execute(
         `UPDATE questions
-         SET status = 'answered', updated_at = ?
+         SET status = 'answered', routing_status = 'answered', claimed_by = ?,
+             claimed_at = COALESCE(claimed_at, ?), row_version = row_version + 1, updated_at = ?
          WHERE id = ?`,
-        [timestamp, questionId],
+        [lecturerId, timestamp, timestamp, questionId],
       )
       await audit(
         db,
@@ -2732,7 +2867,24 @@ export function createAsyncRepositories(db) {
         [responseId],
       )
       if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu trả lời RAG.')
-      await questionRepository.getForLecturer(row.question_id, lecturerId)
+      const question = await questionRepository.getForLecturer(row.question_id, lecturerId)
+      if (question.status === 'unanswered' && question.claimedBy?.id !== lecturerId) {
+        if (question.claimedBy) {
+          throw new ApiError(
+            409,
+            'QUESTION_ALREADY_CLAIMED',
+            'Câu hỏi đang được giảng viên khác xử lý.',
+          )
+        }
+        await questionRepository.claim(row.question_id, question.courseClass.id, lecturerId)
+      }
+      if (row.reviewed_by && row.reviewed_by !== lecturerId) {
+        throw new ApiError(
+          409,
+          'REVIEW_OWNED_BY_ANOTHER_LECTURER',
+          'Bản kiểm duyệt thuộc giảng viên khác.',
+        )
+      }
       const content = String(input.content ?? row.content).trim()
       if (reviewStatus === 'approved' && content.length < 20) {
         throw new ApiError(400, 'VALIDATION', 'Câu trả lời được duyệt cần ít nhất 20 ký tự.')
@@ -2766,11 +2918,20 @@ export function createAsyncRepositories(db) {
         )
         const questionStatus =
           reviewStatus === 'approved' || hasLecturerAnswer ? 'answered' : 'unanswered'
-        await transaction.execute('UPDATE questions SET status = ?, updated_at = ? WHERE id = ?', [
-          questionStatus,
-          timestamp,
-          row.question_id,
-        ])
+        await transaction.execute(
+          `UPDATE questions
+           SET status = ?, routing_status = ?, claimed_by = ?,
+               claimed_at = COALESCE(claimed_at, ?), row_version = row_version + 1,
+               updated_at = ? WHERE id = ?`,
+          [
+            questionStatus,
+            questionStatus === 'answered' ? 'answered' : 'claimed',
+            lecturerId,
+            timestamp,
+            timestamp,
+            row.question_id,
+          ],
+        )
       })
       await audit(db, lecturerId, `rag.${reviewStatus}`, 'question', row.question_id, {
         responseId,
