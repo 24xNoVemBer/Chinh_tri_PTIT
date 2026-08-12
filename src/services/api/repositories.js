@@ -232,6 +232,11 @@ export const apiPracticeQuestionRepository = {
   listForLecturer(filters = {}) {
     return apiRequest(withQuery('/api/lecturer/practice-questions', filters))
   },
+  listForClass(classId, filters = {}) {
+    return apiRequest(
+      withQuery(`/api/lecturer/classes/${encodeURIComponent(classId)}/practice-questions`, filters),
+    )
+  },
   getForLecturer(questionId) {
     return apiRequest(`/api/lecturer/practice-questions/${encodeURIComponent(questionId)}`)
   },

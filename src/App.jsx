@@ -11,8 +11,7 @@ const NotFoundPage = lazy(() => import('./pages/common/NotFoundPage'))
 const ClassPage = lazy(() => import('./pages/lecturer/ClassPage'))
 const ClassesPage = lazy(() => import('./pages/lecturer/ClassesPage'))
 const ClassStudentsPage = lazy(() => import('./pages/lecturer/ClassStudentsPage'))
-const ClassLessonsPage = lazy(() => import('./pages/lecturer/ClassLessonsPage'))
-const ClassMaterialsPage = lazy(() => import('./pages/lecturer/ClassMaterialsPage'))
+const ClassContentPage = lazy(() => import('./pages/lecturer/ClassContentPage'))
 const LecturerHome = lazy(() => import('./pages/lecturer/LecturerHome'))
 const QuestionInboxPage = lazy(() => import('./pages/lecturer/QuestionInboxPage'))
 const QuestionDetailPage = lazy(() => import('./pages/lecturer/QuestionDetailPage'))
@@ -50,6 +49,11 @@ function LegacyStudentSubjectRedirect() {
 function LegacyLecturerClassRedirect() {
   const { classId } = useParams()
   return <Navigate to={`/lecturer/classes/${classId}`} replace />
+}
+
+function LegacyLecturerContentRedirect() {
+  const { classId } = useParams()
+  return <Navigate to={`/lecturer/classes/${classId}/content`} replace />
 }
 
 function RouteFallback() {
@@ -91,9 +95,15 @@ export default function App() {
             <Route path="classes" element={<ClassesPage />} />
             <Route path="classes/:classId" element={<ClassPage />} />
             <Route path="classes/:classId/students" element={<ClassStudentsPage />} />
-            <Route path="classes/:classId/lessons" element={<ClassLessonsPage />} />
-            <Route path="classes/:classId/materials" element={<ClassMaterialsPage />} />
+            <Route path="classes/:classId/lessons" element={<LegacyLecturerContentRedirect />} />
+            <Route path="classes/:classId/materials" element={<LegacyLecturerContentRedirect />} />
             <Route path="classes/:classId/questions" element={<QuestionsPage />} />
+            <Route
+              path="classes/:classId/practice-questions"
+              element={<PracticeQuestionBankPage />}
+            />
+            <Route path="classes/:classId/analytics" element={<PracticeAnalyticsPage />} />
+            <Route path="classes/:classId/content" element={<ClassContentPage />} />
             <Route path="practice-questions" element={<PracticeQuestionBankPage />} />
             <Route path="practice-analytics" element={<PracticeAnalyticsPage />} />
             <Route path="practice-questions/new" element={<PracticeQuestionEditorPage />} />

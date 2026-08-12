@@ -48,6 +48,7 @@ describe('practice question bank and sessions', () => {
       body: JSON.stringify({
         subjectId: 'sub1',
         chapterId: 'chap1',
+        classIds: ['class1'],
         content: 'Câu hỏi kiểm thử quyền giảng viên có đủ dài?',
         explanation: 'Giải thích cho câu hỏi kiểm thử quyền truy cập.',
         difficulty: 'medium',
@@ -138,6 +139,99 @@ describe('practice question bank and sessions', () => {
     expect(list).toHaveProperty('total')
   })
 
+  it('keeps lecturer-owned banks private while exposing shared questions read-only', async () => {
+    await db.execute(
+      `INSERT INTO class_lecturer_assignments
+       (id, class_id, lecturer_id, assignment_role, status, assigned_at)
+       VALUES ('assignment-class1-l2', 'class1', 'l2', 'lecturer', 'active', ?)`,
+      [new Date().toISOString()],
+    )
+    await db.execute("UPDATE practice_questions SET scope = 'subject_shared' WHERE id = 'pq1'")
+    const lecturer = await login('nva@ptit.edu.vn', 'Lecturer@123')
+
+    const listResponse = await api('/api/lecturer/practice-questions?status=all', lecturer)
+    expect(listResponse.status).toBe(200)
+    const list = (await listResponse.json()).data.items
+    expect(list.find((item) => item.id === 'pq1')).toMatchObject({
+      scope: 'subject_shared',
+      canEdit: false,
+    })
+    expect(list.some((item) => item.id === 'pq2')).toBe(false)
+
+    const privateResponse = await api('/api/lecturer/practice-questions/pq2', lecturer)
+    expect(privateResponse.status).toBe(403)
+
+    const classResponse = await api(
+      '/api/lecturer/classes/class1/practice-questions?status=all',
+      lecturer,
+    )
+    expect(classResponse.status).toBe(200)
+    expect((await classResponse.json()).data.items.map((item) => item.id)).toContain('pq1')
+  })
+
+  it('shows students only shared questions and private questions assigned to their class', async () => {
+    const timestamp = new Date().toISOString()
+    await db.execute(
+      `INSERT INTO course_classes
+       (id, subject_id, name, lecturer_id, semester, academic_term_id, group_number, class_code, status)
+       SELECT 'class-scope-test', 'sub1', 'N03 - Triết học Mác-Lênin', 'l1', semester,
+              academic_term_id, 3, 'N03', 'active'
+       FROM course_classes WHERE id = 'class1'`,
+    )
+    await db.execute(
+      `INSERT INTO class_lecturer_assignments
+       (id, class_id, lecturer_id, assignment_role, status, assigned_at)
+       VALUES ('assignment-scope-test', 'class-scope-test', 'l1', 'lead', 'active', ?)`,
+      [timestamp],
+    )
+    await db.execute(
+      `INSERT INTO enrollments (id, student_id, class_id)
+       VALUES ('enrollment-scope-test', 's1', 'class-scope-test')`,
+    )
+    await db.execute("UPDATE practice_questions SET scope = 'subject_shared' WHERE id = 'pq1'")
+
+    const lecturer = await login('ductu@ptit.edu.vn', 'Lecturer@123')
+    const createResponse = await api('/api/lecturer/practice-questions', lecturer, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        chapterId: 'chap1',
+        classIds: ['class1'],
+        content: 'Câu hỏi riêng chỉ được phân phối cho đúng lớp tín chỉ đã chọn?',
+        explanation: 'Câu hỏi riêng được lọc theo bảng phân công câu hỏi cho lớp tín chỉ.',
+        correctOptionKey: 'A',
+        options: [
+          { key: 'A', content: 'Chỉ lớp được gán' },
+          { key: 'B', content: 'Mọi lớp cùng môn' },
+          { key: 'C', content: 'Mọi sinh viên' },
+          { key: 'D', content: 'Không lớp nào' },
+        ],
+      }),
+    })
+    expect(createResponse.status).toBe(201)
+    const privateQuestion = (await createResponse.json()).data
+    await api(`/api/lecturer/practice-questions/${privateQuestion.id}/publish`, lecturer, {
+      method: 'POST',
+    })
+
+    const student = await login('tuananh@ptit.edu.vn', 'Student@123')
+    const sessionResponse = await api('/api/student/practice-sessions', student, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        classId: 'class-scope-test',
+        questionCount: 20,
+        randomize: false,
+      }),
+    })
+    expect(sessionResponse.status).toBe(201)
+    const questionIds = (await sessionResponse.json()).data.questions.map(
+      (item) => item.question.id,
+    )
+    expect(questionIds).toContain('pq1')
+    expect(questionIds).not.toContain(privateQuestion.id)
+  })
+
   it('imports a CSV question batch atomically as drafts', async () => {
     const lecturer = await login('ductu@ptit.edu.vn', 'Lecturer@123')
     const questions = [
@@ -169,7 +263,12 @@ describe('practice question bank and sessions', () => {
 
     const response = await api('/api/lecturer/practice-questions/import', lecturer, {
       method: 'POST',
-      body: JSON.stringify({ subjectId: 'sub1', chapterId: 'chap1', questions }),
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        chapterId: 'chap1',
+        classIds: ['class1'],
+        questions,
+      }),
     })
     expect(response.status).toBe(201)
     const imported = (await response.json()).data
@@ -193,6 +292,7 @@ describe('practice question bank and sessions', () => {
       body: JSON.stringify({
         subjectId: 'sub1',
         chapterId: 'chap1',
+        classIds: ['class1'],
         questions: [
           {
             ...questions[0],
@@ -217,6 +317,7 @@ describe('practice question bank and sessions', () => {
       body: JSON.stringify({
         subjectId: 'sub1',
         chapterId: 'chap1',
+        classIds: ['class1'],
         content: 'Câu hỏi dùng để kiểm tra chỉnh sửa sau khi đã luyện tập?',
         explanation: 'Giải thích đủ dài cho câu hỏi kiểm tra chỉnh sửa lịch sử.',
         difficulty: 'medium',
@@ -266,6 +367,7 @@ describe('practice question bank and sessions', () => {
       body: JSON.stringify({
         subjectId: 'sub1',
         chapterId: 'chap1',
+        classIds: ['class1'],
         content: 'Câu hỏi đã chỉnh sửa nhưng vẫn giữ lịch sử luyện tập?',
         explanation: 'Giải thích đã chỉnh sửa và vẫn bảo toàn lịch sử lựa chọn.',
         difficulty: 'hard',

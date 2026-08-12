@@ -1,5 +1,13 @@
 import { useCallback } from 'react'
-import { ArrowRight, BookOpen, FileText, Gauge, MessageCircleQuestion, Users } from 'lucide-react'
+import {
+  ArrowRight,
+  BarChart3,
+  BookOpenText,
+  Gauge,
+  ListChecks,
+  MessageCircleQuestion,
+  Users,
+} from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import {
   EmptyState,
@@ -49,25 +57,32 @@ export default function ClassPage() {
       to: `/lecturer/classes/${classId}/students`,
     },
     {
-      label: 'Bài học',
-      description: `${data.lessons.filter((item) => item.status === 'published').length} đã xuất bản`,
-      count: data.lessons.length,
-      icon: BookOpen,
-      to: `/lecturer/classes/${classId}/lessons`,
+      label: 'Câu hỏi ôn tập',
+      description: 'Quản lý câu hỏi riêng phân phối cho lớp',
+      count: '—',
+      icon: ListChecks,
+      to: `/lecturer/classes/${classId}/practice-questions`,
     },
     {
-      label: 'Học liệu',
-      description: `${data.materials.filter((item) => item.status === 'published').length} đang công khai`,
-      count: data.materials.length,
-      icon: FileText,
-      to: `/lecturer/classes/${classId}/materials`,
+      label: 'Nội dung môn',
+      description: `${data.lessons.length} bài học · ${data.materials.length} học liệu`,
+      count: data.lessons.length + data.materials.length,
+      icon: BookOpenText,
+      to: `/lecturer/classes/${classId}/content`,
     },
     {
-      label: 'Câu hỏi',
+      label: 'Hỏi đáp',
       description: `${unansweredCount} câu hỏi chờ trả lời`,
       count: data.questions.length,
       icon: MessageCircleQuestion,
       to: `/lecturer/classes/${classId}/questions`,
+    },
+    {
+      label: 'Thống kê',
+      description: 'Theo dõi kết quả luyện tập của lớp',
+      count: '—',
+      icon: BarChart3,
+      to: `/lecturer/classes/${classId}/analytics`,
     },
   ]
   const studentsToWatch = data.students.filter((item) => item.status !== 'active')

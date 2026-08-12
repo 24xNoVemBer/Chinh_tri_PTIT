@@ -1,21 +1,24 @@
 import { BarChart3, BookOpenCheck, Target, Users } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/AsyncState'
 import PageHeader from '../../components/common/PageHeader'
+import ClassSubnav from '../../components/lecturer/ClassSubnav'
 import { useAuth } from '../../features/auth/useAuth'
 import useAsyncData from '../../hooks/useAsyncData'
 import { classRepository, practiceAnalyticsRepository } from '../../services/appRepositories'
 import './PracticeAnalyticsPage.css'
 
 export default function PracticeAnalyticsPage() {
+  const { classId: routeClassId } = useParams()
   const { user } = useAuth()
   const [selectedClassId, setSelectedClassId] = useState('')
   const loader = useCallback(async () => {
     const classes = await classRepository.listForLecturer(user.id)
-    const classId = selectedClassId || classes[0]?.id
+    const classId = routeClassId || selectedClassId || classes[0]?.id
     const analytics = classId ? await practiceAnalyticsRepository.getForLecturer({ classId }) : null
     return { classes, analytics }
-  }, [selectedClassId, user.id])
+  }, [routeClassId, selectedClassId, user.id])
   const { data, loading, error, reload } = useAsyncData(loader)
 
   if (loading) return <LoadingState label="Đang tải phân tích luyện tập…" />
@@ -50,20 +53,23 @@ export default function PracticeAnalyticsPage() {
         title="Phân tích luyện tập"
         description="Theo dõi mức độ tham gia, độ chính xác và các chủ đề cần củng cố theo từng lớp."
         actions={
-          <select
-            className="practice-analytics-class-select"
-            value={selectedClassId || data.classes[0].id}
-            onChange={(event) => setSelectedClassId(event.target.value)}
-            aria-label="Chọn lớp phân tích"
-          >
-            {data.classes.map((courseClass) => (
-              <option key={courseClass.id} value={courseClass.id}>
-                {courseClass.name}
-              </option>
-            ))}
-          </select>
+          routeClassId ? null : (
+            <select
+              className="practice-analytics-class-select"
+              value={selectedClassId || data.classes[0].id}
+              onChange={(event) => setSelectedClassId(event.target.value)}
+              aria-label="Chọn lớp phân tích"
+            >
+              {data.classes.map((courseClass) => (
+                <option key={courseClass.id} value={courseClass.id}>
+                  {courseClass.name}
+                </option>
+              ))}
+            </select>
+          )
         }
       />
+      {routeClassId && <ClassSubnav classId={routeClassId} />}
 
       <section className="practice-analytics-summary" aria-label="Tổng quan luyện tập">
         <Metric

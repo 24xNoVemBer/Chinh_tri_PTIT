@@ -11,10 +11,11 @@ import {
   Upload,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/AsyncState'
 import PageHeader from '../../components/common/PageHeader'
-import { practiceQuestionRepository } from '../../services/appRepositories'
+import ClassSubnav from '../../components/lecturer/ClassSubnav'
+import { classRepository, practiceQuestionRepository } from '../../services/appRepositories'
 import useAsyncData from '../../hooks/useAsyncData'
 import './PracticeQuestionBankPage.css'
 
@@ -26,28 +27,39 @@ const statusLabels = {
 }
 
 export default function PracticeQuestionBankPage() {
+  const { classId } = useParams()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const [page, setPage] = useState(1)
   const [busyId, setBusyId] = useState('')
   const [actionError, setActionError] = useState('')
   const [actionNotice, setActionNotice] = useState('')
-  const loader = useCallback(
-    () => practiceQuestionRepository.listForLecturer({ query, status, page, pageSize: 12 }),
-    [query, status, page],
-  )
+  const loader = useCallback(async () => {
+    const filters = { query, status, page, pageSize: 12 }
+    const [questions, courseClass] = await Promise.all([
+      classId
+        ? practiceQuestionRepository.listForClass(classId, filters)
+        : practiceQuestionRepository.listForLecturer(filters),
+      classId ? classRepository.getById(classId) : Promise.resolve(null),
+    ])
+    return { questions, courseClass }
+  }, [classId, query, status, page])
   const { data, loading, error, reload } = useAsyncData(loader)
-  const items = Array.isArray(data) ? data : (data?.items ?? [])
-  const total = Array.isArray(data) ? data.length : (data?.total ?? items.length)
-  const pageSize = Array.isArray(data) ? 12 : (data?.pageSize ?? 12)
+  const questionData = data?.questions
+  const items = Array.isArray(questionData) ? questionData : (questionData?.items ?? [])
+  const total = Array.isArray(questionData)
+    ? questionData.length
+    : (questionData?.total ?? items.length)
+  const pageSize = Array.isArray(questionData) ? 12 : (questionData?.pageSize ?? 12)
   const totalPages = Math.max(Math.ceil(total / pageSize), 1)
-  const counts = Array.isArray(data)
+  const counts = Array.isArray(questionData)
     ? {
         draft: items.filter((question) => question.status === 'draft').length,
         published: items.filter((question) => question.status === 'published').length,
         archived: items.filter((question) => question.status === 'archived').length,
       }
-    : (data?.counts ?? { draft: 0, published: 0, archived: 0 })
+    : (questionData?.counts ?? { draft: 0, published: 0, archived: 0 })
+  const creationQuery = classId ? `?classId=${encodeURIComponent(classId)}` : ''
 
   const runAction = async (questionId, action, successMessage) => {
     setBusyId(questionId)
@@ -70,22 +82,29 @@ export default function PracticeQuestionBankPage() {
   return (
     <div className="page-stack practice-bank-page">
       <PageHeader
-        eyebrow="Giảng viên"
-        title="Ngân hàng câu hỏi"
-        description="Tạo, kiểm tra và xuất bản câu hỏi luyện tập theo từng học phần."
+        eyebrow={data.courseClass?.name ?? 'Giảng viên'}
+        title={classId ? 'Câu hỏi ôn tập của lớp' : 'Ngân hàng câu hỏi'}
+        description="Câu hỏi dùng chung của học phần chỉ để tham khảo; câu hỏi riêng do bạn tạo được phân phối theo lớp tín chỉ."
         actions={
           <div className="button-group">
-            <Link className="button button--secondary" to="/lecturer/practice-questions/import">
+            <Link
+              className="button button--secondary"
+              to={`/lecturer/practice-questions/import${creationQuery}`}
+            >
               <Upload aria-hidden="true" size={18} />
               Nhập từ CSV
             </Link>
-            <Link className="button button--primary" to="/lecturer/practice-questions/new">
+            <Link
+              className="button button--primary"
+              to={`/lecturer/practice-questions/new${creationQuery}`}
+            >
               <Plus aria-hidden="true" size={18} />
               Tạo câu hỏi
             </Link>
           </div>
         }
       />
+      {classId && <ClassSubnav classId={classId} />}
 
       {actionNotice && (
         <p className="practice-bank-feedback practice-bank-feedback--success" role="status">
@@ -151,7 +170,10 @@ export default function PracticeQuestionBankPage() {
           title="Chưa có câu hỏi phù hợp"
           description="Tạo câu hỏi đầu tiên hoặc thay đổi bộ lọc hiện tại."
           action={
-            <Link className="button button--secondary" to="/lecturer/practice-questions/new">
+            <Link
+              className="button button--secondary"
+              to={`/lecturer/practice-questions/new${creationQuery}`}
+            >
               Tạo câu hỏi
             </Link>
           }
@@ -161,10 +183,15 @@ export default function PracticeQuestionBankPage() {
           {items.map((question) => (
             <article className="practice-question-card" key={question.id}>
               <div className="practice-question-card__topline">
-                <span className={`practice-status practice-status--${question.status}`}>
-                  {question.status === 'published' && <Check aria-hidden="true" size={14} />}
-                  {statusLabels[question.status]}
-                </span>
+                <div className="practice-question-card__badges">
+                  <span className={`practice-status practice-status--${question.status}`}>
+                    {question.status === 'published' && <Check aria-hidden="true" size={14} />}
+                    {statusLabels[question.status]}
+                  </span>
+                  <span className={`practice-scope practice-scope--${question.scope}`}>
+                    {question.scope === 'subject_shared' ? 'Dùng chung toàn môn' : 'Của tôi'}
+                  </span>
+                </div>
                 <span className="practice-question-card__meta">
                   {question.subject?.name} · {question.chapter?.title}
                 </span>
@@ -181,9 +208,16 @@ export default function PracticeQuestionBankPage() {
                 ))}
               </div>
               <div className="practice-question-card__footer">
-                <span>{question.sourceType === 'csv' ? 'Nhập từ CSV' : 'Tạo thủ công'}</span>
+                <span>
+                  {question.scope === 'subject_shared'
+                    ? `Quản trị viên · ${question.creatorName}`
+                    : `${question.sourceType === 'csv' ? 'Nhập từ CSV' : 'Tạo thủ công'} · ${
+                        question.classAssignments.map((item) => item.classCode).join(', ') ||
+                        'Chưa gán lớp'
+                      }`}
+                </span>
                 <div className="practice-question-card__actions">
-                  {question.status !== 'archived' && (
+                  {question.canEdit !== false && question.status !== 'archived' && (
                     <Link
                       className="button button--ghost"
                       to={`/lecturer/practice-questions/${question.id}/edit`}
@@ -192,7 +226,7 @@ export default function PracticeQuestionBankPage() {
                       Sửa
                     </Link>
                   )}
-                  {question.status === 'draft' && (
+                  {question.canEdit !== false && question.status === 'draft' && (
                     <button
                       className="button button--secondary"
                       type="button"
@@ -209,7 +243,7 @@ export default function PracticeQuestionBankPage() {
                       Xuất bản
                     </button>
                   )}
-                  {question.status === 'archived' && (
+                  {question.canEdit !== false && question.status === 'archived' && (
                     <>
                       <button
                         className="button button--secondary"
@@ -245,7 +279,7 @@ export default function PracticeQuestionBankPage() {
                       </button>
                     </>
                   )}
-                  {question.status === 'published' && (
+                  {question.canEdit !== false && question.status === 'published' && (
                     <button
                       className="button button--ghost"
                       type="button"

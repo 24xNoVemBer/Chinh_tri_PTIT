@@ -128,6 +128,54 @@
   background: var(--color-surface-subtle);
 }
 
+.practice-import-class-scope {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.practice-import-class-scope legend {
+  padding-inline: var(--space-2);
+  color: var(--color-heading);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.practice-import-class-scope > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.practice-import-class-scope label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.15rem var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  cursor: pointer;
+}
+
+.practice-import-class-scope label.is-selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.practice-import-class-scope input {
+  grid-row: 1 / 3;
+  accent-color: var(--color-primary);
+}
+
+.practice-import-class-scope small {
+  color: var(--color-muted-foreground);
+}
+
 .practice-import-dropzone {
   display: grid;
   min-height: 10rem;
@@ -307,7 +355,8 @@
 
 @media (max-width: 56rem) {
   .practice-import-steps,
-  .practice-import-scope {
+  .practice-import-scope,
+  .practice-import-class-scope > div {
     grid-template-columns: 1fr;
   }
 }

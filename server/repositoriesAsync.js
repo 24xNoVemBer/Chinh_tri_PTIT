@@ -71,6 +71,8 @@ function mapClass(row) {
     id: row.id,
     subjectId: row.subject_id,
     name: row.name,
+    classCode: row.class_code,
+    groupNumber: row.group_number,
     lecturerId: row.lecturer_id,
     assignmentRole: row.assignment_role ?? null,
     semester: row.semester,
@@ -501,6 +503,30 @@ async function ensureLecturerSubjectAccess(db, lecturerId, subjectId) {
   }
 }
 
+async function validateLecturerClassScope(db, lecturerId, subjectId, classIds) {
+  const ids = [...new Set((Array.isArray(classIds) ? classIds : []).map(String).filter(Boolean))]
+  if (!ids.length) {
+    throw new ApiError(400, 'VALIDATION', 'Cần chọn ít nhất một lớp tín chỉ áp dụng.')
+  }
+  const placeholders = ids.map(() => '?').join(', ')
+  const accessible = await db.many(
+    `SELECT course_classes.id
+     FROM course_classes
+     JOIN class_lecturer_assignments
+       ON class_lecturer_assignments.class_id = course_classes.id
+     WHERE class_lecturer_assignments.lecturer_id = ?
+       AND class_lecturer_assignments.status = 'active'
+       AND course_classes.status = 'active'
+       AND course_classes.subject_id = ?
+       AND course_classes.id IN (${placeholders})`,
+    [lecturerId, subjectId, ...ids],
+  )
+  if (accessible.length !== ids.length) {
+    throw new ApiError(403, 'FORBIDDEN', 'Có lớp tín chỉ nằm ngoài phạm vi giảng dạy của bạn.')
+  }
+  return ids
+}
+
 async function validatePracticeQuestionInput(db, input, lecturerId, { allowMissing = false } = {}) {
   const content = String(input.content ?? '').trim()
   const explanation = String(input.explanation ?? '').trim()
@@ -578,7 +604,11 @@ async function validatePracticeQuestionInput(db, input, lecturerId, { allowMissi
   }
 }
 
-function mapPracticeQuestion(row, options = [], { includeAnswer = true } = {}) {
+function mapPracticeQuestion(
+  row,
+  options = [],
+  { includeAnswer = true, classAssignments = [], viewerId = null } = {},
+) {
   const correctOption = options.find((option) => Number(option.is_correct) === 1)
   return {
     id: row.id,
@@ -591,12 +621,22 @@ function mapPracticeQuestion(row, options = [], { includeAnswer = true } = {}) {
     explanation: includeAnswer ? row.explanation : undefined,
     difficulty: row.difficulty,
     status: row.status,
+    scope: row.scope ?? 'lecturer_owned',
     sourceType: row.source_type,
     createdBy: row.created_by,
     creatorName: row.creator_name,
     publishedAt: row.published_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    canEdit: viewerId ? row.scope !== 'subject_shared' && row.created_by === viewerId : undefined,
+    classAssignments: classAssignments.map((assignment) => ({
+      id: assignment.id,
+      classId: assignment.class_id,
+      classCode: assignment.class_code,
+      className: assignment.class_name,
+      groupNumber: assignment.group_number,
+      status: assignment.status,
+    })),
     options: options.map((option) => ({
       id: option.id,
       key: option.option_key,
@@ -606,7 +646,11 @@ function mapPracticeQuestion(row, options = [], { includeAnswer = true } = {}) {
   }
 }
 
-async function loadPracticeQuestion(db, questionId, { includeAnswer = true } = {}) {
+async function loadPracticeQuestion(
+  db,
+  questionId,
+  { includeAnswer = true, viewerId = null } = {},
+) {
   const row = await db.one(
     `SELECT
        practice_questions.*,
@@ -628,7 +672,16 @@ async function loadPracticeQuestion(db, questionId, { includeAnswer = true } = {
      ORDER BY option_order`,
     [questionId],
   )
-  return mapPracticeQuestion(row, options, { includeAnswer })
+  const classAssignments = await db.many(
+    `SELECT practice_question_class_assignments.*, course_classes.class_code,
+       course_classes.name AS class_name, course_classes.group_number
+     FROM practice_question_class_assignments
+     JOIN course_classes ON course_classes.id = practice_question_class_assignments.class_id
+     WHERE practice_question_class_assignments.question_id = ?
+     ORDER BY course_classes.group_number, course_classes.name`,
+    [questionId],
+  )
+  return mapPracticeQuestion(row, options, { includeAnswer, classAssignments, viewerId })
 }
 export function createAsyncRepositories(db) {
   const classRepository = {
@@ -1264,8 +1317,18 @@ export function createAsyncRepositories(db) {
              AND class_lecturer_assignments.lecturer_id = ?
              AND class_lecturer_assignments.status = 'active'
          )
+           AND (
+             (
+               practice_questions.scope = 'subject_shared'
+               AND practice_questions.status = 'published'
+             )
+             OR (
+               practice_questions.scope = 'lecturer_owned'
+               AND practice_questions.created_by = ?
+             )
+           )
          ORDER BY practice_questions.updated_at DESC`,
-        [lecturerId],
+        [lecturerId, lecturerId],
       )
       const scoped = rows.filter((row) => {
         if (filters.subjectId && row.subject_id !== filters.subjectId) return false
@@ -1285,26 +1348,74 @@ export function createAsyncRepositories(db) {
         { draft: 0, published: 0, archived: 0 },
       )
       const items = await Promise.all(
-        pageRows.map(async (row) => {
-          const options = await db.many(
-            `SELECT id, option_key, content, is_correct, option_order
-             FROM practice_question_options
-             WHERE question_id = ? ORDER BY option_order`,
-            [row.id],
-          )
-          return mapPracticeQuestion(row, options)
-        }),
+        pageRows.map((row) => loadPracticeQuestion(db, row.id, { viewerId: lecturerId })),
       )
       return { items, total: filtered.length, page, pageSize, counts }
     },
+    async listForClass(classId, lecturerId, filters = {}) {
+      const courseClass = await getOwnedClass(db, classId, lecturerId)
+      const rows = await db.many(
+        `SELECT practice_questions.*
+         FROM practice_questions
+         WHERE practice_questions.subject_id = ?
+           AND (
+             (
+               practice_questions.scope = 'subject_shared'
+               AND practice_questions.status = 'published'
+             )
+             OR (
+               practice_questions.scope = 'lecturer_owned'
+               AND practice_questions.created_by = ?
+               AND EXISTS (
+                 SELECT 1 FROM practice_question_class_assignments
+                 WHERE practice_question_class_assignments.question_id = practice_questions.id
+                   AND practice_question_class_assignments.class_id = ?
+                   AND practice_question_class_assignments.status = 'published'
+               )
+             )
+           )
+         ORDER BY practice_questions.updated_at DESC`,
+        [courseClass.subject_id, lecturerId, classId],
+      )
+      const filtered = rows
+        .filter(
+          (row) => !filters.status || filters.status === 'all' || row.status === filters.status,
+        )
+        .filter((row) => !filters.query || includesNormalized(row.content, filters.query))
+      const items = await Promise.all(
+        filtered.map((row) => loadPracticeQuestion(db, row.id, { viewerId: lecturerId })),
+      )
+      return {
+        classId,
+        subjectId: courseClass.subject_id,
+        items,
+        total: items.length,
+        counts: items.reduce(
+          (result, item) => ({ ...result, [item.status]: (result[item.status] ?? 0) + 1 }),
+          { draft: 0, published: 0, archived: 0 },
+        ),
+      }
+    },
     async getForLecturer(questionId, lecturerId) {
-      const question = await loadPracticeQuestion(db, questionId)
+      const question = await loadPracticeQuestion(db, questionId, { viewerId: lecturerId })
       if (!question) return null
       await ensureLecturerSubjectAccess(db, lecturerId, question.subjectId)
+      if (question.scope === 'subject_shared' && question.status !== 'published') {
+        throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')
+      }
+      if (question.scope !== 'subject_shared' && question.createdBy !== lecturerId) {
+        throw new ApiError(403, 'FORBIDDEN', 'Câu hỏi riêng thuộc giảng viên khác.')
+      }
       return question
     },
     async create(input, lecturerId) {
       const normalized = await validatePracticeQuestionInput(db, input, lecturerId)
+      const classIds = await validateLecturerClassScope(
+        db,
+        lecturerId,
+        normalized.subjectId,
+        input.classIds,
+      )
       const id = createId('practice_question')
       const createdAt = nowIso()
       try {
@@ -1312,8 +1423,8 @@ export function createAsyncRepositories(db) {
           await transaction.execute(
             `INSERT INTO practice_questions
              (id, subject_id, chapter_id, lesson_id, content, explanation, difficulty, status,
-              source_type, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'manual', ?, ?, ?)`,
+              source_type, scope, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'manual', 'lecturer_owned', ?, ?, ?)`,
             [
               id,
               normalized.subjectId,
@@ -1342,6 +1453,14 @@ export function createAsyncRepositories(db) {
               ],
             )
           }
+          for (const classId of classIds) {
+            await transaction.execute(
+              `INSERT INTO practice_question_class_assignments
+               (id, question_id, class_id, status, assigned_by, assigned_at)
+               VALUES (?, ?, ?, 'published', ?, ?)`,
+              [createId('practice_assignment'), id, classId, lecturerId, createdAt],
+            )
+          }
           await audit(
             transaction,
             lecturerId,
@@ -1352,6 +1471,7 @@ export function createAsyncRepositories(db) {
               subjectId: normalized.subjectId,
               chapterId: normalized.chapterId,
               sourceType: 'manual',
+              classIds,
             },
           )
         })
@@ -1385,6 +1505,12 @@ export function createAsyncRepositories(db) {
               lessonId: input.lessonId,
             },
             lecturerId,
+          )
+          normalized.classIds = await validateLecturerClassScope(
+            db,
+            lecturerId,
+            normalized.subjectId,
+            input.classIds,
           )
           const contentKey = normalized.content.toLocaleLowerCase()
           if (seenContents.has(contentKey)) {
@@ -1434,8 +1560,8 @@ export function createAsyncRepositories(db) {
             await transaction.execute(
               `INSERT INTO practice_questions
                (id, subject_id, chapter_id, lesson_id, content, explanation, difficulty, status,
-                source_type, created_by, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'csv', ?, ?, ?)`,
+                source_type, scope, created_by, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'csv', 'lecturer_owned', ?, ?, ?)`,
               [
                 questionId,
                 question.subjectId,
@@ -1464,6 +1590,14 @@ export function createAsyncRepositories(db) {
                 ],
               )
             }
+            for (const classId of question.classIds) {
+              await transaction.execute(
+                `INSERT INTO practice_question_class_assignments
+                 (id, question_id, class_id, status, assigned_by, assigned_at)
+                 VALUES (?, ?, ?, 'published', ?, ?)`,
+                [createId('practice_assignment'), questionId, classId, lecturerId, createdAt],
+              )
+            }
           }
           await audit(
             transaction,
@@ -1476,6 +1610,7 @@ export function createAsyncRepositories(db) {
               chapterId: input.chapterId,
               lessonId: input.lessonId ?? null,
               importedCount: ids.length,
+              classIds: normalizedQuestions[0]?.classIds ?? [],
             },
           )
         })
@@ -1495,6 +1630,12 @@ export function createAsyncRepositories(db) {
         throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được sửa câu hỏi do mình tạo.')
       }
       const normalized = await validatePracticeQuestionInput(db, input, lecturerId)
+      const classIds = await validateLecturerClassScope(
+        db,
+        lecturerId,
+        normalized.subjectId,
+        input.classIds,
+      )
       const updatedAt = nowIso()
       try {
         await db.transaction(async (transaction) => {
@@ -1545,6 +1686,18 @@ export function createAsyncRepositories(db) {
               )
             }
           }
+          await transaction.execute(
+            'DELETE FROM practice_question_class_assignments WHERE question_id = ?',
+            [questionId],
+          )
+          for (const classId of classIds) {
+            await transaction.execute(
+              `INSERT INTO practice_question_class_assignments
+               (id, question_id, class_id, status, assigned_by, assigned_at)
+               VALUES (?, ?, ?, 'published', ?, ?)`,
+              [createId('practice_assignment'), questionId, classId, lecturerId, updatedAt],
+            )
+          }
           await audit(
             transaction,
             lecturerId,
@@ -1554,6 +1707,7 @@ export function createAsyncRepositories(db) {
             {
               subjectId: normalized.subjectId,
               chapterId: normalized.chapterId,
+              classIds,
             },
           )
         })
@@ -1597,6 +1751,18 @@ export function createAsyncRepositories(db) {
         throw new ApiError(403, 'FORBIDDEN', 'Bạn chỉ được xuất bản câu hỏi do mình tạo.')
       }
       await ensureLecturerSubjectAccess(db, lecturerId, question.subject_id)
+      const classAssignmentCount = await db.one(
+        `SELECT COUNT(*) AS count FROM practice_question_class_assignments
+         WHERE question_id = ? AND status = 'published'`,
+        [questionId],
+      )
+      if (Number(classAssignmentCount.count) === 0) {
+        throw new ApiError(
+          400,
+          'VALIDATION',
+          'Cần gán câu hỏi vào ít nhất một lớp trước khi xuất bản.',
+        )
+      }
       const validation = await db.one(
         `SELECT
            COUNT(*) AS option_count,
@@ -1803,8 +1969,17 @@ export function createAsyncRepositories(db) {
            FROM practice_questions
            WHERE practice_questions.subject_id = ?
              AND practice_questions.status = 'published'
-             ${filters}`,
-          scopeParams,
+             ${filters}
+             AND (
+               practice_questions.scope = 'subject_shared'
+               OR EXISTS (
+                 SELECT 1 FROM practice_question_class_assignments
+                 WHERE practice_question_class_assignments.question_id = practice_questions.id
+                   AND practice_question_class_assignments.class_id = ?
+                   AND practice_question_class_assignments.status = 'published'
+               )
+             )`,
+          [...scopeParams, selectedClass.id],
         )
         const availableCount = Number(available?.question_count ?? 0)
         const sampleSize = Math.min(requestedCount, availableCount)
@@ -1814,9 +1989,18 @@ export function createAsyncRepositories(db) {
            WHERE practice_questions.subject_id = ?
              AND practice_questions.status = 'published'
              ${filters}
+             AND (
+               practice_questions.scope = 'subject_shared'
+               OR EXISTS (
+                 SELECT 1 FROM practice_question_class_assignments
+                 WHERE practice_question_class_assignments.question_id = practice_questions.id
+                   AND practice_question_class_assignments.class_id = ?
+                   AND practice_question_class_assignments.status = 'published'
+               )
+             )
            ORDER BY ${randomize ? 'RANDOM()' : 'practice_questions.id'}
            LIMIT ?`,
-          [...scopeParams, sampleSize],
+          [...scopeParams, selectedClass.id, sampleSize],
         )
       }
       if (questionRows.length === 0) {

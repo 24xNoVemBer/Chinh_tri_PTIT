@@ -544,6 +544,10 @@ export function createRequestHandler({
           pathname,
           /^\/api\/lecturer\/practice-questions\/([^/]+)$/,
         )
+        const classPracticeQuestionsMatch = matchPath(
+          pathname,
+          /^\/api\/lecturer\/classes\/([^/]+)\/practice-questions$/,
+        )
         const practiceQuestionPublishMatch = matchPath(
           pathname,
           /^\/api\/lecturer\/practice-questions\/([^/]+)\/publish$/,
@@ -704,6 +708,20 @@ export function createRequestHandler({
           )
           return
         }
+        if (method === 'GET' && classPracticeQuestionsMatch) {
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.listForClass(
+              classPracticeQuestionsMatch[0],
+              lecturer.id,
+              {
+                status: searchParams.get('status') ?? 'all',
+                query: searchParams.get('query') ?? '',
+              },
+            ),
+          )
+          return
+        }
         if (method === 'GET' && pathname === '/api/lecturer/practice-analytics') {
           sendData(
             response,
@@ -716,7 +734,7 @@ export function createRequestHandler({
         }
         if (method === 'POST' && pathname === '/api/lecturer/practice-questions/import') {
           const input = await readJson(request)
-          requireFields(input, ['subjectId', 'chapterId', 'questions'])
+          requireFields(input, ['subjectId', 'chapterId', 'classIds', 'questions'])
           sendData(
             response,
             await repositories.practiceQuestionRepository.importDrafts(input, lecturer.id),
@@ -729,6 +747,7 @@ export function createRequestHandler({
           requireFields(input, [
             'subjectId',
             'chapterId',
+            'classIds',
             'content',
             'explanation',
             'options',
@@ -756,6 +775,7 @@ export function createRequestHandler({
           requireFields(input, [
             'subjectId',
             'chapterId',
+            'classIds',
             'content',
             'explanation',
             'options',

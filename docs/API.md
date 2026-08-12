@@ -61,15 +61,18 @@ Tất cả endpoint dưới đây yêu cầu role `lecturer`.
 
 ### Ngân hàng câu hỏi luyện tập
 
-| Method  | Endpoint                                       | Mô tả                                             |
-| ------- | ---------------------------------------------- | ------------------------------------------------- |
-| `GET`   | `/api/lecturer/practice-questions`             | Danh sách câu hỏi theo học phần/chương/trạng thái |
-| `POST`  | `/api/lecturer/practice-questions`             | Tạo câu hỏi thủ công ở trạng thái nháp            |
-| `POST`  | `/api/lecturer/practice-questions/import`      | Nhập tối đa 200 câu hỏi CSV vào trạng thái nháp   |
-| `GET`   | `/api/lecturer/practice-questions/:id`         | Xem chi tiết câu hỏi                              |
-| `PATCH` | `/api/lecturer/practice-questions/:id`         | Cập nhật nội dung và lựa chọn                     |
-| `POST`  | `/api/lecturer/practice-questions/:id/publish` | Xuất bản câu hỏi                                  |
-| `POST`  | `/api/lecturer/practice-questions/:id/archive` | Lưu trữ câu hỏi                                   |
+| Method  | Endpoint                                            | Mô tả                                               |
+| ------- | --------------------------------------------------- | --------------------------------------------------- |
+| `GET`   | `/api/lecturer/practice-questions`                  | Danh sách câu hỏi theo học phần/chương/trạng thái   |
+| `GET`   | `/api/lecturer/classes/:classId/practice-questions` | Câu hỏi dùng chung và câu hỏi riêng áp dụng cho lớp |
+| `POST`  | `/api/lecturer/practice-questions`                  | Tạo câu hỏi thủ công ở trạng thái nháp              |
+| `POST`  | `/api/lecturer/practice-questions/import`           | Nhập tối đa 200 câu hỏi CSV vào trạng thái nháp     |
+| `GET`   | `/api/lecturer/practice-questions/:id`              | Xem chi tiết câu hỏi                                |
+| `PATCH` | `/api/lecturer/practice-questions/:id`              | Cập nhật nội dung và lựa chọn                       |
+| `POST`  | `/api/lecturer/practice-questions/:id/publish`      | Xuất bản câu hỏi                                    |
+| `POST`  | `/api/lecturer/practice-questions/:id/archive`      | Lưu trữ câu hỏi                                     |
+
+Các request tạo, sửa và nhập CSV của giảng viên bắt buộc gửi `classIds` với ít nhất một lớp tín chỉ đang được phân công. Câu hỏi dùng chung do quản trị viên sở hữu là dữ liệu chỉ đọc đối với giảng viên.
 
 ## Sinh viên
 

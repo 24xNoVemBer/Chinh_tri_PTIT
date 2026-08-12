@@ -160,7 +160,8 @@ paths:
   /api/lecturer/classes/{classId}/practice-questions:
     get:
       operationId: listClassPracticeQuestions
-      responses: { '200': { description: Questions available to one class } }
+      description: Returns published subject-shared questions and lecturer-owned questions assigned to this class. Shared questions are read-only.
+      responses: { '200': { description: Questions available to one assigned credit class } }
   /api/lecturer/classes/{classId}/question-queue:
     get:
       operationId: listClassQuestionQueue

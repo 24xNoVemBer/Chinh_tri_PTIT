@@ -1,13 +1,21 @@
-import { BookOpen, FileText, LayoutDashboard, MessageCircleQuestion, Users } from 'lucide-react'
+import {
+  BarChart3,
+  BookOpenText,
+  LayoutDashboard,
+  ListChecks,
+  MessageCircleQuestion,
+  Users,
+} from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import './ClassSubnav.css'
 
 const ITEMS = [
   { label: 'Tổng quan', path: '', icon: LayoutDashboard, end: true },
   { label: 'Sinh viên', path: '/students', icon: Users },
-  { label: 'Bài học', path: '/lessons', icon: BookOpen },
-  { label: 'Học liệu', path: '/materials', icon: FileText },
-  { label: 'Câu hỏi', path: '/questions', icon: MessageCircleQuestion },
+  { label: 'Câu hỏi ôn tập', path: '/practice-questions', icon: ListChecks },
+  { label: 'Hỏi đáp', path: '/questions', icon: MessageCircleQuestion },
+  { label: 'Thống kê', path: '/analytics', icon: BarChart3 },
+  { label: 'Nội dung môn', path: '/content', icon: BookOpenText },
 ]
 
 export default function ClassSubnav({ classId }) {

@@ -7,7 +7,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ErrorState, LoadingState } from '../../components/common/AsyncState'
 import PageHeader from '../../components/common/PageHeader'
 import { useAuth } from '../../features/auth/useAuth'
@@ -27,8 +27,10 @@ import './PracticeQuestionImportPage.css'
 const MAX_FILE_SIZE = 1_000_000
 
 export default function PracticeQuestionImportPage() {
+  const [searchParams] = useSearchParams()
+  const initialClassId = searchParams.get('classId') ?? ''
   const { user } = useAuth()
-  const [scope, setScope] = useState({ subjectId: '', chapterId: '', lessonId: '' })
+  const [scope, setScope] = useState({ subjectId: '', chapterId: '', lessonId: '', classIds: [] })
   const [fileName, setFileName] = useState('')
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')
@@ -80,6 +82,11 @@ export default function PracticeQuestionImportPage() {
       })
   }, [lessons])
 
+  const availableClasses = useMemo(
+    () => data?.classes.filter((courseClass) => courseClass.subject.id === scope.subjectId) ?? [],
+    [data, scope.subjectId],
+  )
+
   const validRows = rows.filter((row) => row.valid)
   const invalidRows = rows.filter((row) => !row.valid)
 
@@ -87,9 +94,20 @@ export default function PracticeQuestionImportPage() {
     if (!scope.subjectId && subjects[0]) {
       // Initialize the scope once lecturer subjects have loaded.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setScope((current) => ({ ...current, subjectId: subjects[0].subject.id }))
+      setScope((current) => {
+        const requestedClass = data.classes.find((courseClass) => courseClass.id === initialClassId)
+        return {
+          ...current,
+          subjectId: requestedClass?.subject.id ?? subjects[0].subject.id,
+          classIds: requestedClass ? [requestedClass.id] : [],
+        }
+      })
     }
-  }, [scope.subjectId, subjects])
+  }, [data, initialClassId, scope.subjectId, subjects])
+
+  const returnPath = initialClassId
+    ? `/lecturer/classes/${initialClassId}/practice-questions`
+    : '/lecturer/practice-questions'
 
   const downloadTemplate = () => {
     const blob = new Blob([createPracticeQuestionCsvTemplate()], {
@@ -133,8 +151,8 @@ export default function PracticeQuestionImportPage() {
   const importQuestions = async () => {
     setFileError('')
     setResult(null)
-    if (!scope.subjectId || !scope.chapterId) {
-      setFileError('Vui lòng chọn học phần và chương trước khi nhập.')
+    if (!scope.subjectId || !scope.chapterId || !scope.classIds.length) {
+      setFileError('Vui lòng chọn học phần, chương và ít nhất một lớp tín chỉ trước khi nhập.')
       return
     }
     if (!rows.length) {
@@ -173,7 +191,7 @@ export default function PracticeQuestionImportPage() {
         title="Nhập câu hỏi từ CSV"
         description="Tải file mẫu, điền câu hỏi theo đúng cột và kiểm tra dữ liệu trước khi lưu vào bản nháp."
         actions={
-          <Link className="button button--ghost" to="/lecturer/practice-questions">
+          <Link className="button button--ghost" to={returnPath}>
             <ArrowLeft aria-hidden="true" size={17} />
             Quay lại ngân hàng
           </Link>
@@ -242,7 +260,12 @@ export default function PracticeQuestionImportPage() {
             <select
               value={scope.subjectId}
               onChange={(event) =>
-                setScope({ subjectId: event.target.value, chapterId: '', lessonId: '' })
+                setScope({
+                  subjectId: event.target.value,
+                  chapterId: '',
+                  lessonId: '',
+                  classIds: [],
+                })
               }
             >
               <option value="">Chọn học phần</option>
@@ -294,6 +317,32 @@ export default function PracticeQuestionImportPage() {
             </select>
           </label>
         </div>
+        <fieldset className="practice-import-class-scope">
+          <legend>Lớp tín chỉ áp dụng</legend>
+          <div>
+            {availableClasses.map((courseClass) => {
+              const checked = scope.classIds.includes(courseClass.id)
+              return (
+                <label className={checked ? 'is-selected' : ''} key={courseClass.id}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      setScope((current) => ({
+                        ...current,
+                        classIds: checked
+                          ? current.classIds.filter((classId) => classId !== courseClass.id)
+                          : [...current.classIds, courseClass.id],
+                      }))
+                    }
+                  />
+                  <span>{courseClass.classCode ?? courseClass.name}</span>
+                  <small>{courseClass.name}</small>
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
       </section>
 
       <section className="practice-import-panel" aria-labelledby="csv-upload-title">
@@ -320,7 +369,7 @@ export default function PracticeQuestionImportPage() {
           <div className="practice-import-feedback practice-import-feedback--success" role="status">
             <CheckCircle2 aria-hidden="true" size={18} />
             <span>Đã nhập {result.importedCount} câu hỏi vào bản nháp.</span>
-            <Link to="/lecturer/practice-questions">Xem ngân hàng câu hỏi</Link>
+            <Link to={returnPath}>Xem ngân hàng câu hỏi</Link>
           </div>
         )}
 
@@ -384,7 +433,11 @@ export default function PracticeQuestionImportPage() {
                 className="button button--primary"
                 type="button"
                 disabled={
-                  importing || invalidRows.length > 0 || !scope.subjectId || !scope.chapterId
+                  importing ||
+                  invalidRows.length > 0 ||
+                  !scope.subjectId ||
+                  !scope.chapterId ||
+                  !scope.classIds.length
                 }
                 onClick={importQuestions}
               >

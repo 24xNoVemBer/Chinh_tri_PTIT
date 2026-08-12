@@ -1,6 +1,6 @@
 import { ArrowLeft, Check, Save } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ErrorState, LoadingState } from '../../components/common/AsyncState'
 import PageHeader from '../../components/common/PageHeader'
 import { useAuth } from '../../features/auth/useAuth'
@@ -16,6 +16,7 @@ const emptyForm = {
   subjectId: '',
   chapterId: '',
   lessonId: '',
+  classIds: [],
   content: '',
   explanation: '',
   correctOptionKey: 'A',
@@ -30,6 +31,7 @@ const emptyForm = {
 function validateQuestionForm(form) {
   if (!form.subjectId) return 'Vui lòng chọn học phần.'
   if (!form.chapterId) return 'Vui lòng chọn chương.'
+  if (!form.classIds.length) return 'Vui lòng chọn ít nhất một lớp tín chỉ áp dụng.'
   if (form.content.trim().length < 10) {
     return 'Nội dung câu hỏi cần có ít nhất 10 ký tự.'
   }
@@ -49,6 +51,8 @@ function validateQuestionForm(form) {
 
 export default function PracticeQuestionEditorPage() {
   const { questionId } = useParams()
+  const [searchParams] = useSearchParams()
+  const initialClassId = searchParams.get('classId') ?? ''
   const navigate = useNavigate()
   const { user } = useAuth()
   const [form, setForm] = useState(emptyForm)
@@ -101,6 +105,11 @@ export default function PracticeQuestionEditorPage() {
       })
   }, [lessons])
 
+  const availableClasses = useMemo(
+    () => data?.classes.filter((courseClass) => courseClass.subject.id === form.subjectId) ?? [],
+    [data, form.subjectId],
+  )
+
   useEffect(() => {
     if (!data) return
     if (data.question) {
@@ -110,6 +119,7 @@ export default function PracticeQuestionEditorPage() {
         subjectId: data.question.subjectId,
         chapterId: data.question.chapterId,
         lessonId: data.question.lessonId ?? '',
+        classIds: data.question.classAssignments.map((assignment) => assignment.classId),
         content: data.question.content,
         explanation: data.question.explanation ?? '',
         correctOptionKey:
@@ -123,9 +133,18 @@ export default function PracticeQuestionEditorPage() {
       return
     }
     if (!form.subjectId && subjects[0]) {
-      setForm((current) => ({ ...current, subjectId: subjects[0].subject.id }))
+      const requestedClass = data.classes.find((courseClass) => courseClass.id === initialClassId)
+      setForm((current) => ({
+        ...current,
+        subjectId: requestedClass?.subject.id ?? subjects[0].subject.id,
+        classIds: requestedClass ? [requestedClass.id] : [],
+      }))
     }
-  }, [data, subjects, form.subjectId])
+  }, [data, subjects, form.subjectId, initialClassId])
+
+  const returnPath = initialClassId
+    ? `/lecturer/classes/${initialClassId}/practice-questions`
+    : '/lecturer/practice-questions'
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -162,7 +181,7 @@ export default function PracticeQuestionEditorPage() {
       } else if (!shouldPublish && saved.status !== 'draft') {
         await practiceQuestionRepository.saveDraft(saved.id)
       }
-      navigate('/lecturer/practice-questions')
+      navigate(returnPath)
     } catch (requestError) {
       setSaveError(requestError.message ?? 'Không thể lưu câu hỏi. Vui lòng thử lại.')
     } finally {
@@ -178,9 +197,9 @@ export default function PracticeQuestionEditorPage() {
       <PageHeader
         eyebrow="Ngân hàng câu hỏi"
         title={questionId ? 'Chỉnh sửa câu hỏi' : 'Tạo câu hỏi luyện tập'}
-        description="Câu hỏi xuất bản sẽ được dùng chung cho sinh viên đã đăng ký học phần."
+        description="Câu hỏi riêng của bạn chỉ hiển thị trong các lớp tín chỉ được chọn."
         actions={
-          <Link className="button button--ghost" to="/lecturer/practice-questions">
+          <Link className="button button--ghost" to={returnPath}>
             <ArrowLeft aria-hidden="true" size={17} />
             Quay lại ngân hàng
           </Link>
@@ -203,6 +222,7 @@ export default function PracticeQuestionEditorPage() {
                     subjectId: event.target.value,
                     chapterId: '',
                     lessonId: '',
+                    classIds: [],
                   }))
                 }
                 required
@@ -255,6 +275,35 @@ export default function PracticeQuestionEditorPage() {
               </select>
             </label>
           </div>
+          <fieldset className="practice-class-scope">
+            <legend>Lớp tín chỉ áp dụng</legend>
+            <p>Chọn một hoặc nhiều lớp bạn đang được phân công giảng dạy.</p>
+            <div className="practice-class-scope__grid">
+              {availableClasses.map((courseClass) => {
+                const checked = form.classIds.includes(courseClass.id)
+                return (
+                  <label className={checked ? 'is-selected' : ''} key={courseClass.id}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        updateField(
+                          'classIds',
+                          checked
+                            ? form.classIds.filter((classId) => classId !== courseClass.id)
+                            : [...form.classIds, courseClass.id],
+                        )
+                      }
+                    />
+                    <span>
+                      <strong>{courseClass.classCode ?? courseClass.name}</strong>
+                      <small>{courseClass.name}</small>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
           <label>
             <span>Nội dung câu hỏi</span>
             <textarea
@@ -311,7 +360,7 @@ export default function PracticeQuestionEditorPage() {
           </p>
         )}
         <div className="practice-editor-actions">
-          <Link className="button button--secondary" to="/lecturer/practice-questions">
+          <Link className="button button--secondary" to={returnPath}>
             Hủy
           </Link>
           <button className="button button--secondary" type="submit" disabled={saving}>
