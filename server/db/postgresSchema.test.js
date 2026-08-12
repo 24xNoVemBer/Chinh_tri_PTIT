@@ -10,6 +10,11 @@ const authMigrationPath = join(
   'migrations',
   '002_auth-login-limits.sql',
 )
+const adminClassMigrationPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'migrations',
+  '006_admin-class-management.sql',
+)
 
 describe('PostgreSQL initial schema', () => {
   it('contains the complete DB-0 table and index inventory', async () => {
@@ -30,5 +35,17 @@ describe('PostgreSQL initial schema', () => {
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS auth_login_limits')
     expect(sql).toContain('scope_key TEXT PRIMARY KEY')
     expect(sql).toContain('idx_auth_login_limits_updated')
+  })
+
+  it('adds scoped administration and multi-lecturer class assignments', async () => {
+    const sql = await readFile(adminClassMigrationPath, 'utf8')
+    expect(sql).toContain("role IN ('student', 'lecturer', 'admin')")
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS academic_terms')
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS class_lecturer_assignments')
+    expect(sql).toContain('idx_class_lecturers_one_active_lead')
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS practice_question_class_assignments')
+    expect(sql).toContain(
+      "routing_status IN ('unrouted', 'queued', 'claimed', 'answered', 'closed')",
+    )
   })
 })

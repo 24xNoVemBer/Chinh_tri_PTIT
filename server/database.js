@@ -37,23 +37,53 @@ const SCHEMA = `
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    role TEXT NOT NULL CHECK (role IN ('student', 'lecturer')),
+    role TEXT NOT NULL CHECK (role IN ('student', 'lecturer', 'admin')),
     password_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    auth_version INTEGER NOT NULL DEFAULT 1 CHECK (auth_version > 0),
     created_at TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS subjects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    credits INTEGER NOT NULL CHECK (credits > 0)
+    credits INTEGER NOT NULL CHECK (credits > 0),
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived'))
+  );
+
+  CREATE TABLE IF NOT EXISTS academic_terms (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    starts_at TEXT,
+    ends_at TEXT,
+    status TEXT NOT NULL DEFAULT 'active'
+      CHECK (status IN ('upcoming', 'active', 'completed', 'archived'))
   );
 
   CREATE TABLE IF NOT EXISTS course_classes (
     id TEXT PRIMARY KEY,
     subject_id TEXT NOT NULL REFERENCES subjects(id),
     name TEXT NOT NULL,
+    lecturer_id TEXT REFERENCES users(id),
+    semester TEXT NOT NULL,
+    academic_term_id TEXT REFERENCES academic_terms(id),
+    group_number INTEGER CHECK (group_number IS NULL OR group_number > 0),
+    class_code TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'archived'))
+  );
+
+  CREATE TABLE IF NOT EXISTS class_lecturer_assignments (
+    id TEXT PRIMARY KEY,
+    class_id TEXT NOT NULL REFERENCES course_classes(id) ON DELETE CASCADE,
     lecturer_id TEXT NOT NULL REFERENCES users(id),
-    semester TEXT NOT NULL
+    assignment_role TEXT NOT NULL DEFAULT 'lecturer'
+      CHECK (assignment_role IN ('lead', 'lecturer')),
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    assigned_by TEXT REFERENCES users(id),
+    assigned_at TEXT NOT NULL,
+    ended_at TEXT,
+    UNIQUE (class_id, lecturer_id)
   );
 
   CREATE TABLE IF NOT EXISTS enrollments (
@@ -142,6 +172,12 @@ const SCHEMA = `
     lesson_id TEXT REFERENCES lessons(id),
     subject_id TEXT NOT NULL REFERENCES subjects(id),
     student_id TEXT NOT NULL REFERENCES users(id),
+    class_id TEXT REFERENCES course_classes(id),
+    claimed_by TEXT REFERENCES users(id),
+    claimed_at TEXT,
+    routing_status TEXT NOT NULL DEFAULT 'queued'
+      CHECK (routing_status IN ('unrouted', 'queued', 'claimed', 'answered', 'closed')),
+    row_version INTEGER NOT NULL DEFAULT 0 CHECK (row_version >= 0),
     content TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('unanswered', 'answered')),
     created_at TEXT NOT NULL,
@@ -158,6 +194,8 @@ const SCHEMA = `
     difficulty TEXT NOT NULL CHECK (difficulty IN ('easy', 'medium', 'hard')),
     status TEXT NOT NULL CHECK (status IN ('draft', 'published', 'archived')),
     source_type TEXT NOT NULL DEFAULT 'manual',
+    scope TEXT NOT NULL DEFAULT 'lecturer_owned'
+      CHECK (scope IN ('subject_shared', 'lecturer_owned')),
     created_by TEXT NOT NULL REFERENCES users(id),
     published_by TEXT REFERENCES users(id),
     published_at TEXT,
@@ -175,6 +213,16 @@ const SCHEMA = `
     option_order INTEGER NOT NULL CHECK (option_order BETWEEN 1 AND 4),
     UNIQUE (question_id, option_key),
     UNIQUE (question_id, option_order)
+  );
+
+  CREATE TABLE IF NOT EXISTS practice_question_class_assignments (
+    id TEXT PRIMARY KEY,
+    question_id TEXT NOT NULL REFERENCES practice_questions(id) ON DELETE CASCADE,
+    class_id TEXT NOT NULL REFERENCES course_classes(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('published', 'archived')),
+    assigned_by TEXT NOT NULL REFERENCES users(id),
+    assigned_at TEXT NOT NULL,
+    UNIQUE (question_id, class_id)
   );
 
   CREATE TABLE IF NOT EXISTS practice_sessions (
@@ -341,9 +389,16 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_classes_lecturer ON course_classes(lecturer_id);
+  CREATE INDEX IF NOT EXISTS idx_class_lecturers_lecturer
+    ON class_lecturer_assignments(lecturer_id, status, class_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_class_lecturers_one_active_lead
+    ON class_lecturer_assignments(class_id)
+    WHERE assignment_role = 'lead' AND status = 'active';
   CREATE INDEX IF NOT EXISTS idx_enrollments_student ON enrollments(student_id);
   CREATE INDEX IF NOT EXISTS idx_questions_student ON questions(student_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject_id, status);
+  CREATE INDEX IF NOT EXISTS idx_practice_question_classes
+    ON practice_question_class_assignments(class_id, status, question_id);
   CREATE INDEX IF NOT EXISTS idx_practice_questions_scope
     ON practice_questions(subject_id, chapter_id, status);
   CREATE INDEX IF NOT EXISTS idx_practice_questions_creator
@@ -390,19 +445,45 @@ function seedDatabase(db) {
     const insertSubject = db.prepare('INSERT INTO subjects (id, name, credits) VALUES (?, ?, ?)')
     for (const subject of subjects) insertSubject.run(subject.id, subject.name, subject.credits)
 
-    const insertClass = db.prepare(
-      `INSERT INTO course_classes (id, subject_id, name, lecturer_id, semester)
-       VALUES (?, ?, ?, ?, ?)`,
+    const termIds = new Map()
+    const insertTerm = db.prepare(
+      `INSERT INTO academic_terms (id, code, name, status) VALUES (?, ?, ?, 'active')`,
     )
-    for (const courseClass of courseClasses) {
+    for (const semester of new Set(courseClasses.map((item) => item.semester))) {
+      const termId = `term_${semester.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`
+      termIds.set(semester, termId)
+      insertTerm.run(termId, semester, `Năm học ${semester}`)
+    }
+
+    const insertClass = db.prepare(
+      `INSERT INTO course_classes
+       (id, subject_id, name, lecturer_id, semester, academic_term_id, group_number, class_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    const insertAssignment = db.prepare(
+      `INSERT INTO class_lecturer_assignments
+       (id, class_id, lecturer_id, assignment_role, status, assigned_at)
+       VALUES (?, ?, ?, 'lead', 'active', ?)`,
+    )
+    courseClasses.forEach((courseClass, index) => {
+      const classCode = courseClass.name.split(' - ')[0]
       insertClass.run(
         courseClass.id,
         courseClass.subjectId,
         courseClass.name,
         courseClass.lecturerId,
         courseClass.semester,
+        termIds.get(courseClass.semester),
+        index + 1,
+        classCode,
       )
-    }
+      insertAssignment.run(
+        `assignment_${courseClass.id}_${courseClass.lecturerId}`,
+        courseClass.id,
+        courseClass.lecturerId,
+        createdAt,
+      )
+    })
 
     const insertEnrollment = db.prepare(
       'INSERT INTO enrollments (id, student_id, class_id) VALUES (?, ?, ?)',
@@ -526,18 +607,25 @@ function seedDatabase(db) {
 
     const insertQuestion = db.prepare(
       `INSERT INTO questions
-       (id, lesson_id, subject_id, student_id, content, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, lesson_id, subject_id, student_id, class_id, routing_status,
+        content, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     for (const question of studentQuestions) {
       const lesson = curriculumLessons.find((item) => item.id === question.lessonId)
       const chapter = chapters.find((item) => item.id === lesson?.chapterId)
       const subjectId = question.subjectId ?? chapter?.subjectId
+      const enrollment = enrollments.find((item) => {
+        const courseClass = courseClasses.find((candidate) => candidate.id === item.classId)
+        return item.studentId === question.studentId && courseClass?.subjectId === subjectId
+      })
       insertQuestion.run(
         question.id,
         question.lessonId,
         subjectId,
         question.studentId,
+        enrollment?.classId ?? null,
+        enrollment ? (question.status === 'answered' ? 'answered' : 'queued') : 'unrouted',
         question.content,
         question.status,
         question.createdAt,
@@ -555,6 +643,11 @@ function seedDatabase(db) {
       `INSERT INTO practice_question_options
        (id, question_id, option_key, content, is_correct, option_order)
        VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    const insertPracticeAssignment = db.prepare(
+      `INSERT OR IGNORE INTO practice_question_class_assignments
+       (id, question_id, class_id, status, assigned_by, assigned_at)
+       VALUES (?, ?, ?, 'published', ?, ?)`,
     )
     for (const question of practiceQuestions) {
       insertPracticeQuestion.run(
@@ -583,6 +676,21 @@ function seedDatabase(db) {
           index + 1,
         )
       })
+      courseClasses
+        .filter(
+          (courseClass) =>
+            courseClass.subjectId === question.subjectId &&
+            courseClass.lecturerId === question.createdBy,
+        )
+        .forEach((courseClass) => {
+          insertPracticeAssignment.run(
+            `practice_assignment_${question.id}_${courseClass.id}`,
+            question.id,
+            courseClass.id,
+            question.createdBy,
+            question.createdAt,
+          )
+        })
     }
 
     const insertAnswer = db.prepare(
@@ -865,11 +973,209 @@ function ensurePracticeAnalyticsSchema(db) {
   `)
 }
 
+function ensureAdminRoleSchema(db) {
+  const userTableSql = db.one(
+    `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'`,
+  )?.sql
+  if (!userTableSql || userTableSql.includes("'admin'")) return
+
+  db.exec('PRAGMA foreign_keys = OFF')
+  try {
+    db.exec(`
+      BEGIN IMMEDIATE;
+      CREATE TABLE users_admin_migration (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        role TEXT NOT NULL CHECK (role IN ('student', 'lecturer', 'admin')),
+        password_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+        auth_version INTEGER NOT NULL DEFAULT 1 CHECK (auth_version > 0),
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO users_admin_migration
+        (id, name, email, role, password_hash, status, auth_version, created_at)
+      SELECT id, name, email, role, password_hash, 'active', 1, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_admin_migration RENAME TO users;
+      COMMIT;
+    `)
+  } catch (error) {
+    try {
+      db.exec('ROLLBACK')
+    } catch {
+      // Preserve the migration error.
+    }
+    throw error
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON')
+  }
+}
+
+function ensureAdminClassManagementSchema(db) {
+  const addColumnIfMissing = (table, column, definition) => {
+    const columns = db.many(`PRAGMA table_info(${table})`)
+    if (!columns.some((item) => item.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
+  ensureAdminRoleSchema(db)
+  addColumnIfMissing(
+    'users',
+    'status',
+    "TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive'))",
+  )
+  addColumnIfMissing('users', 'auth_version', 'INTEGER NOT NULL DEFAULT 1 CHECK (auth_version > 0)')
+  addColumnIfMissing(
+    'subjects',
+    'status',
+    "TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived'))",
+  )
+  addColumnIfMissing('course_classes', 'academic_term_id', 'TEXT REFERENCES academic_terms(id)')
+  addColumnIfMissing(
+    'course_classes',
+    'group_number',
+    'INTEGER CHECK (group_number IS NULL OR group_number > 0)',
+  )
+  addColumnIfMissing('course_classes', 'class_code', 'TEXT')
+  addColumnIfMissing(
+    'course_classes',
+    'status',
+    "TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'archived'))",
+  )
+  addColumnIfMissing('questions', 'class_id', 'TEXT REFERENCES course_classes(id)')
+  addColumnIfMissing('questions', 'claimed_by', 'TEXT REFERENCES users(id)')
+  addColumnIfMissing('questions', 'claimed_at', 'TEXT')
+  addColumnIfMissing(
+    'questions',
+    'routing_status',
+    "TEXT NOT NULL DEFAULT 'queued' CHECK (routing_status IN ('unrouted', 'queued', 'claimed', 'answered', 'closed'))",
+  )
+  addColumnIfMissing(
+    'questions',
+    'row_version',
+    'INTEGER NOT NULL DEFAULT 0 CHECK (row_version >= 0)',
+  )
+  addColumnIfMissing(
+    'practice_questions',
+    'scope',
+    "TEXT NOT NULL DEFAULT 'lecturer_owned' CHECK (scope IN ('subject_shared', 'lecturer_owned'))",
+  )
+
+  const classes = db.many(
+    `SELECT id, subject_id, name, lecturer_id, semester, academic_term_id, group_number, class_code
+     FROM course_classes
+     ORDER BY semester, subject_id, name, id`,
+  )
+  const termIds = new Map()
+  const groupCounters = new Map()
+  const insertTerm = db.prepare(
+    `INSERT OR IGNORE INTO academic_terms (id, code, name, status)
+     VALUES (?, ?, ?, 'active')`,
+  )
+  const updateClass = db.prepare(
+    `UPDATE course_classes
+     SET academic_term_id = ?, group_number = ?, class_code = ?
+     WHERE id = ?`,
+  )
+  const insertAssignment = db.prepare(
+    `INSERT OR IGNORE INTO class_lecturer_assignments
+     (id, class_id, lecturer_id, assignment_role, status, assigned_at)
+     VALUES (?, ?, ?, 'lead', 'active', ?)`,
+  )
+  const migratedAt = '2026-08-12T00:00:00.000Z'
+
+  for (const courseClass of classes) {
+    let termId = termIds.get(courseClass.semester)
+    if (!termId) {
+      termId = `term_${String(courseClass.semester)
+        .replace(/[^a-z0-9]+/gi, '_')
+        .toLowerCase()}`
+      termIds.set(courseClass.semester, termId)
+      insertTerm.run(termId, courseClass.semester, `Năm học ${courseClass.semester}`)
+    }
+    const groupKey = `${courseClass.subject_id}:${courseClass.semester}`
+    const groupNumber = courseClass.group_number ?? (groupCounters.get(groupKey) ?? 0) + 1
+    groupCounters.set(groupKey, Math.max(groupCounters.get(groupKey) ?? 0, groupNumber))
+    const classCode = courseClass.class_code ?? courseClass.name.split(' - ')[0]
+    updateClass.run(courseClass.academic_term_id ?? termId, groupNumber, classCode, courseClass.id)
+    if (courseClass.lecturer_id) {
+      insertAssignment.run(
+        `assignment_${courseClass.id}_${courseClass.lecturer_id}`,
+        courseClass.id,
+        courseClass.lecturer_id,
+        migratedAt,
+      )
+    }
+  }
+
+  db.exec(`
+    UPDATE questions
+    SET class_id = (
+      SELECT course_classes.id
+      FROM enrollments
+      JOIN course_classes ON course_classes.id = enrollments.class_id
+      WHERE enrollments.student_id = questions.student_id
+        AND course_classes.subject_id = questions.subject_id
+      ORDER BY course_classes.id
+      LIMIT 1
+    )
+    WHERE class_id IS NULL;
+
+    UPDATE questions
+    SET routing_status = CASE
+      WHEN status = 'answered' THEN 'answered'
+      WHEN class_id IS NULL THEN 'unrouted'
+      ELSE 'queued'
+    END;
+
+    UPDATE questions
+    SET claimed_by = (
+          SELECT lecturer_answers.lecturer_id
+          FROM lecturer_answers
+          WHERE lecturer_answers.question_id = questions.id
+        ),
+        claimed_at = (
+          SELECT lecturer_answers.created_at
+          FROM lecturer_answers
+          WHERE lecturer_answers.question_id = questions.id
+        )
+    WHERE status = 'answered';
+
+    INSERT OR IGNORE INTO practice_question_class_assignments
+      (id, question_id, class_id, status, assigned_by, assigned_at)
+    SELECT 'practice_assignment_' || practice_questions.id || '_' || course_classes.id,
+           practice_questions.id,
+           course_classes.id,
+           'published',
+           practice_questions.created_by,
+           practice_questions.created_at
+    FROM practice_questions
+    JOIN class_lecturer_assignments
+      ON class_lecturer_assignments.lecturer_id = practice_questions.created_by
+     AND class_lecturer_assignments.status = 'active'
+    JOIN course_classes
+      ON course_classes.id = class_lecturer_assignments.class_id
+     AND course_classes.subject_id = practice_questions.subject_id;
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_term_group
+      ON course_classes(subject_id, academic_term_id, group_number)
+      WHERE academic_term_id IS NOT NULL AND group_number IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_term_code
+      ON course_classes(subject_id, academic_term_id, class_code)
+      WHERE academic_term_id IS NOT NULL AND class_code IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_questions_class_queue
+      ON questions(class_id, routing_status, created_at DESC);
+  `)
+}
+
 export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = true } = {}) {
   if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true })
 
   const db = createSqliteClient(new DatabaseSync(databasePath))
   db.exec(SCHEMA)
+  ensureAdminClassManagementSchema(db)
   ensurePracticeAnalyticsSchema(db)
   if (databasePath !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
   if (seed) {
@@ -877,7 +1183,7 @@ export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = tr
     seedPracticeQuestions(db)
     seedDemoRagData(db)
   }
-  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '5')`).run()
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '6')`).run()
   return db
 }
 
