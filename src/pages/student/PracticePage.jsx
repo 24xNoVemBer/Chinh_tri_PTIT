@@ -1,4 +1,14 @@
-import { ArrowRight, CheckCircle2, RotateCcw, XCircle } from 'lucide-react'
+import {
+  ArrowRight,
+  BookOpenCheck,
+  CheckCircle2,
+  ClipboardCheck,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  Shuffle,
+  XCircle,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { EmptyState, ErrorState, LoadingState } from '../../components/common/AsyncState'
@@ -15,6 +25,8 @@ export default function PracticePage() {
   const [selectedClassId, setSelectedClassId] = useState('')
   const [selectedChapterId, setSelectedChapterId] = useState('')
   const [questionCount, setQuestionCount] = useState(10)
+  const [sessionType, setSessionType] = useState('practice')
+  const [randomize, setRandomize] = useState(true)
   const [session, setSession] = useState(null)
   const [pageError, setPageError] = useState('')
 
@@ -73,6 +85,8 @@ export default function PracticePage() {
         classId: effectiveClassId || undefined,
         chapterId: selectedChapterId || undefined,
         questionCount: Math.min(questionCount, availableCount),
+        sessionType,
+        randomize,
       })
       setSession(created)
     } catch (error) {
@@ -106,13 +120,47 @@ export default function PracticePage() {
     <div className="page-stack practice-page">
       <PageHeader
         eyebrow="Sinh viên"
-        title="Luyện tập trắc nghiệm"
-        description="Ôn lại kiến thức theo từng học phần và nhận giải thích ngay sau mỗi lựa chọn."
+        title="Luyện tập và thi thử"
+        description="Chọn cách học phù hợp: củng cố kiến thức với phản hồi tức thì hoặc tự đánh giá như một bài thi."
       />
+      <section className="practice-mode-grid" aria-label="Chọn hình thức làm bài">
+        <button
+          className={`practice-mode-card ${sessionType === 'practice' ? 'is-active' : ''}`}
+          type="button"
+          aria-pressed={sessionType === 'practice'}
+          onClick={() => setSessionType('practice')}
+        >
+          <span className="practice-mode-card__icon">
+            <BookOpenCheck aria-hidden="true" size={22} />
+          </span>
+          <span>
+            <strong>Luyện tập</strong>
+            <small>Xem đáp án và giải thích ngay sau mỗi câu.</small>
+          </span>
+          <Eye aria-hidden="true" size={20} />
+        </button>
+        <button
+          className={`practice-mode-card ${sessionType === 'mock_exam' ? 'is-active' : ''}`}
+          type="button"
+          aria-pressed={sessionType === 'mock_exam'}
+          onClick={() => setSessionType('mock_exam')}
+        >
+          <span className="practice-mode-card__icon">
+            <ClipboardCheck aria-hidden="true" size={22} />
+          </span>
+          <span>
+            <strong>Thi thử</strong>
+            <small>Giữ kín đáp án và chấm điểm sau khi nộp bài.</small>
+          </span>
+          <EyeOff aria-hidden="true" size={20} />
+        </button>
+      </section>
       <section className="practice-setup-card" aria-labelledby="practice-setup-title">
         <div>
           <p className="practice-eyebrow">Bắt đầu phiên mới</p>
-          <h2 id="practice-setup-title">Chọn phạm vi ôn tập</h2>
+          <h2 id="practice-setup-title">
+            {sessionType === 'practice' ? 'Chọn phạm vi ôn tập' : 'Thiết lập đề thi thử'}
+          </h2>
         </div>
         <div className="practice-setup-grid">
           <label>
@@ -176,6 +224,20 @@ export default function PracticePage() {
             </select>
           </label>
         </div>
+        <label className="practice-random-option">
+          <input
+            type="checkbox"
+            checked={randomize}
+            onChange={(event) => setRandomize(event.target.checked)}
+          />
+          <span className="practice-random-option__icon">
+            <Shuffle aria-hidden="true" size={19} />
+          </span>
+          <span>
+            <strong>Trộn ngẫu nhiên câu hỏi</strong>
+            <small>Mỗi phiên lấy một bộ câu khác nhau trong phạm vi đã chọn.</small>
+          </span>
+        </label>
         <div className="practice-setup-footer">
           <span>{availableCount} câu đã xuất bản trong phạm vi này</span>
           <button
@@ -184,7 +246,8 @@ export default function PracticePage() {
             disabled={configState.loading || availableCount === 0}
             onClick={startSession}
           >
-            Bắt đầu luyện tập <ArrowRight aria-hidden="true" size={17} />
+            {sessionType === 'practice' ? 'Bắt đầu luyện tập' : 'Bắt đầu thi thử'}{' '}
+            <ArrowRight aria-hidden="true" size={17} />
           </button>
         </div>
       </section>
@@ -208,7 +271,10 @@ function PracticeHistory() {
         {historyState.data.slice(0, 5).map((item) => (
           <Link className="practice-history-item" key={item.id} to={`/student/practice/${item.id}`}>
             <span>
-              <strong>{item.subjectName}</strong>
+              <span className="practice-history-item__title">
+                <strong>{item.subjectName}</strong>
+                <small>{item.sessionType === 'mock_exam' ? 'Thi thử' : 'Luyện tập'}</small>
+              </span>
               <small>{item.chapterTitle ?? 'Toàn bộ học phần'}</small>
             </span>
             <span>
@@ -235,6 +301,7 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
     session.questions.find((item) => item.position === activePosition) ??
     session.questions.find((item) => !item.isAnswered)
   const completed = session.status === 'completed'
+  const isMockExam = session.sessionType === 'mock_exam'
   const finish = async () => {
     try {
       const result = await practiceSessionRepository.complete(session.id)
@@ -251,6 +318,7 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
         subjectId: session.subjectId,
         classId: session.classId || undefined,
         mode: 'retry_wrong',
+        sessionType: 'practice',
         sourceSessionId: session.id,
         questionCount: session.questions.filter((item) => item.isCorrect === false).length,
       })
@@ -262,7 +330,7 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
     }
   }
   const answer = async (optionId) => {
-    if (!current || current.isAnswered || answering) return
+    if (!current || (!isMockExam && current.isAnswered) || answering) return
     setAnswering(true)
     setAnswerError('')
     try {
@@ -270,7 +338,7 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
         questionId: current.question.id,
         optionId,
       })
-      setFeedback(result)
+      setFeedback(isMockExam ? null : result)
       onSessionChange(await practiceSessionRepository.get(session.id))
     } catch (error) {
       setAnswerError(error.message)
@@ -282,9 +350,13 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
     return (
       <div className="page-stack practice-page">
         <PageHeader
-          eyebrow="Kết quả luyện tập"
+          eyebrow={isMockExam ? 'Kết quả thi thử' : 'Kết quả luyện tập'}
           title={`${session.correctCount}/${session.questionCount} câu đúng`}
-          description="Bạn có thể xem lại từng câu hoặc bắt đầu một phiên mới."
+          description={
+            isMockExam
+              ? 'Đáp án và giải thích được mở sau khi bạn đã nộp bài.'
+              : 'Bạn có thể xem lại từng câu hoặc bắt đầu một phiên mới.'
+          }
         />
         <section className="practice-result-card">
           <strong>
@@ -342,9 +414,13 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
   return (
     <div className="page-stack practice-page practice-session-page">
       <PageHeader
-        eyebrow="Luyện tập"
+        eyebrow={isMockExam ? 'Thi thử' : 'Luyện tập'}
         title={question.subject?.name ?? 'Học phần'}
-        description={`Câu ${current.position}/${session.questionCount} · ${session.correctCount} câu đúng`}
+        description={
+          isMockExam
+            ? `Câu ${current.position}/${session.questionCount} · ${session.answeredCount} câu đã chọn`
+            : `Câu ${current.position}/${session.questionCount} · ${session.correctCount} câu đúng`
+        }
       />
       <section className="practice-session-card" aria-labelledby="practice-question-title">
         <div className="practice-session-progress">
@@ -361,7 +437,7 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
                 className={`practice-answer ${isSelected ? 'is-selected' : ''} ${isCorrect ? 'is-correct' : ''}`}
                 key={option.id}
                 type="button"
-                disabled={answering || Boolean(answeredCurrent)}
+                disabled={answering || (!isMockExam && Boolean(answeredCurrent))}
                 onClick={() => answer(option.id)}
               >
                 <b>{option.key}</b>
@@ -372,11 +448,11 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
             )
           })}
         </div>
-        {displayFeedback && (
+        {!isMockExam && displayFeedback && (
           <div
             className={`practice-feedback ${displayFeedback.isCorrect ? 'is-correct' : 'is-wrong'}`}
           >
-            <strong>{feedback.isCorrect ? 'Chính xác' : 'Chưa chính xác'}</strong>
+            <strong>{displayFeedback.isCorrect ? 'Chính xác' : 'Chưa chính xác'}</strong>
             <p>{displayFeedback.explanation}</p>
           </div>
         )}
@@ -391,43 +467,56 @@ function PracticeSessionView({ session, onSessionChange, onReset }) {
             type="button"
             onClick={finish}
           >
-            Xem kết quả <ArrowRight aria-hidden="true" size={17} />
+            {isMockExam ? 'Nộp bài' : 'Xem kết quả'} <ArrowRight aria-hidden="true" size={17} />
           </button>
         ) : (
-          displayFeedback && (
+          (displayFeedback || isMockExam) && (
             <button
-              className="button button--primary practice-next-button"
+              className={`button ${isMockExam && !answeredCurrent ? 'button--secondary' : 'button--primary'} practice-next-button`}
               type="button"
               onClick={() => {
                 setFeedback(null)
-                setActivePosition(
+                const nextQuestion =
                   session.questions.find(
                     (item) => !item.isAnswered && item.position > current.position,
-                  )?.position ?? null,
-                )
+                  ) ??
+                  session.questions.find(
+                    (item) => !item.isAnswered && item.position !== current.position,
+                  )
+                setActivePosition(nextQuestion?.position ?? current.position)
               }}
             >
-              Câu tiếp theo <ArrowRight aria-hidden="true" size={17} />
+              {isMockExam && !answeredCurrent ? 'Bỏ qua câu này' : 'Câu tiếp theo'}{' '}
+              <ArrowRight aria-hidden="true" size={17} />
             </button>
           )
         )}
       </section>
       <div className="practice-mini-nav" aria-label="Danh sách câu hỏi trong phiên">
         {session.questions.map((item) => (
-          <span
+          <button
+            type="button"
+            aria-label={`Mở câu ${item.position}${item.isAnswered ? ', đã chọn đáp án' : ''}`}
+            aria-current={item.id === current.id ? 'step' : undefined}
             className={
               item.isAnswered
-                ? item.isCorrect
-                  ? 'is-correct'
-                  : 'is-wrong'
+                ? item.isCorrect === null
+                  ? 'is-answered'
+                  : item.isCorrect
+                    ? 'is-correct'
+                    : 'is-wrong'
                 : item.id === current.id
                   ? 'is-current'
                   : ''
             }
             key={item.id}
+            onClick={() => {
+              setFeedback(null)
+              setActivePosition(item.position)
+            }}
           >
             {item.position}
-          </span>
+          </button>
         ))}
       </div>
     </div>

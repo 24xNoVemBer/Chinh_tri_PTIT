@@ -5,6 +5,76 @@
   margin-inline: auto;
 }
 
+.practice-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.practice-mode-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 7.5rem;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  color: var(--color-muted-foreground);
+  text-align: left;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.practice-mode-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.practice-mode-card.is-active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.practice-mode-card > span:nth-child(2) {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.practice-mode-card strong {
+  color: var(--color-heading);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+}
+
+.practice-mode-card small {
+  color: var(--color-muted-foreground);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.practice-mode-card__icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.practice-mode-card.is-active .practice-mode-card__icon {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
 .practice-setup-card,
 .practice-session-card,
 .practice-result-card,
@@ -73,6 +143,47 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  color: var(--color-muted-foreground);
+}
+
+.practice-random-option {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+  cursor: pointer;
+}
+
+.practice-random-option input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--color-primary);
+}
+
+.practice-random-option__icon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.practice-random-option > span:last-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.practice-random-option strong {
+  color: var(--color-heading);
+}
+
+.practice-random-option small {
   color: var(--color-muted-foreground);
 }
 
@@ -188,7 +299,7 @@
   gap: var(--space-2);
 }
 
-.practice-mini-nav span {
+.practice-mini-nav button {
   display: grid;
   width: 2rem;
   height: 2rem;
@@ -199,21 +310,37 @@
   background: var(--color-surface);
   font-size: var(--text-sm);
   font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
 }
 
-.practice-mini-nav span.is-current {
+.practice-mini-nav button:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.practice-mini-nav button.is-current {
   border-color: var(--color-primary);
   color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-soft);
 }
 
-.practice-mini-nav span.is-correct,
+.practice-mini-nav button.is-answered {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.practice-mini-nav button.is-correct,
 .practice-review-item > span.is-correct {
   border-color: var(--color-success);
   color: var(--color-success);
 }
 
-.practice-mini-nav span.is-wrong,
+.practice-mini-nav button.is-wrong,
 .practice-review-item > span.is-wrong {
   border-color: var(--color-danger);
   color: var(--color-danger);
@@ -258,6 +385,21 @@
   gap: 0.15rem;
 }
 
+.practice-history-item__title {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-2) !important;
+}
+
+.practice-history-item__title > small {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
 .practice-history-item strong {
   color: var(--color-heading);
 }
@@ -279,6 +421,10 @@
 }
 
 @media (max-width: 46rem) {
+  .practice-mode-grid {
+    grid-template-columns: 1fr;
+  }
+
   .practice-setup-grid {
     grid-template-columns: 1fr;
   }

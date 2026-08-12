@@ -94,7 +94,7 @@ Tất cả endpoint dưới đây yêu cầu role `student`; `studentId` luôn l
 | Method | Endpoint                                      | Mô tả                                |
 | ------ | --------------------------------------------- | ------------------------------------ |
 | `GET`  | `/api/student/practice/config/:subjectId`     | Phạm vi chương và số câu đã xuất bản |
-| `POST` | `/api/student/practice-sessions`              | Tạo phiên luyện tập                  |
+| `POST` | `/api/student/practice-sessions`              | Tạo phiên luyện tập hoặc thi thử     |
 | `GET`  | `/api/student/practice-sessions/:id`          | Khôi phục phiên và tiến độ           |
 | `POST` | `/api/student/practice-sessions/:id/answers`  | Chấm một lựa chọn và trả giải thích  |
 | `POST` | `/api/student/practice-sessions/:id/complete` | Hoàn thành phiên                     |

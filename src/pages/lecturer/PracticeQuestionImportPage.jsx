@@ -224,8 +224,8 @@ export default function PracticeQuestionImportPage() {
           ))}
         </div>
         <p className="practice-import-note">
-          <strong>Quy ước:</strong> <code>dap_an_dung</code> dùng A/B/C/D; <code>do_kho</code> dùng
-          easy/medium/hard. Tối đa 200 câu và 1 MB mỗi lần nhập.
+          <strong>Quy ước:</strong> <code>dap_an_dung</code> dùng A/B/C/D. Tối đa 200 câu và 1 MB
+          mỗi lần nhập.
         </p>
       </section>
 
@@ -347,7 +347,6 @@ export default function PracticeQuestionImportPage() {
                     <th>Dòng</th>
                     <th>Nội dung câu hỏi</th>
                     <th>Đáp án đúng</th>
-                    <th>Độ khó</th>
                     <th>Kiểm tra</th>
                   </tr>
                 </thead>
@@ -357,7 +356,6 @@ export default function PracticeQuestionImportPage() {
                       <td>{row.rowNumber}</td>
                       <td>{row.question.content || '—'}</td>
                       <td>{row.question.correctOptionKey || '—'}</td>
-                      <td>{row.question.difficulty || '—'}</td>
                       <td>
                         {row.valid ? (
                           <span className="practice-import-row-status is-valid">

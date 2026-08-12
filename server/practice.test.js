@@ -326,6 +326,81 @@ describe('practice question bank and sessions', () => {
     expect(duplicateResponse.status).toBe(409)
   })
 
+  it('keeps mock-exam answers private until submission and allows answer review', async () => {
+    const student = await login('tuananh@ptit.edu.vn', 'Student@123')
+    const createResponse = await api('/api/student/practice-sessions', student, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        questionCount: 2,
+        sessionType: 'mock_exam',
+        randomize: true,
+      }),
+    })
+    expect(createResponse.status).toBe(201)
+    const session = (await createResponse.json()).data
+    expect(session.sessionType).toBe('mock_exam')
+    expect(session.correctCount).toBeNull()
+
+    const first = session.questions[0]
+    const firstAnswerResponse = await api(
+      `/api/student/practice-sessions/${session.id}/answers`,
+      student,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          questionId: first.question.id,
+          optionId: first.question.options[0].id,
+        }),
+      },
+    )
+    expect(firstAnswerResponse.status).toBe(200)
+    const firstAnswer = (await firstAnswerResponse.json()).data
+    expect(firstAnswer.isCorrect).toBeUndefined()
+    expect(firstAnswer.correctOptionId).toBeUndefined()
+    expect(firstAnswer.explanation).toBeUndefined()
+
+    const changeAnswerResponse = await api(
+      `/api/student/practice-sessions/${session.id}/answers`,
+      student,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          questionId: first.question.id,
+          optionId: first.question.options[1].id,
+        }),
+      },
+    )
+    expect(changeAnswerResponse.status).toBe(200)
+    expect((await changeAnswerResponse.json()).data.answeredCount).toBe(1)
+
+    const inProgressResponse = await api(`/api/student/practice-sessions/${session.id}`, student)
+    const inProgress = (await inProgressResponse.json()).data
+    expect(inProgress.correctCount).toBeNull()
+    expect(inProgress.questions[0].isCorrect).toBeNull()
+    expect(inProgress.questions[0].selectedOptionId).toBe(first.question.options[1].id)
+    expect(inProgress.questions[0].question.explanation).toBeUndefined()
+
+    const second = session.questions[1]
+    await api(`/api/student/practice-sessions/${session.id}/answers`, student, {
+      method: 'POST',
+      body: JSON.stringify({
+        questionId: second.question.id,
+        optionId: second.question.options[0].id,
+      }),
+    })
+    const completeResponse = await api(
+      `/api/student/practice-sessions/${session.id}/complete`,
+      student,
+      { method: 'POST' },
+    )
+    expect(completeResponse.status).toBe(200)
+    const completed = (await completeResponse.json()).data
+    expect(typeof completed.correctCount).toBe('number')
+    expect(completed.questions.every((item) => item.question.correctOptionId)).toBe(true)
+    expect(completed.questions.every((item) => item.question.explanation)).toBe(true)
+  })
+
   it('prevents students from practising outside their enrolled subject', async () => {
     const student = await login('tuananh@ptit.edu.vn', 'Student@123')
     const response = await api('/api/student/practice-sessions', student, {

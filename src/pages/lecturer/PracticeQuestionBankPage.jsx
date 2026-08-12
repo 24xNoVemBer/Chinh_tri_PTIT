@@ -181,7 +181,7 @@ export default function PracticeQuestionBankPage() {
                 ))}
               </div>
               <div className="practice-question-card__footer">
-                <span>Độ khó: {question.difficulty}</span>
+                <span>{question.sourceType === 'csv' ? 'Nhập từ CSV' : 'Tạo thủ công'}</span>
                 <div className="practice-question-card__actions">
                   {question.status !== 'archived' && (
                     <Link

@@ -1651,10 +1651,20 @@ export function createAsyncRepositories(db) {
       const mode = String(input.mode ?? 'standard')
         .trim()
         .toLowerCase()
+      const sessionType =
+        mode === 'retry_wrong'
+          ? 'practice'
+          : String(input.sessionType ?? 'practice')
+              .trim()
+              .toLowerCase()
+      const randomize = input.randomize !== false
       const requestedClassId = input.classId ? String(input.classId).trim() : null
       const sourceSessionId = input.sourceSessionId ? String(input.sourceSessionId).trim() : null
       if (!['standard', 'retry_wrong'].includes(mode)) {
         throw new ApiError(400, 'VALIDATION', 'Practice mode is invalid.')
+      }
+      if (!['practice', 'mock_exam'].includes(sessionType)) {
+        throw new ApiError(400, 'VALIDATION', 'Loại phiên làm bài không hợp lệ.')
       }
       if (!subjectId) throw new ApiError(400, 'VALIDATION', 'Cần chọn học phần.')
       if (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 50) {
@@ -1714,17 +1724,15 @@ export function createAsyncRepositories(db) {
         )
         const availableCount = Number(available?.question_count ?? 0)
         const sampleSize = Math.min(requestedCount, availableCount)
-        const maxOffset = Math.max(availableCount - sampleSize, 0)
-        const offset = maxOffset ? Math.floor(Math.random() * (maxOffset + 1)) : 0
         questionRows = await db.many(
           `SELECT practice_questions.id
            FROM practice_questions
            WHERE practice_questions.subject_id = ?
              AND practice_questions.status = 'published'
              ${filters}
-           ORDER BY practice_questions.id
-           LIMIT ? OFFSET ?`,
-          [...scopeParams, sampleSize, offset],
+           ORDER BY ${randomize ? 'RANDOM()' : 'practice_questions.id'}
+           LIMIT ?`,
+          [...scopeParams, sampleSize],
         )
       }
       if (questionRows.length === 0) {
@@ -1735,9 +1743,9 @@ export function createAsyncRepositories(db) {
       await db.transaction(async (transaction) => {
         await transaction.execute(
           `INSERT INTO practice_sessions
-           (id, student_id, subject_id, chapter_id, class_id, mode, source_session_id,
+           (id, student_id, subject_id, chapter_id, class_id, mode, session_type, source_session_id,
             status, question_count, answered_count, correct_count, started_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, 0, 0, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, 0, 0, ?, ?)`,
           [
             sessionId,
             studentId,
@@ -1745,6 +1753,7 @@ export function createAsyncRepositories(db) {
             chapterId,
             selectedClass.id,
             mode,
+            sessionType,
             sourceSessionId,
             questionRows.length,
             startedAt,
@@ -1776,6 +1785,8 @@ export function createAsyncRepositories(db) {
             chapterId,
             classId: selectedClass.id,
             mode,
+            sessionType,
+            randomize,
             sourceSessionId,
             questionCount: questionRows.length,
           },
@@ -1796,20 +1807,29 @@ export function createAsyncRepositories(db) {
          WHERE session_id = ? ORDER BY position`,
         [sessionId],
       )
+      const sessionType = session.session_type ?? 'practice'
+      const revealAnswers = sessionType === 'practice' || session.status === 'completed'
       const questions = await Promise.all(
-        rows.map(async (row) => ({
-          id: row.id,
-          position: row.position,
-          selectedOptionId: row.selected_option_id,
-          isAnswered: row.selected_option_id !== null,
-          isCorrect: row.is_correct === null ? null : Number(row.is_correct) === 1,
-          answeredAt: row.answered_at,
-          startedAt: row.started_at,
-          answerDurationMs: row.answer_duration_ms == null ? null : Number(row.answer_duration_ms),
-          question: await loadPracticeQuestion(db, row.question_id, {
-            includeAnswer: row.selected_option_id !== null,
-          }),
-        })),
+        rows.map(async (row) => {
+          const isAnswered = row.selected_option_id !== null
+          return {
+            id: row.id,
+            position: row.position,
+            selectedOptionId: row.selected_option_id,
+            isAnswered,
+            isCorrect:
+              isAnswered && revealAnswers && row.is_correct !== null
+                ? Number(row.is_correct) === 1
+                : null,
+            answeredAt: row.answered_at,
+            startedAt: row.started_at,
+            answerDurationMs:
+              row.answer_duration_ms == null ? null : Number(row.answer_duration_ms),
+            question: await loadPracticeQuestion(db, row.question_id, {
+              includeAnswer: isAnswered && revealAnswers,
+            }),
+          }
+        }),
       )
       return {
         id: session.id,
@@ -1817,11 +1837,15 @@ export function createAsyncRepositories(db) {
         chapterId: session.chapter_id,
         classId: session.class_id,
         mode: session.mode ?? 'standard',
+        sessionType,
         sourceSessionId: session.source_session_id,
         status: session.status,
         questionCount: Number(session.question_count),
         answeredCount: Number(session.answered_count),
-        correctCount: Number(session.correct_count),
+        correctCount:
+          sessionType === 'mock_exam' && session.status !== 'completed'
+            ? null
+            : Number(session.correct_count),
         startedAt: session.started_at,
         completedAt: session.completed_at,
         updatedAt: session.updated_at,
@@ -1847,7 +1871,9 @@ export function createAsyncRepositories(db) {
         [sessionId, input.questionId],
       )
       if (!sessionQuestion) throw new ApiError(404, 'NOT_FOUND', 'Câu hỏi không thuộc phiên này.')
-      if (sessionQuestion.selected_option_id) {
+      const sessionType = session.session_type ?? 'practice'
+      const isAnswerChange = Boolean(sessionQuestion.selected_option_id)
+      if (isAnswerChange && sessionType !== 'mock_exam') {
         throw new ApiError(409, 'CONFLICT', 'Câu hỏi này đã được trả lời.')
       }
       const option = await db.one(
@@ -1866,6 +1892,34 @@ export function createAsyncRepositories(db) {
           )
         : null
       await db.transaction(async (transaction) => {
+        if (isAnswerChange) {
+          const previousCorrect = Number(sessionQuestion.is_correct) === 1
+          const correctDelta = Number(isCorrect) - Number(previousCorrect)
+          const updateResult = await transaction.execute(
+            `UPDATE practice_session_questions
+             SET selected_option_id = ?, is_correct = ?, answered_at = ?
+             WHERE id = ? AND selected_option_id = ?`,
+            [
+              option.id,
+              isCorrect ? 1 : 0,
+              answeredAt,
+              sessionQuestion.id,
+              sessionQuestion.selected_option_id,
+            ],
+          )
+          const changed = Number(updateResult?.changes ?? updateResult?.rowCount ?? 0)
+          if (changed !== 1) {
+            throw new ApiError(409, 'CONFLICT', 'Đáp án vừa được cập nhật ở phiên khác.')
+          }
+          await transaction.execute(
+            `UPDATE practice_sessions
+             SET correct_count = correct_count + ?, updated_at = ?
+             WHERE id = ?`,
+            [correctDelta, answeredAt, sessionId],
+          )
+          return
+        }
+
         const updateResult = await transaction.execute(
           `UPDATE practice_session_questions
            SET selected_option_id = ?, is_correct = ?, answered_at = ?, answer_duration_ms = ?
@@ -1896,16 +1950,23 @@ export function createAsyncRepositories(db) {
           )
         }
       })
-      const question = await loadPracticeQuestion(db, input.questionId, { includeAnswer: true })
-      return {
+      const revealAnswer = sessionType === 'practice'
+      const result = {
         sessionId,
         questionId: input.questionId,
         selectedOptionId: option.id,
+        answerDurationMs: isAnswerChange
+          ? Number(sessionQuestion.answer_duration_ms)
+          : answerDurationMs,
+        answeredCount: Number(session.answered_count) + (isAnswerChange ? 0 : 1),
+      }
+      if (!revealAnswer) return result
+      const question = await loadPracticeQuestion(db, input.questionId, { includeAnswer: true })
+      return {
+        ...result,
         isCorrect,
         correctOptionId: question.correctOptionId,
         explanation: question.explanation,
-        answerDurationMs,
-        answeredCount: Number(session.answered_count) + 1,
         correctCount: Number(session.correct_count) + (isCorrect ? 1 : 0),
       }
     },
@@ -2043,14 +2104,21 @@ export function createAsyncRepositories(db) {
         chapterTitle: row.chapter_title,
         classId: row.class_id,
         mode: row.mode ?? 'standard',
+        sessionType: row.session_type ?? 'practice',
         sourceSessionId: row.source_session_id,
         status: row.status,
         questionCount: Number(row.question_count),
         answeredCount: Number(row.answered_count),
-        correctCount: Number(row.correct_count),
-        accuracy: row.question_count
-          ? Math.round((row.correct_count / row.question_count) * 100)
-          : 0,
+        correctCount:
+          row.session_type === 'mock_exam' && row.status !== 'completed'
+            ? null
+            : Number(row.correct_count),
+        accuracy:
+          row.session_type === 'mock_exam' && row.status !== 'completed'
+            ? null
+            : row.question_count
+              ? Math.round((row.correct_count / row.question_count) * 100)
+              : 0,
         startedAt: row.started_at,
         completedAt: row.completed_at,
         updatedAt: row.updated_at,

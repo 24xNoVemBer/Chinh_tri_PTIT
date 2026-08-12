@@ -184,6 +184,8 @@ const SCHEMA = `
     chapter_id TEXT REFERENCES chapters(id),
     class_id TEXT REFERENCES course_classes(id),
     mode TEXT NOT NULL DEFAULT 'standard' CHECK (mode IN ('standard', 'retry_wrong')),
+    session_type TEXT NOT NULL DEFAULT 'practice'
+      CHECK (session_type IN ('practice', 'mock_exam')),
     source_session_id TEXT REFERENCES practice_sessions(id),
     status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed')),
     question_count INTEGER NOT NULL CHECK (question_count > 0),
@@ -842,6 +844,11 @@ function ensurePracticeAnalyticsSchema(db) {
     'source_session_id',
     'TEXT REFERENCES practice_sessions(id)',
   )
+  addColumnIfMissing(
+    'practice_sessions',
+    'session_type',
+    "TEXT NOT NULL DEFAULT 'practice' CHECK (session_type IN ('practice', 'mock_exam'))",
+  )
   addColumnIfMissing('practice_session_questions', 'started_at', 'TEXT')
   addColumnIfMissing(
     'practice_session_questions',
@@ -870,7 +877,7 @@ export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = tr
     seedPracticeQuestions(db)
     seedDemoRagData(db)
   }
-  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '4')`).run()
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '5')`).run()
   return db
 }
 

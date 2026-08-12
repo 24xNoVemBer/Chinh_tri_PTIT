@@ -18,7 +18,6 @@ const emptyForm = {
   lessonId: '',
   content: '',
   explanation: '',
-  difficulty: 'medium',
   correctOptionKey: 'A',
   options: [
     { key: 'A', content: '' },
@@ -113,7 +112,6 @@ export default function PracticeQuestionEditorPage() {
         lessonId: data.question.lessonId ?? '',
         content: data.question.content,
         explanation: data.question.explanation ?? '',
-        difficulty: data.question.difficulty,
         correctOptionKey:
           data.question.options.find((option) => option.id === data.question.correctOptionId)
             ?.key ?? 'A',
@@ -254,17 +252,6 @@ export default function PracticeQuestionEditorPage() {
                       {lesson.title}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
-              <span>Độ khó</span>
-              <select
-                value={form.difficulty}
-                onChange={(event) => updateField('difficulty', event.target.value)}
-              >
-                <option value="easy">Dễ</option>
-                <option value="medium">Trung bình</option>
-                <option value="hard">Khó</option>
               </select>
             </label>
           </div>

@@ -28,21 +28,19 @@ describe('practice question CSV', () => {
         'Đáp án D',
         'A',
         '"Giải thích có hai dòng\nvà vẫn hợp lệ."',
-        'dễ',
       ].join(';'),
     ].join('\r\n')
 
     const rows = parsePracticeQuestionCsv(csv)
     expect(rows).toHaveLength(1)
     expect(rows[0].valid).toBe(true)
-    expect(rows[0].question.difficulty).toBe('easy')
     expect(rows[0].question.explanation).toContain('\n')
   })
 
   it('reports row-level format errors', () => {
     const csv = [
       PRACTICE_CSV_HEADERS.join(','),
-      ['Ngắn', 'A', 'A', '', 'D', 'E', 'Thiếu', 'unknown'].join(','),
+      ['Ngắn', 'A', 'A', '', 'D', 'E', 'Thiếu'].join(','),
     ].join('\n')
 
     const rows = parsePracticeQuestionCsv(csv)

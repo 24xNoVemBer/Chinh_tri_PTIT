@@ -6,20 +6,7 @@ export const PRACTICE_CSV_HEADERS = [
   'dap_an_d',
   'dap_an_dung',
   'giai_thich',
-  'do_kho',
 ]
-
-const DIFFICULTY_ALIASES = new Map([
-  ['easy', 'easy'],
-  ['de', 'easy'],
-  ['dễ', 'easy'],
-  ['medium', 'medium'],
-  ['trung_binh', 'medium'],
-  ['trung bình', 'medium'],
-  ['hard', 'hard'],
-  ['kho', 'hard'],
-  ['khó', 'hard'],
-])
 
 function escapeCsvCell(value) {
   const text = String(value ?? '')
@@ -35,7 +22,6 @@ export function createPracticeQuestionCsvTemplate() {
     'Xóa bỏ trao đổi hàng hóa',
     'B',
     'Sản xuất tư bản chủ nghĩa hướng trực tiếp tới việc tạo ra giá trị thặng dư.',
-    'medium',
   ]
   return `\uFEFF${[PRACTICE_CSV_HEADERS, sample]
     .map((row) => row.map(escapeCsvCell).join(','))
@@ -112,8 +98,6 @@ function validateRow(values, rowNumber) {
     content: values[`dap_an_${key.toLocaleLowerCase()}`].trim(),
   }))
   const correctOptionKey = values.dap_an_dung.trim().toLocaleUpperCase()
-  const difficultyInput = values.do_kho.trim().toLocaleLowerCase()
-  const difficulty = DIFFICULTY_ALIASES.get(difficultyInput)
 
   if (content.length < 10) errors.push('Nội dung cần ít nhất 10 ký tự.')
   if (options.some((option) => !option.content)) errors.push('Cần nhập đủ đáp án A, B, C và D.')
@@ -124,7 +108,6 @@ function validateRow(values, rowNumber) {
     errors.push('Đáp án đúng phải là A, B, C hoặc D.')
   }
   if (explanation.length < 10) errors.push('Giải thích cần ít nhất 10 ký tự.')
-  if (!difficulty) errors.push('Độ khó phải là easy, medium hoặc hard.')
 
   return {
     rowNumber,
@@ -133,7 +116,6 @@ function validateRow(values, rowNumber) {
     question: {
       content,
       explanation,
-      difficulty: difficulty ?? difficultyInput,
       correctOptionKey,
       options,
     },
