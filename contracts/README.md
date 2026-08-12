@@ -2,6 +2,10 @@
 
 This directory is the executable boundary between the PTIT browser/backend and the PTIT-hosted RAG service.
 
+The scoped administration and multi-lecturer class API is documented in
+`openapi/admin-management-api.v1.yaml`. Its permission model and migration invariants are recorded
+in `docs/ADMIN_CLASS_MANAGEMENT_PLAN.md`.
+
 ## Source of truth
 
 - `openapi/` contains the public browser API, internal RAG API and ingestion API contracts.

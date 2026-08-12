@@ -1,0 +1,123 @@
+openapi: 3.1.0
+info:
+  title: PTIT Chính Trị Admin and Class Management API
+  version: 1.0.0
+  description: Scoped administration, multi-lecturer classes, practice banks, class Q&A and analytics.
+servers:
+  - url: https://api.example.ptit.edu.vn
+security:
+  - sessionCookie: []
+paths:
+  /api/admin/users:
+    get:
+      operationId: listManagedUsers
+      responses: { '200': { description: Paginated users } }
+  /api/admin/users/{userId}/role:
+    patch:
+      operationId: updateManagedUserRole
+      responses:
+        '200': { description: Role updated and stale sessions revoked }
+        '409': { description: Last administrator cannot be demoted }
+  /api/admin/subjects:
+    get:
+      operationId: listManagedSubjects
+      responses: { '200': { description: Subjects } }
+    post:
+      operationId: createManagedSubject
+      responses: { '201': { description: Subject created } }
+  /api/admin/subjects/{subjectId}:
+    patch:
+      operationId: updateManagedSubject
+      responses: { '200': { description: Subject updated } }
+    delete:
+      operationId: archiveManagedSubject
+      responses: { '200': { description: Subject archived } }
+  /api/admin/subjects/{subjectId}/chapters:
+    get:
+      operationId: listManagedChapters
+      responses: { '200': { description: Subject curriculum } }
+    post:
+      operationId: createManagedChapter
+      responses: { '201': { description: Chapter created } }
+  /api/admin/chapters/{chapterId}/lessons:
+    post:
+      operationId: createManagedLesson
+      responses: { '201': { description: Lesson created } }
+  /api/admin/terms:
+    get:
+      operationId: listAcademicTerms
+      responses: { '200': { description: Academic terms } }
+    post:
+      operationId: createAcademicTerm
+      responses: { '201': { description: Academic term created } }
+  /api/admin/classes:
+    get:
+      operationId: listManagedClasses
+      responses: { '200': { description: Credit classes } }
+    post:
+      operationId: createManagedClass
+      responses: { '201': { description: Credit class created } }
+  /api/admin/classes/{classId}:
+    patch:
+      operationId: updateManagedClass
+      responses: { '200': { description: Credit class updated } }
+    delete:
+      operationId: archiveManagedClass
+      responses: { '200': { description: Credit class archived } }
+  /api/admin/classes/{classId}/lecturers:
+    get:
+      operationId: listClassLecturers
+      responses: { '200': { description: Active and historical lecturer assignments } }
+    post:
+      operationId: assignClassLecturer
+      responses: { '201': { description: Lecturer assigned } }
+  /api/admin/classes/{classId}/lecturers/{lecturerId}:
+    patch:
+      operationId: updateClassLecturerAssignment
+      responses: { '200': { description: Assignment updated } }
+    delete:
+      operationId: endClassLecturerAssignment
+      responses: { '200': { description: Assignment ended and claims released } }
+  /api/admin/practice-questions:
+    get:
+      operationId: listSharedPracticeQuestions
+      responses: { '200': { description: Shared subject question bank } }
+    post:
+      operationId: createSharedPracticeQuestion
+      responses: { '201': { description: Shared question created } }
+  /api/admin/questions/unrouted:
+    get:
+      operationId: listUnroutedQuestions
+      responses: { '200': { description: Questions requiring administrative routing } }
+  /api/admin/audit-logs:
+    get:
+      operationId: listAdministrativeAuditLogs
+      responses: { '200': { description: Audit log } }
+  /api/lecturer/classes/{classId}/practice-questions:
+    get:
+      operationId: listClassPracticeQuestions
+      responses: { '200': { description: Questions available to one class } }
+  /api/lecturer/classes/{classId}/question-queue:
+    get:
+      operationId: listClassQuestionQueue
+      responses: { '200': { description: Shared class Q&A queue } }
+  /api/lecturer/classes/{classId}/question-queue/{questionId}/claim:
+    post:
+      operationId: claimClassQuestion
+      responses:
+        '200': { description: Question claimed atomically }
+        '409': { description: Question already claimed }
+  /api/lecturer/classes/{classId}/question-queue/{questionId}/release:
+    post:
+      operationId: releaseClassQuestion
+      responses: { '200': { description: Question returned to the queue } }
+  /api/lecturer/classes/{classId}/analytics:
+    get:
+      operationId: getClassLearningAnalytics
+      responses: { '200': { description: Class-scoped learning and Q&A metrics } }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ptit_session
