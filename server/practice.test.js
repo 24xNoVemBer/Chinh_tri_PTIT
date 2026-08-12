@@ -138,6 +138,78 @@ describe('practice question bank and sessions', () => {
     expect(list).toHaveProperty('total')
   })
 
+  it('imports a CSV question batch atomically as drafts', async () => {
+    const lecturer = await login('ductu@ptit.edu.vn', 'Lecturer@123')
+    const questions = [
+      {
+        content: 'Câu hỏi CSV thứ nhất dùng để kiểm tra nhập hàng loạt?',
+        explanation: 'Giải thích đầy đủ cho câu hỏi CSV thứ nhất trong lô nhập.',
+        difficulty: 'easy',
+        correctOptionKey: 'A',
+        options: [
+          { key: 'A', content: 'Đáp án thứ nhất A' },
+          { key: 'B', content: 'Đáp án thứ nhất B' },
+          { key: 'C', content: 'Đáp án thứ nhất C' },
+          { key: 'D', content: 'Đáp án thứ nhất D' },
+        ],
+      },
+      {
+        content: 'Câu hỏi CSV thứ hai dùng để kiểm tra nhập hàng loạt?',
+        explanation: 'Giải thích đầy đủ cho câu hỏi CSV thứ hai trong lô nhập.',
+        difficulty: 'hard',
+        correctOptionKey: 'C',
+        options: [
+          { key: 'A', content: 'Đáp án thứ hai A' },
+          { key: 'B', content: 'Đáp án thứ hai B' },
+          { key: 'C', content: 'Đáp án thứ hai C' },
+          { key: 'D', content: 'Đáp án thứ hai D' },
+        ],
+      },
+    ]
+
+    const response = await api('/api/lecturer/practice-questions/import', lecturer, {
+      method: 'POST',
+      body: JSON.stringify({ subjectId: 'sub1', chapterId: 'chap1', questions }),
+    })
+    expect(response.status).toBe(201)
+    const imported = (await response.json()).data
+    expect(imported).toMatchObject({ importedCount: 2, status: 'draft' })
+    expect(imported.ids).toHaveLength(2)
+
+    for (const id of imported.ids) {
+      const stored = await db.one(
+        'SELECT status, source_type FROM practice_questions WHERE id = ?',
+        [id],
+      )
+      expect(stored).toMatchObject({ status: 'draft', source_type: 'csv' })
+    }
+
+    const beforeInvalidImport = await db.one(
+      'SELECT COUNT(*) AS total FROM practice_questions WHERE source_type = ?',
+      ['csv'],
+    )
+    const invalidResponse = await api('/api/lecturer/practice-questions/import', lecturer, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        chapterId: 'chap1',
+        questions: [
+          {
+            ...questions[0],
+            content: 'Một câu hợp lệ mới trong lô nhập bị từ chối toàn bộ?',
+          },
+          { ...questions[1], content: 'Ngắn' },
+        ],
+      }),
+    })
+    expect(invalidResponse.status).toBe(400)
+    const afterInvalidImport = await db.one(
+      'SELECT COUNT(*) AS total FROM practice_questions WHERE source_type = ?',
+      ['csv'],
+    )
+    expect(Number(afterInvalidImport.total)).toBe(Number(beforeInvalidImport.total))
+  })
+
   it('keeps option ids when saving a question referenced by practice history', async () => {
     const lecturer = await login('ductu@ptit.edu.vn', 'Lecturer@123')
     const createResponse = await api('/api/lecturer/practice-questions', lecturer, {

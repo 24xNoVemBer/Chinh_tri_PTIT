@@ -8,6 +8,7 @@ import {
   Search,
   Trash2,
   Undo2,
+  Upload,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -73,10 +74,16 @@ export default function PracticeQuestionBankPage() {
         title="Ngân hàng câu hỏi"
         description="Tạo, kiểm tra và xuất bản câu hỏi luyện tập theo từng học phần."
         actions={
-          <Link className="button button--primary" to="/lecturer/practice-questions/new">
-            <Plus aria-hidden="true" size={18} />
-            Tạo câu hỏi
-          </Link>
+          <div className="button-group">
+            <Link className="button button--secondary" to="/lecturer/practice-questions/import">
+              <Upload aria-hidden="true" size={18} />
+              Nhập từ CSV
+            </Link>
+            <Link className="button button--primary" to="/lecturer/practice-questions/new">
+              <Plus aria-hidden="true" size={18} />
+              Tạo câu hỏi
+            </Link>
+          </div>
         }
       />
 

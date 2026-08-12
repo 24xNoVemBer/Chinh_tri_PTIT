@@ -1279,6 +1279,131 @@ export function createAsyncRepositories(db) {
       }
       return this.getForLecturer(id, lecturerId)
     },
+    async importDrafts(input, lecturerId) {
+      const questions = Array.isArray(input.questions) ? input.questions : []
+      if (!questions.length) {
+        throw new ApiError(400, 'VALIDATION', 'File CSV chưa có câu hỏi hợp lệ để nhập.')
+      }
+      if (questions.length > 200) {
+        throw new ApiError(400, 'VALIDATION', 'Mỗi lần chỉ được nhập tối đa 200 câu hỏi.')
+      }
+
+      const normalizedQuestions = []
+      const seenContents = new Set()
+      for (const [index, question] of questions.entries()) {
+        try {
+          const normalized = await validatePracticeQuestionInput(
+            db,
+            {
+              ...question,
+              subjectId: input.subjectId,
+              chapterId: input.chapterId,
+              lessonId: input.lessonId,
+            },
+            lecturerId,
+          )
+          const contentKey = normalized.content.toLocaleLowerCase()
+          if (seenContents.has(contentKey)) {
+            throw new ApiError(400, 'VALIDATION', 'Nội dung bị trùng trong cùng file CSV.')
+          }
+          seenContents.add(contentKey)
+          normalizedQuestions.push(normalized)
+        } catch (error) {
+          if (error instanceof ApiError) {
+            throw new ApiError(error.status, error.code, `Dòng ${index + 2}: ${error.message}`)
+          }
+          throw error
+        }
+      }
+
+      const normalizedContents = normalizedQuestions.map((question) =>
+        question.content.toLocaleLowerCase(),
+      )
+      const contentPlaceholders = normalizedContents.map(() => '?').join(', ')
+      const existingQuestions = await db.many(
+        `SELECT content
+         FROM practice_questions
+         WHERE subject_id = ?
+           AND LOWER(content) IN (${contentPlaceholders})`,
+        [input.subjectId, ...normalizedContents],
+      )
+      const existingContents = new Set(
+        existingQuestions.map((question) => question.content.toLocaleLowerCase()),
+      )
+      const duplicateIndex = normalizedQuestions.findIndex((question) =>
+        existingContents.has(question.content.toLocaleLowerCase()),
+      )
+      if (duplicateIndex >= 0) {
+        throw new ApiError(
+          409,
+          'CONFLICT',
+          `Dòng ${duplicateIndex + 2}: câu hỏi đã tồn tại trong học phần.`,
+        )
+      }
+
+      const createdAt = nowIso()
+      const ids = normalizedQuestions.map(() => createId('practice_question'))
+      try {
+        await db.transaction(async (transaction) => {
+          for (const [questionIndex, question] of normalizedQuestions.entries()) {
+            const questionId = ids[questionIndex]
+            await transaction.execute(
+              `INSERT INTO practice_questions
+               (id, subject_id, chapter_id, lesson_id, content, explanation, difficulty, status,
+                source_type, created_by, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'csv', ?, ?, ?)`,
+              [
+                questionId,
+                question.subjectId,
+                question.chapterId,
+                question.lessonId,
+                question.content,
+                question.explanation,
+                question.difficulty,
+                lecturerId,
+                createdAt,
+                createdAt,
+              ],
+            )
+            for (const [optionIndex, option] of question.options.entries()) {
+              await transaction.execute(
+                `INSERT INTO practice_question_options
+                 (id, question_id, option_key, content, is_correct, option_order)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                  createId('practice_option'),
+                  questionId,
+                  option.key,
+                  option.content,
+                  option.isCorrect ? 1 : 0,
+                  optionIndex + 1,
+                ],
+              )
+            }
+          }
+          await audit(
+            transaction,
+            lecturerId,
+            'practice_question.csv_imported',
+            'practice_question_batch',
+            createId('practice_import'),
+            {
+              subjectId: input.subjectId,
+              chapterId: input.chapterId,
+              lessonId: input.lessonId ?? null,
+              importedCount: ids.length,
+            },
+          )
+        })
+      } catch (error) {
+        if (isUniqueConstraint(error)) {
+          throw new ApiError(409, 'CONFLICT', 'File CSV có câu hỏi đã tồn tại trong học phần.')
+        }
+        throw error
+      }
+
+      return { importedCount: ids.length, ids, status: 'draft' }
+    },
     async update(questionId, input, lecturerId) {
       const existing = await db.one(`SELECT * FROM practice_questions WHERE id = ?`, [questionId])
       if (!existing) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi.')

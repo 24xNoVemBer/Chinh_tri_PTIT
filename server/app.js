@@ -416,6 +416,16 @@ export function createRequestHandler({
           )
           return
         }
+        if (method === 'POST' && pathname === '/api/lecturer/practice-questions/import') {
+          const input = await readJson(request)
+          requireFields(input, ['subjectId', 'chapterId', 'questions'])
+          sendData(
+            response,
+            await repositories.practiceQuestionRepository.importDrafts(input, lecturer.id),
+            201,
+          )
+          return
+        }
         if (method === 'POST' && pathname === '/api/lecturer/practice-questions') {
           const input = await readJson(request)
           requireFields(input, [

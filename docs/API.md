@@ -61,14 +61,15 @@ Tất cả endpoint dưới đây yêu cầu role `lecturer`.
 
 ### Ngân hàng câu hỏi luyện tập
 
-| Method | Endpoint | Mô tả |
-| ------ | -------- | ---- |
-| `GET` | `/api/lecturer/practice-questions` | Danh sách câu hỏi theo học phần/chương/trạng thái |
-| `POST` | `/api/lecturer/practice-questions` | Tạo câu hỏi thủ công ở trạng thái nháp |
-| `GET` | `/api/lecturer/practice-questions/:id` | Xem chi tiết câu hỏi |
-| `PATCH` | `/api/lecturer/practice-questions/:id` | Cập nhật nội dung và lựa chọn |
-| `POST` | `/api/lecturer/practice-questions/:id/publish` | Xuất bản câu hỏi |
-| `POST` | `/api/lecturer/practice-questions/:id/archive` | Lưu trữ câu hỏi |
+| Method  | Endpoint                                       | Mô tả                                             |
+| ------- | ---------------------------------------------- | ------------------------------------------------- |
+| `GET`   | `/api/lecturer/practice-questions`             | Danh sách câu hỏi theo học phần/chương/trạng thái |
+| `POST`  | `/api/lecturer/practice-questions`             | Tạo câu hỏi thủ công ở trạng thái nháp            |
+| `POST`  | `/api/lecturer/practice-questions/import`      | Nhập tối đa 200 câu hỏi CSV vào trạng thái nháp   |
+| `GET`   | `/api/lecturer/practice-questions/:id`         | Xem chi tiết câu hỏi                              |
+| `PATCH` | `/api/lecturer/practice-questions/:id`         | Cập nhật nội dung và lựa chọn                     |
+| `POST`  | `/api/lecturer/practice-questions/:id/publish` | Xuất bản câu hỏi                                  |
+| `POST`  | `/api/lecturer/practice-questions/:id/archive` | Lưu trữ câu hỏi                                   |
 
 ## Sinh viên
 
@@ -90,14 +91,14 @@ Tất cả endpoint dưới đây yêu cầu role `student`; `studentId` luôn l
 
 ### Luyện tập trắc nghiệm
 
-| Method | Endpoint | Mô tả |
-| ------ | -------- | ---- |
-| `GET` | `/api/student/practice/config/:subjectId` | Phạm vi chương và số câu đã xuất bản |
-| `POST` | `/api/student/practice-sessions` | Tạo phiên luyện tập |
-| `GET` | `/api/student/practice-sessions/:id` | Khôi phục phiên và tiến độ |
-| `POST` | `/api/student/practice-sessions/:id/answers` | Chấm một lựa chọn và trả giải thích |
-| `POST` | `/api/student/practice-sessions/:id/complete` | Hoàn thành phiên |
-| `GET` | `/api/student/practice-sessions/history` | Lịch sử phiên gần đây |
+| Method | Endpoint                                      | Mô tả                                |
+| ------ | --------------------------------------------- | ------------------------------------ |
+| `GET`  | `/api/student/practice/config/:subjectId`     | Phạm vi chương và số câu đã xuất bản |
+| `POST` | `/api/student/practice-sessions`              | Tạo phiên luyện tập                  |
+| `GET`  | `/api/student/practice-sessions/:id`          | Khôi phục phiên và tiến độ           |
+| `POST` | `/api/student/practice-sessions/:id/answers`  | Chấm một lựa chọn và trả giải thích  |
+| `POST` | `/api/student/practice-sessions/:id/complete` | Hoàn thành phiên                     |
+| `GET`  | `/api/student/practice-sessions/history`      | Lịch sử phiên gần đây                |
 
 ## RAG UI demo
 

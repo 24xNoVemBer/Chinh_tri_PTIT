@@ -125,6 +125,12 @@ export const apiPracticeQuestionRepository = {
       body: jsonBody(input),
     })
   },
+  importDrafts(input) {
+    return apiRequest('/api/lecturer/practice-questions/import', {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
   update(questionId, input) {
     return apiRequest(`/api/lecturer/practice-questions/${encodeURIComponent(questionId)}`, {
       method: 'PATCH',

@@ -19,6 +19,7 @@ const QuestionsPage = lazy(() => import('./pages/lecturer/QuestionsPage'))
 const PracticeQuestionBankPage = lazy(() => import('./pages/lecturer/PracticeQuestionBankPage'))
 const PracticeAnalyticsPage = lazy(() => import('./pages/lecturer/PracticeAnalyticsPage'))
 const PracticeQuestionEditorPage = lazy(() => import('./pages/lecturer/PracticeQuestionEditorPage'))
+const PracticeQuestionImportPage = lazy(() => import('./pages/lecturer/PracticeQuestionImportPage'))
 const ReviewQueuePage = lazy(() => import('./pages/lecturer/ReviewQueuePage'))
 const LessonPage = lazy(() => import('./pages/student/LessonPage'))
 const NotificationsPage = lazy(() => import('./pages/student/NotificationsPage'))
@@ -88,6 +89,7 @@ export default function App() {
             <Route path="practice-questions" element={<PracticeQuestionBankPage />} />
             <Route path="practice-analytics" element={<PracticeAnalyticsPage />} />
             <Route path="practice-questions/new" element={<PracticeQuestionEditorPage />} />
+            <Route path="practice-questions/import" element={<PracticeQuestionImportPage />} />
             <Route
               path="practice-questions/:questionId/edit"
               element={<PracticeQuestionEditorPage />}
