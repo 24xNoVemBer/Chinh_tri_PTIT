@@ -905,6 +905,12 @@ tbody tr:last-child td {
   background: var(--color-warning-soft);
 }
 
+.feedback-banner--error {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--color-border));
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
 .management-grid {
   display: grid;
   grid-template-columns: minmax(18rem, 0.7fr) minmax(0, 1.5fr);
@@ -1480,6 +1486,60 @@ tbody tr:last-child td {
   font-variant-numeric: tabular-nums;
 }
 
+.subject-card__classes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subject-card__classes li {
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-heading);
+  background: var(--color-surface-subtle);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.subject-class-summary {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.7fr) minmax(0, 1.3fr);
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+
+.subject-class-summary h2 {
+  margin: var(--space-1) 0 0;
+  color: var(--color-heading);
+  font-size: var(--text-xl);
+}
+
+.subject-class-summary__items {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.subject-class-summary__items article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.subject-class-summary__items span {
+  color: var(--color-muted-foreground);
+  font-size: var(--text-sm);
+}
+
 .subject-progress-summary {
   display: grid;
   grid-template-columns: minmax(14rem, 0.6fr) minmax(16rem, 1fr);
@@ -1585,6 +1645,7 @@ tbody tr:last-child td {
 
 @media (max-width: 48rem) {
   .knowledge-search-form,
+  .subject-class-summary,
   .subject-progress-summary,
   .lesson-progress,
   .lesson-pagination {

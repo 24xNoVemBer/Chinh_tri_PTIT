@@ -460,6 +460,12 @@ export function createRequestHandler({
           sendData(response, await adminRepository.createSharedQuestion(input, admin.id), 201)
           return
         }
+        if (method === 'POST' && pathname === '/api/admin/practice-questions/import') {
+          const input = await readJson(request)
+          requireFields(input, ['subjectId', 'chapterId', 'questions'])
+          sendData(response, await adminRepository.importSharedQuestions(input, admin.id), 201)
+          return
+        }
         if (method === 'PATCH' && sharedPracticeQuestionMatch) {
           const input = await readJson(request)
           requireFields(input, [

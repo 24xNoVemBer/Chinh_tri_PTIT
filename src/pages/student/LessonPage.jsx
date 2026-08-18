@@ -31,6 +31,7 @@ export default function LessonPage() {
   const { lessonId } = useParams()
   const [updating, setUpdating] = useState(false)
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
   const loader = useCallback(
     () => learningRepository.getLessonForStudent(currentStudent.id, lessonId),
     [lessonId, currentStudent.id],
@@ -45,12 +46,14 @@ export default function LessonPage() {
   const handleComplete = async () => {
     setUpdating(true)
     setFeedback('')
+    setFeedbackError(false)
     try {
       await learningRepository.updateProgress(currentStudent.id, lesson.id, 100)
       setFeedback('Đã đánh dấu hoàn thành bài học.')
       await reload()
     } catch (nextError) {
-      setFeedback(nextError.message)
+      setFeedback(nextError.message ?? 'Không thể cập nhật tiến độ bài học.')
+      setFeedbackError(true)
     } finally {
       setUpdating(false)
     }
@@ -114,7 +117,11 @@ export default function LessonPage() {
       </section>
 
       {feedback && (
-        <div className="feedback-banner" role="status" aria-live="polite">
+        <div
+          className={`feedback-banner ${feedbackError ? 'feedback-banner--error' : ''}`}
+          role={feedbackError ? 'alert' : 'status'}
+          aria-live="polite"
+        >
           {feedback}
         </div>
       )}

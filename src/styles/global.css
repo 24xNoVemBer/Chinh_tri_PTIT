@@ -131,6 +131,21 @@ h3 {
   font-weight: 700;
 }
 
+.error-boundary {
+  display: grid;
+  width: min(42rem, calc(100% - 2rem));
+  min-height: 100vh;
+  align-content: center;
+  gap: var(--space-4);
+  margin-inline: auto;
+  padding-block: var(--space-8);
+}
+
+.error-boundary h1,
+.error-boundary p {
+  margin: 0;
+}
+
 .skip-link {
   position: fixed;
   z-index: var(--z-skip-link);

@@ -21,6 +21,7 @@ export default function QnAPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [lessonId, setLessonId] = useState(() => searchParams.get('lesson') ?? '')
+  const [selectedClassId, setSelectedClassId] = useState('')
   const [content, setContent] = useState('')
   const [touched, setTouched] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -43,6 +44,7 @@ export default function QnAPage() {
       ? `Câu hỏi cần có ít nhất ${MIN_QUESTION_LENGTH} ký tự.`
       : ''
   const lessons = data.chapters.flatMap((chapter) => chapter.lessons)
+  const classId = selectedClassId || data.classes?.[0]?.id || ''
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -54,6 +56,7 @@ export default function QnAPage() {
     try {
       const question = await questionRepository.create({
         subjectId,
+        classId,
         lessonId: lessonId || undefined,
         studentId: currentStudent.id,
         content: trimmedContent,
@@ -74,6 +77,23 @@ export default function QnAPage() {
         description="Bản demo gửi câu hỏi tới giảng viên. Các tình huống RAG mẫu có sẵn trong Lịch sử để review UI/UX."
       />
       <form className="form-surface question-form" onSubmit={handleSubmit}>
+        <div className="field-group">
+          <label htmlFor="question-class">Lớp tín chỉ</label>
+          <select
+            id="question-class"
+            value={classId}
+            onChange={(event) => setSelectedClassId(event.target.value)}
+            required
+          >
+            {(data.classes ?? []).map((courseClass) => (
+              <option key={courseClass.id} value={courseClass.id}>
+                {courseClass.classCode} · Tổ {courseClass.groupNumber}
+                {courseClass.lecturerName ? ` · ${courseClass.lecturerName}` : ''}
+              </option>
+            ))}
+          </select>
+          <p className="field-hint">Câu hỏi chỉ được chuyển tới giảng viên phụ trách lớp này.</p>
+        </div>
         <div className="field-group">
           <label htmlFor="question-lesson">Bài học liên quan</label>
           <select
@@ -135,7 +155,7 @@ export default function QnAPage() {
           <button
             className="button button--primary"
             type="submit"
-            disabled={submitting || trimmedContent.length < MIN_QUESTION_LENGTH}
+            disabled={submitting || !classId || trimmedContent.length < MIN_QUESTION_LENGTH}
           >
             <Send aria-hidden="true" size={18} />
             {submitting ? 'Đang gửi…' : 'Gửi câu hỏi'}

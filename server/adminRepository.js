@@ -85,6 +85,66 @@ function mapPracticeQuestion(row, options = []) {
   }
 }
 
+async function normalizeSharedQuestionInput(db, input, { defaultStatus = 'published' } = {}) {
+  const subjectId = String(input.subjectId ?? '').trim()
+  const chapterId = String(input.chapterId ?? '').trim()
+  const lessonId = input.lessonId ? String(input.lessonId).trim() : null
+  const content = String(input.content ?? '').trim()
+  const explanation = String(input.explanation ?? '').trim()
+  const correctOptionKey = String(input.correctOptionKey ?? '')
+    .trim()
+    .toUpperCase()
+  const status = input.status ?? defaultStatus
+  assertEnum(status, ['draft', 'published'], 'Trạng thái câu hỏi')
+
+  const chapter = await requireEntity(db, 'chapters', chapterId, 'chương')
+  if (chapter.subject_id !== subjectId) {
+    throw new ApiError(400, 'VALIDATION', 'Chương không thuộc môn học đã chọn.')
+  }
+  if (lessonId) {
+    const lesson = await requireEntity(db, 'lessons', lessonId, 'bài học')
+    if (lesson.chapter_id !== chapterId) {
+      throw new ApiError(400, 'VALIDATION', 'Bài học không thuộc chương đã chọn.')
+    }
+  }
+
+  const options = (Array.isArray(input.options) ? input.options : []).map((option) => ({
+    key: String(option.key ?? '')
+      .trim()
+      .toUpperCase(),
+    content: String(option.content ?? '').trim(),
+  }))
+  const keys = options.map((option) => option.key)
+  const optionContents = options.map((option) => option.content.toLocaleLowerCase('vi'))
+  if (
+    content.length < 10 ||
+    explanation.length < 10 ||
+    options.length !== 4 ||
+    options.some((option) => !option.content) ||
+    new Set(keys).size !== 4 ||
+    !['A', 'B', 'C', 'D'].every((key) => keys.includes(key)) ||
+    new Set(optionContents).size !== 4 ||
+    !keys.includes(correctOptionKey)
+  ) {
+    throw new ApiError(
+      400,
+      'VALIDATION',
+      'Câu hỏi cần nội dung và giải thích từ 10 ký tự, 4 đáp án A–D khác nhau và một đáp án đúng.',
+    )
+  }
+
+  return {
+    subjectId,
+    chapterId,
+    lessonId,
+    content,
+    explanation,
+    correctOptionKey,
+    options,
+    status,
+  }
+}
+
 export function createAdminRepository(db) {
   return {
     async listUsers(filters = {}) {
@@ -349,37 +409,55 @@ export function createAdminRepository(db) {
           'Lớp hoặc tài khoản giảng viên không hợp lệ.',
         )
       }
-      if (assignmentRole === 'lead') {
-        const lead = await db.one(
-          "SELECT lecturer_id FROM class_lecturer_assignments WHERE class_id = ? AND assignment_role = 'lead' AND status = 'active'",
-          [classId],
-        )
-        if (lead && lead.lecturer_id !== lecturer.id) {
-          throw new ApiError(409, 'ACTIVE_LEAD_EXISTS', 'Lớp đã có giảng viên phụ trách chính.')
-        }
-      }
       const existing = await db.one(
         'SELECT id FROM class_lecturer_assignments WHERE class_id = ? AND lecturer_id = ?',
         [classId, lecturer.id],
       )
       const id = existing?.id ?? createId('assignment')
-      if (existing) {
-        await db.execute(
-          `UPDATE class_lecturer_assignments SET assignment_role = ?, status = 'active',
-           assigned_by = ?, assigned_at = ?, ended_at = NULL WHERE id = ?`,
-          [assignmentRole, actorId, nowIso(), id],
+      const timestamp = nowIso()
+      let previousLeadId = null
+      await db.transaction(async (transaction) => {
+        if (assignmentRole === 'lead') {
+          const lead = await transaction.one(
+            "SELECT lecturer_id FROM class_lecturer_assignments WHERE class_id = ? AND assignment_role = 'lead' AND status = 'active'",
+            [classId],
+          )
+          if (lead && lead.lecturer_id !== lecturer.id) {
+            previousLeadId = lead.lecturer_id
+            await transaction.execute(
+              `UPDATE class_lecturer_assignments
+               SET assignment_role = 'lecturer'
+               WHERE class_id = ? AND lecturer_id = ? AND status = 'active'`,
+              [classId, previousLeadId],
+            )
+          }
+        }
+        if (existing) {
+          await transaction.execute(
+            `UPDATE class_lecturer_assignments SET assignment_role = ?, status = 'active',
+             assigned_by = ?, assigned_at = ?, ended_at = NULL WHERE id = ?`,
+            [assignmentRole, actorId, timestamp, id],
+          )
+        } else {
+          await transaction.execute(
+            `INSERT INTO class_lecturer_assignments
+             (id, class_id, lecturer_id, assignment_role, status, assigned_by, assigned_at)
+             VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+            [id, classId, lecturer.id, assignmentRole, actorId, timestamp],
+          )
+        }
+        await writeAudit(
+          transaction,
+          actorId,
+          'admin.class.lecturer_assigned',
+          'course_class',
+          classId,
+          {
+            lecturerId: lecturer.id,
+            assignmentRole,
+            previousLeadId,
+          },
         )
-      } else {
-        await db.execute(
-          `INSERT INTO class_lecturer_assignments
-           (id, class_id, lecturer_id, assignment_role, status, assigned_by, assigned_at)
-           VALUES (?, ?, ?, ?, 'active', ?, ?)`,
-          [id, classId, lecturer.id, assignmentRole, actorId, nowIso()],
-        )
-      }
-      await writeAudit(db, actorId, 'admin.class.lecturer_assigned', 'course_class', classId, {
-        lecturerId: lecturer.id,
-        assignmentRole,
       })
       return (await this.listClassLecturers(classId)).find((item) => item.id === id)
     },
@@ -392,21 +470,39 @@ export function createAdminRepository(db) {
       if (!assignment) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy phân công.')
       const assignmentRole = input.assignmentRole ?? assignment.assignment_role
       assertEnum(assignmentRole, ['lead', 'lecturer'], 'Vai trò phân công')
-      if (assignmentRole === 'lead' && assignment.assignment_role !== 'lead') {
-        const lead = await db.one(
-          "SELECT lecturer_id FROM class_lecturer_assignments WHERE class_id = ? AND assignment_role = 'lead' AND status = 'active'",
-          [classId],
+      let previousLeadId = null
+      await db.transaction(async (transaction) => {
+        if (assignmentRole === 'lead' && assignment.assignment_role !== 'lead') {
+          const lead = await transaction.one(
+            "SELECT lecturer_id FROM class_lecturer_assignments WHERE class_id = ? AND assignment_role = 'lead' AND status = 'active'",
+            [classId],
+          )
+          if (lead && lead.lecturer_id !== lecturerId) {
+            previousLeadId = lead.lecturer_id
+            await transaction.execute(
+              `UPDATE class_lecturer_assignments
+               SET assignment_role = 'lecturer'
+               WHERE class_id = ? AND lecturer_id = ? AND status = 'active'`,
+              [classId, previousLeadId],
+            )
+          }
+        }
+        await transaction.execute(
+          'UPDATE class_lecturer_assignments SET assignment_role = ? WHERE id = ?',
+          [assignmentRole, assignment.id],
         )
-        if (lead)
-          throw new ApiError(409, 'ACTIVE_LEAD_EXISTS', 'Lớp đã có giảng viên phụ trách chính.')
-      }
-      await db.execute('UPDATE class_lecturer_assignments SET assignment_role = ? WHERE id = ?', [
-        assignmentRole,
-        assignment.id,
-      ])
-      await writeAudit(db, actorId, 'admin.class.lecturer_updated', 'course_class', classId, {
-        lecturerId,
-        assignmentRole,
+        await writeAudit(
+          transaction,
+          actorId,
+          'admin.class.lecturer_updated',
+          'course_class',
+          classId,
+          {
+            lecturerId,
+            assignmentRole,
+            previousLeadId,
+          },
+        )
       })
       return (await this.listClassLecturers(classId)).find((item) => item.id === assignment.id)
     },
@@ -667,25 +763,8 @@ export function createAdminRepository(db) {
     },
 
     async createSharedQuestion(input, actorId) {
-      const chapter = await requireEntity(db, 'chapters', input.chapterId, 'chương')
-      if (chapter.subject_id !== input.subjectId) {
-        throw new ApiError(400, 'VALIDATION', 'Chương không thuộc môn học đã chọn.')
-      }
-      const options = Array.isArray(input.options) ? input.options : []
-      const keys = options.map((option) => option.key)
-      if (
-        !String(input.content ?? '').trim() ||
-        !String(input.explanation ?? '').trim() ||
-        options.length !== 4 ||
-        new Set(keys).size !== 4 ||
-        !keys.includes(input.correctOptionKey)
-      ) {
-        throw new ApiError(
-          400,
-          'VALIDATION',
-          'Câu hỏi phải có nội dung, giải thích và 4 đáp án hợp lệ.',
-        )
-      }
+      const normalized = await normalizeSharedQuestionInput(db, input)
+      const options = normalized.options
       const id = createId('practice_question')
       const timestamp = nowIso()
       await db.transaction(async (transaction) => {
@@ -696,15 +775,15 @@ export function createAdminRepository(db) {
            VALUES (?, ?, ?, ?, ?, ?, 'medium', ?, 'manual', 'subject_shared', ?, ?, ?, ?, ?)`,
           [
             id,
-            input.subjectId,
-            input.chapterId,
-            input.lessonId ?? null,
-            String(input.content).trim(),
-            String(input.explanation).trim(),
-            input.status === 'draft' ? 'draft' : 'published',
+            normalized.subjectId,
+            normalized.chapterId,
+            normalized.lessonId,
+            normalized.content,
+            normalized.explanation,
+            normalized.status,
             actorId,
-            input.status === 'draft' ? null : actorId,
-            input.status === 'draft' ? null : timestamp,
+            normalized.status === 'draft' ? null : actorId,
+            normalized.status === 'draft' ? null : timestamp,
             timestamp,
             timestamp,
           ],
@@ -719,7 +798,7 @@ export function createAdminRepository(db) {
               id,
               option.key,
               String(option.content ?? '').trim(),
-              option.key === input.correctOptionKey ? 1 : 0,
+              option.key === normalized.correctOptionKey ? 1 : 0,
               index + 1,
             ],
           )
@@ -731,7 +810,7 @@ export function createAdminRepository(db) {
           'practice_question',
           id,
           {
-            subjectId: input.subjectId,
+            subjectId: normalized.subjectId,
             scope: 'subject_shared',
           },
         )
@@ -748,25 +827,10 @@ export function createAdminRepository(db) {
           'Câu hỏi này thuộc ngân hàng riêng của giảng viên.',
         )
       }
-      const chapter = await requireEntity(db, 'chapters', input.chapterId, 'chương')
-      if (chapter.subject_id !== input.subjectId) {
-        throw new ApiError(400, 'VALIDATION', 'Chương không thuộc môn học đã chọn.')
-      }
-      const options = Array.isArray(input.options) ? input.options : []
-      const keys = options.map((option) => option.key)
-      if (
-        !String(input.content ?? '').trim() ||
-        !String(input.explanation ?? '').trim() ||
-        options.length !== 4 ||
-        new Set(keys).size !== 4 ||
-        !keys.includes(input.correctOptionKey)
-      ) {
-        throw new ApiError(
-          400,
-          'VALIDATION',
-          'Câu hỏi phải có nội dung, giải thích và 4 đáp án hợp lệ.',
-        )
-      }
+      const normalized = await normalizeSharedQuestionInput(db, input, {
+        defaultStatus: question.status === 'draft' ? 'draft' : 'published',
+      })
+      const options = normalized.options
       const timestamp = nowIso()
       await db.transaction(async (transaction) => {
         await transaction.execute(
@@ -774,14 +838,14 @@ export function createAdminRepository(db) {
            content = ?, explanation = ?, status = ?, published_by = ?, published_at = ?, updated_at = ?
            WHERE id = ?`,
           [
-            input.subjectId,
-            input.chapterId,
-            input.lessonId ?? null,
-            String(input.content).trim(),
-            String(input.explanation).trim(),
-            input.status === 'draft' ? 'draft' : 'published',
-            input.status === 'draft' ? null : actorId,
-            input.status === 'draft' ? null : timestamp,
+            normalized.subjectId,
+            normalized.chapterId,
+            normalized.lessonId,
+            normalized.content,
+            normalized.explanation,
+            normalized.status,
+            normalized.status === 'draft' ? null : actorId,
+            normalized.status === 'draft' ? null : timestamp,
             timestamp,
             questionId,
           ],
@@ -799,7 +863,7 @@ export function createAdminRepository(db) {
               questionId,
               option.key,
               String(option.content ?? '').trim(),
-              option.key === input.correctOptionKey ? 1 : 0,
+              option.key === normalized.correctOptionKey ? 1 : 0,
               index + 1,
             ],
           )
@@ -813,6 +877,112 @@ export function createAdminRepository(db) {
         )
       })
       return (await this.listSharedQuestions()).find((item) => item.id === questionId)
+    },
+
+    async importSharedQuestions(input, actorId) {
+      const questions = Array.isArray(input.questions) ? input.questions : []
+      if (!questions.length) {
+        throw new ApiError(400, 'VALIDATION', 'File CSV chưa có câu hỏi hợp lệ để nhập.')
+      }
+      if (questions.length > 200) {
+        throw new ApiError(400, 'VALIDATION', 'Mỗi lần chỉ được nhập tối đa 200 câu hỏi.')
+      }
+
+      const normalizedQuestions = []
+      const seenContents = new Set()
+      for (const [index, question] of questions.entries()) {
+        try {
+          const normalized = await normalizeSharedQuestionInput(
+            db,
+            {
+              ...question,
+              subjectId: input.subjectId,
+              chapterId: input.chapterId,
+              lessonId: input.lessonId,
+              status: 'draft',
+            },
+            { defaultStatus: 'draft' },
+          )
+          const contentKey = normalized.content.toLocaleLowerCase('vi')
+          if (seenContents.has(contentKey)) {
+            throw new ApiError(400, 'VALIDATION', 'Nội dung bị trùng trong cùng file CSV.')
+          }
+          seenContents.add(contentKey)
+          normalizedQuestions.push(normalized)
+        } catch (error) {
+          if (error instanceof ApiError) {
+            throw new ApiError(error.status, error.code, `Dòng ${index + 2}: ${error.message}`)
+          }
+          throw error
+        }
+      }
+
+      const placeholders = normalizedQuestions.map(() => '?').join(', ')
+      const existing = await db.many(
+        `SELECT content FROM practice_questions
+         WHERE subject_id = ? AND LOWER(content) IN (${placeholders})`,
+        [
+          input.subjectId,
+          ...normalizedQuestions.map((question) => question.content.toLocaleLowerCase('vi')),
+        ],
+      )
+      if (existing.length) {
+        throw new ApiError(409, 'CONFLICT', 'File CSV có câu hỏi đã tồn tại trong học phần.')
+      }
+
+      const timestamp = nowIso()
+      const ids = normalizedQuestions.map(() => createId('practice_question'))
+      await db.transaction(async (transaction) => {
+        for (const [questionIndex, question] of normalizedQuestions.entries()) {
+          const questionId = ids[questionIndex]
+          await transaction.execute(
+            `INSERT INTO practice_questions
+             (id, subject_id, chapter_id, lesson_id, content, explanation, difficulty, status,
+              source_type, scope, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, 'medium', 'draft', 'csv', 'subject_shared', ?, ?, ?)`,
+            [
+              questionId,
+              question.subjectId,
+              question.chapterId,
+              question.lessonId,
+              question.content,
+              question.explanation,
+              actorId,
+              timestamp,
+              timestamp,
+            ],
+          )
+          for (const [optionIndex, option] of question.options.entries()) {
+            await transaction.execute(
+              `INSERT INTO practice_question_options
+               (id, question_id, option_key, content, is_correct, option_order)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [
+                createId('practice_option'),
+                questionId,
+                option.key,
+                option.content,
+                option.key === question.correctOptionKey ? 1 : 0,
+                optionIndex + 1,
+              ],
+            )
+          }
+        }
+        await writeAudit(
+          transaction,
+          actorId,
+          'admin.practice_question.csv_imported',
+          'practice_question_batch',
+          createId('practice_import'),
+          {
+            subjectId: input.subjectId,
+            chapterId: input.chapterId,
+            lessonId: input.lessonId ?? null,
+            importedCount: ids.length,
+          },
+        )
+      })
+      return { importedCount: ids.length, ids, status: 'draft', scope: 'subject_shared' }
     },
 
     async archiveSharedQuestion(questionId, actorId) {

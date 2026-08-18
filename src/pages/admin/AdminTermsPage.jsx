@@ -6,15 +6,26 @@ import './AdminPage.css'
 
 export default function AdminTermsPage() {
   const loader = useCallback(() => adminRepository.listTerms(), [])
-  const { data = [], loading, error, reload } = useAsyncData(loader)
+  const { data: loadedTerms, loading, error, reload } = useAsyncData(loader)
+  const data = loadedTerms ?? []
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
+  const [busyId, setBusyId] = useState('')
+  const [creating, setCreating] = useState(false)
   async function update(termId, status) {
+    if (busyId || creating) return
+    setBusyId(termId)
+    setFeedback('')
+    setFeedbackError(false)
     try {
       await adminRepository.updateTerm(termId, { status })
       setFeedback('Đã cập nhật học kỳ.')
-      reload()
+      await reload()
     } catch (cause) {
-      setFeedback(cause.message)
+      setFeedback(cause.message ?? 'Không thể cập nhật học kỳ.')
+      setFeedbackError(true)
+    } finally {
+      setBusyId('')
     }
   }
   if (loading) return <LoadingState label="Đang tải học kỳ…" />
@@ -29,7 +40,10 @@ export default function AdminTermsPage() {
         </div>
       </header>
       {feedback && (
-        <p className="admin-feedback" role="status">
+        <p
+          className={`admin-feedback ${feedbackError ? 'admin-feedback--error' : ''}`}
+          role={feedbackError ? 'alert' : 'status'}
+        >
           {feedback}
         </p>
       )}
@@ -64,6 +78,7 @@ export default function AdminTermsPage() {
                       <select
                         aria-label={`Trạng thái ${term.name}`}
                         value={term.status}
+                        disabled={Boolean(busyId) || creating}
                         onChange={(event) => update(term.id, event.target.value)}
                       >
                         <option value="upcoming">Sắp tới</option>
@@ -82,7 +97,12 @@ export default function AdminTermsPage() {
           className="admin-panel admin-form"
           onSubmit={async (event) => {
             event.preventDefault()
-            const form = new FormData(event.currentTarget)
+            if (creating || busyId) return
+            const formElement = event.currentTarget
+            const form = new FormData(formElement)
+            setCreating(true)
+            setFeedback('')
+            setFeedbackError(false)
             try {
               await adminRepository.createTerm({
                 code: form.get('code'),
@@ -92,10 +112,13 @@ export default function AdminTermsPage() {
                 status: 'upcoming',
               })
               setFeedback('Đã tạo học kỳ.')
-              event.currentTarget.reset()
-              reload()
+              formElement.reset()
+              await reload()
             } catch (cause) {
-              setFeedback(cause.message)
+              setFeedback(cause.message ?? 'Không thể tạo học kỳ.')
+              setFeedbackError(true)
+            } finally {
+              setCreating(false)
             }
           }}
         >
@@ -119,8 +142,12 @@ export default function AdminTermsPage() {
             </div>
           </div>
           <div className="admin-actions">
-            <button className="button button--primary" type="submit">
-              Tạo học kỳ
+            <button
+              className="button button--primary"
+              type="submit"
+              disabled={creating || Boolean(busyId)}
+            >
+              {creating ? 'Đang tạo…' : 'Tạo học kỳ'}
             </button>
           </div>
         </form>

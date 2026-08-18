@@ -30,6 +30,7 @@ export default function ClassStudentsPage() {
   const [status, setStatus] = useState('all')
   const [updatingId, setUpdatingId] = useState(null)
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
   const deferredQuery = useDeferredValue(query)
 
   const loader = useCallback(async () => {
@@ -62,6 +63,7 @@ export default function ClassStudentsPage() {
   const handleStatusChange = async (student, nextStatus) => {
     setUpdatingId(student.id)
     setFeedback('')
+    setFeedbackError(false)
     try {
       await classRepository.updateStudentStatus(classId, student.id, nextStatus, {
         lecturerId: currentLecturer.id,
@@ -69,7 +71,8 @@ export default function ClassStudentsPage() {
       setFeedback(`Đã cập nhật trạng thái của ${student.name}.`)
       await reload()
     } catch (updateError) {
-      setFeedback(updateError.message)
+      setFeedback(updateError.message ?? 'Không thể cập nhật trạng thái sinh viên.')
+      setFeedbackError(true)
     } finally {
       setUpdatingId(null)
     }
@@ -109,7 +112,11 @@ export default function ClassStudentsPage() {
       </section>
 
       {feedback && (
-        <div className="feedback-banner" role="status" aria-live="polite">
+        <div
+          className={`feedback-banner ${feedbackError ? 'feedback-banner--error' : ''}`}
+          role={feedbackError ? 'alert' : 'status'}
+          aria-live="polite"
+        >
           {feedback}
         </div>
       )}

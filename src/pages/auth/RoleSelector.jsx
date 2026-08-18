@@ -18,7 +18,7 @@ import './RoleSelector.css'
 const DEMO_ACCOUNTS = [
   {
     label: 'Tài khoản sinh viên',
-    description: 'Nguyễn Tuấn Anh',
+    description: 'Nguyễn Văn Tuấn Anh',
     email: 'tuananh@ptit.edu.vn',
     password: 'Student@123',
     icon: BookOpenCheck,

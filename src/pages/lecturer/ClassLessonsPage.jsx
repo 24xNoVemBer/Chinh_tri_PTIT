@@ -24,6 +24,7 @@ export default function ClassLessonsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [updatingId, setUpdatingId] = useState(null)
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
   const [formError, setFormError] = useState('')
 
   const loader = useCallback(async () => {
@@ -53,6 +54,7 @@ export default function ClassLessonsPage() {
     setSubmitting(true)
     setFormError('')
     setFeedback('')
+    setFeedbackError(false)
     try {
       await classContentRepository.scheduleLesson(classId, { lessonId, date })
       setLessonId('')
@@ -68,6 +70,7 @@ export default function ClassLessonsPage() {
   const handleStatusChange = async (scheduledLesson, nextStatus) => {
     setUpdatingId(scheduledLesson.id)
     setFeedback('')
+    setFeedbackError(false)
     try {
       await classContentRepository.updateLessonStatus(classId, scheduledLesson.id, nextStatus)
       setFeedback(
@@ -77,7 +80,8 @@ export default function ClassLessonsPage() {
       )
       await reload()
     } catch (updateError) {
-      setFeedback(updateError.message)
+      setFeedback(updateError.message ?? 'Không thể cập nhật trạng thái bài học.')
+      setFeedbackError(true)
     } finally {
       setUpdatingId(null)
     }
@@ -149,7 +153,11 @@ export default function ClassLessonsPage() {
             </div>
           </div>
           {feedback && (
-            <div className="feedback-banner" role="status" aria-live="polite">
+            <div
+              className={`feedback-banner ${feedbackError ? 'feedback-banner--error' : ''}`}
+              role={feedbackError ? 'alert' : 'status'}
+              aria-live="polite"
+            >
               {feedback}
             </div>
           )}

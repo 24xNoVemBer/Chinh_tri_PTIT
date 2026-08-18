@@ -47,6 +47,26 @@ export default function SubjectPage() {
         }
       />
 
+      <section className="subject-class-summary" aria-labelledby="subject-class-title">
+        <div>
+          <p className="section-heading__eyebrow">Lớp tín chỉ đã ghi danh</p>
+          <h2 id="subject-class-title">Phạm vi học tập của bạn</h2>
+        </div>
+        <div className="subject-class-summary__items">
+          {(data.classes ?? []).map((courseClass) => (
+            <article key={courseClass.id}>
+              <strong>
+                {courseClass.classCode} · Tổ {courseClass.groupNumber}
+              </strong>
+              <span>
+                {courseClass.semester}
+                {courseClass.lecturerName ? ` · ${courseClass.lecturerName}` : ''}
+              </span>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="subject-progress-summary" aria-labelledby="subject-progress-title">
         <div>
           <p className="section-heading__eyebrow">Tiến độ môn học</p>

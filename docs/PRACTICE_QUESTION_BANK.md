@@ -2,7 +2,7 @@
 
 ## Phạm vi hiện tại
 
-MVP hỗ trợ giảng viên nhập thủ công hoặc nhập hàng loạt từ CSV các câu hỏi trắc nghiệm một đáp án đúng. Câu hỏi được gắn với học phần và chương, có bốn lựa chọn A–D và giải thích đáp án. Câu hỏi phải ở trạng thái `published` trước khi sinh viên nhìn thấy.
+MVP hỗ trợ admin và giảng viên nhập thủ công hoặc nhập hàng loạt từ CSV các câu hỏi trắc nghiệm một đáp án đúng. Câu hỏi được gắn với học phần và chương, có bốn lựa chọn A–D và giải thích đáp án. Câu hỏi phải ở trạng thái `published` trước khi sinh viên nhìn thấy. Câu do admin nhập có phạm vi dùng chung toàn môn; câu do giảng viên nhập chỉ áp dụng cho các lớp được phân công.
 
 Excel, Word, PDF và OCR chưa nằm trong MVP. Trường `source_type` phân biệt câu nhập thủ công (`manual`) và nhập từ CSV (`csv`).
 
@@ -28,6 +28,8 @@ Excel, Word, PDF và OCR chưa nằm trong MVP. Trường `source_type` phân bi
 
 Giảng viên tải file mẫu ngay tại `/lecturer/practice-questions/import`, giữ nguyên hàng tiêu đề và điền mỗi câu hỏi trên một dòng:
 
+Admin sử dụng cùng định dạng tại `/admin/question-bank/import`; toàn bộ câu hỏi được lưu nháp trong ngân hàng dùng chung của môn.
+
 `noi_dung,dap_an_a,dap_an_b,dap_an_c,dap_an_d,dap_an_dung,giai_thich`
 
 - `dap_an_dung`: `A`, `B`, `C` hoặc `D`.
@@ -36,6 +38,14 @@ Giảng viên tải file mẫu ngay tại `/lecturer/practice-questions/import`,
 - Toàn bộ lô được ghi trong một transaction và luôn bắt đầu ở trạng thái `draft`.
 
 ## API chính
+
+Admin:
+
+- `GET /api/admin/practice-questions`
+- `POST /api/admin/practice-questions`
+- `POST /api/admin/practice-questions/import`
+- `PATCH /api/admin/practice-questions/:id`
+- `DELETE /api/admin/practice-questions/:id`
 
 Giảng viên:
 

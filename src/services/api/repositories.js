@@ -51,6 +51,11 @@ export const apiAdminRepository = {
       body: jsonBody(input),
     })
   },
+  archiveClass(classId) {
+    return apiRequest(`/api/admin/classes/${encodeURIComponent(classId)}`, {
+      method: 'DELETE',
+    })
+  },
   listClassLecturers(classId) {
     return apiRequest(`/api/admin/classes/${encodeURIComponent(classId)}/lecturers`)
   },
@@ -59,6 +64,12 @@ export const apiAdminRepository = {
       method: 'POST',
       body: jsonBody(input),
     })
+  },
+  updateLecturerAssignment(classId, lecturerId, input) {
+    return apiRequest(
+      `/api/admin/classes/${encodeURIComponent(classId)}/lecturers/${encodeURIComponent(lecturerId)}`,
+      { method: 'PATCH', body: jsonBody(input) },
+    )
   },
   endLecturerAssignment(classId, lecturerId) {
     return apiRequest(
@@ -75,6 +86,17 @@ export const apiAdminRepository = {
       body: jsonBody(input),
     })
   },
+  updateChapter(chapterId, input) {
+    return apiRequest(`/api/admin/chapters/${encodeURIComponent(chapterId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  deleteChapter(chapterId) {
+    return apiRequest(`/api/admin/chapters/${encodeURIComponent(chapterId)}`, {
+      method: 'DELETE',
+    })
+  },
   listLessons(chapterId) {
     return apiRequest(`/api/admin/chapters/${encodeURIComponent(chapterId)}/lessons`)
   },
@@ -82,6 +104,17 @@ export const apiAdminRepository = {
     return apiRequest(`/api/admin/chapters/${encodeURIComponent(chapterId)}/lessons`, {
       method: 'POST',
       body: jsonBody(input),
+    })
+  },
+  updateLesson(lessonId, input) {
+    return apiRequest(`/api/admin/lessons/${encodeURIComponent(lessonId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  deleteLesson(lessonId) {
+    return apiRequest(`/api/admin/lessons/${encodeURIComponent(lessonId)}`, {
+      method: 'DELETE',
     })
   },
   listMaterials(subjectId) {
@@ -93,11 +126,45 @@ export const apiAdminRepository = {
       body: jsonBody(input),
     })
   },
+  updateMaterial(materialId, input) {
+    return apiRequest(`/api/admin/materials/${encodeURIComponent(materialId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  deleteMaterial(materialId) {
+    return apiRequest(`/api/admin/materials/${encodeURIComponent(materialId)}`, {
+      method: 'DELETE',
+    })
+  },
+  createMaterialVersion(materialId, input) {
+    return apiRequest(`/api/admin/materials/${encodeURIComponent(materialId)}/versions`, {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
   listSharedQuestions(filters = {}) {
     return apiRequest(withQuery('/api/admin/practice-questions', filters))
   },
   createSharedQuestion(input) {
     return apiRequest('/api/admin/practice-questions', {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  },
+  updateSharedQuestion(questionId, input) {
+    return apiRequest(`/api/admin/practice-questions/${encodeURIComponent(questionId)}`, {
+      method: 'PATCH',
+      body: jsonBody(input),
+    })
+  },
+  archiveSharedQuestion(questionId) {
+    return apiRequest(`/api/admin/practice-questions/${encodeURIComponent(questionId)}`, {
+      method: 'DELETE',
+    })
+  },
+  importSharedQuestions(input) {
+    return apiRequest('/api/admin/practice-questions/import', {
       method: 'POST',
       body: jsonBody(input),
     })
@@ -230,6 +297,7 @@ export const apiQuestionRepository = {
     return apiRequest('/api/student/questions', {
       method: 'POST',
       body: jsonBody({
+        classId: input.classId,
         content: input.content,
         lessonId: input.lessonId,
         subjectId: input.subjectId,
@@ -423,6 +491,7 @@ export const apiChatRepository = {
     return apiRequest('/api/student/chat', {
       method: 'POST',
       body: jsonBody({
+        classId: input.classId,
         content: input.content,
         subjectId: input.subjectId,
       }),

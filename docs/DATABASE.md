@@ -24,10 +24,10 @@ Database development được seed thêm hai câu trả lời RAG mô phỏng: m
 duyệt, đều có citation và `model_version = demo-ui-v1`. Không seed dữ liệu này khi
 `NODE_ENV=production` hoặc `RAG_DEMO_DATA=false`.
 
-| Vai trò    | Email                 | Mật khẩu       |
-| ---------- | --------------------- | -------------- |
-| Sinh viên  | `tuananh@ptit.edu.vn` | `Student@123`  |
-| Giảng viên | `ductu@ptit.edu.vn`   | `Lecturer@123` |
+| Vai trò    | Tên hiển thị        | Email                 | Mật khẩu       |
+| ---------- | ------------------- | --------------------- | -------------- |
+| Sinh viên  | Nguyễn Văn Tuấn Anh | `tuananh@ptit.edu.vn` | `Student@123`  |
+| Giảng viên | TS. Đào Đức Tú      | `ductu@ptit.edu.vn`   | `Lecturer@123` |
 
 Đây chỉ là tài khoản development; production phải thay bằng cơ chế cấp tài khoản hoặc SSO.
 

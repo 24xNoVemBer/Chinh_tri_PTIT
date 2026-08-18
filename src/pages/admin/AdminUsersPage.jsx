@@ -5,31 +5,43 @@ import { adminRepository } from '../../services/appRepositories'
 import './AdminPage.css'
 
 const ROLE_LABELS = { admin: 'Quản trị', lecturer: 'Giảng viên', student: 'Sinh viên' }
+const EMPTY_USERS = []
 
 export default function AdminUsersPage() {
   const [query, setQuery] = useState('')
   const [role, setRole] = useState('all')
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
   const loader = useCallback(() => adminRepository.listUsers(), [])
-  const { data = [], loading, error, reload } = useAsyncData(loader)
+  const { data: loadedUsers, loading, error, reload } = useAsyncData(loader)
+  const data = loadedUsers ?? EMPTY_USERS
+  const [status, setStatus] = useState('all')
+  const [busyId, setBusyId] = useState('')
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('vi')
     return data.filter((user) => {
       if (role !== 'all' && user.role !== role) return false
+      if (status !== 'all' && user.status !== status) return false
       return (
         !normalized || `${user.name} ${user.email}`.toLocaleLowerCase('vi').includes(normalized)
       )
     })
-  }, [data, query, role])
+  }, [data, query, role, status])
 
   async function updateUser(userId, input) {
+    if (busyId) return
+    setBusyId(userId)
     setFeedback('')
+    setFeedbackError(false)
     try {
       await adminRepository.updateUser(userId, input)
       setFeedback('Đã cập nhật tài khoản và thu hồi các phiên cũ.')
-      reload()
+      await reload()
     } catch (cause) {
-      setFeedback(cause.message)
+      setFeedback(cause.message ?? 'Không thể cập nhật tài khoản.')
+      setFeedbackError(true)
+    } finally {
+      setBusyId('')
     }
   }
 
@@ -45,7 +57,10 @@ export default function AdminUsersPage() {
         </div>
       </header>
       {feedback && (
-        <p className="admin-feedback" role="status">
+        <p
+          className={`admin-feedback ${feedbackError ? 'admin-feedback--error' : ''}`}
+          role={feedbackError ? 'alert' : 'status'}
+        >
           {feedback}
         </p>
       )}
@@ -69,6 +84,18 @@ export default function AdminUsersPage() {
               <option value="student">Sinh viên</option>
             </select>
           </div>
+          <div className="admin-field">
+            <label htmlFor="status-filter">Trạng thái</label>
+            <select
+              id="status-filter"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
+              <option value="all">Tất cả</option>
+              <option value="active">Hoạt động</option>
+              <option value="inactive">Tạm khóa</option>
+            </select>
+          </div>
         </div>
         <div className="admin-table-wrap">
           <table className="admin-table">
@@ -90,6 +117,7 @@ export default function AdminUsersPage() {
                     <select
                       aria-label={`Vai trò của ${user.name}`}
                       value={user.role}
+                      disabled={busyId === user.id}
                       onChange={(event) => updateUser(user.id, { role: event.target.value })}
                     >
                       {Object.entries(ROLE_LABELS).map(([value, label]) => (
@@ -103,6 +131,7 @@ export default function AdminUsersPage() {
                     <select
                       aria-label={`Trạng thái của ${user.name}`}
                       value={user.status}
+                      disabled={busyId === user.id}
                       onChange={(event) => updateUser(user.id, { status: event.target.value })}
                     >
                       <option value="active">Hoạt động</option>

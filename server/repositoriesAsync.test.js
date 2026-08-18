@@ -40,4 +40,28 @@ describe('async repository boundary', () => {
     )
     expect(results.length).toBeGreaterThan(0)
   })
+
+  it('exposes only enrolled active credit classes to a student', async () => {
+    db = createDatabase({ databasePath: ':memory:' })
+    db.execute(
+      `INSERT INTO course_classes
+       (id, subject_id, name, semester, group_number, class_code, status)
+       VALUES ('class-unenrolled', 'sub1', 'Lớp không ghi danh', '2026-HK1', 99, 'CT099', 'active')`,
+    )
+    const repositories = createAsyncRepositories(db)
+
+    const overview = await repositories.learningRepository.getSubjectOverview('s1', 'sub1')
+    expect(overview.classes.map((courseClass) => courseClass.id)).toEqual(['class1'])
+
+    await expect(
+      repositories.questionRepository.create(
+        {
+          subjectId: 'sub1',
+          classId: 'class-unenrolled',
+          content: 'Câu hỏi thử quyền truy cập lớp tín chỉ?',
+        },
+        's1',
+      ),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
 })

@@ -41,6 +41,13 @@ export default function SubjectsPage() {
               <p>
                 {subject.completedLessons}/{subject.lessonCount} bài học đã hoàn thành
               </p>
+              <ul className="subject-card__classes" aria-label="Lớp tín chỉ đã ghi danh">
+                {(subject.classes ?? []).map((courseClass) => (
+                  <li key={courseClass.id}>
+                    {courseClass.classCode} · Tổ {courseClass.groupNumber}
+                  </li>
+                ))}
+              </ul>
               <div className="subject-card__progress">
                 <ProgressBar value={subject.progress} label={`Tiến độ ${subject.progress}%`} />
                 <span>{subject.progress}%</span>

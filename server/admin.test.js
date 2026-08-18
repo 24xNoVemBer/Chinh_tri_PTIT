@@ -115,6 +115,26 @@ describe('admin management API', () => {
     })
   })
 
+  it('replaces the lead atomically while preserving the former lecturer assignment', async () => {
+    const repository = createAdminRepository(db)
+    await repository.assignLecturer(
+      'class1',
+      { lecturerId: 'l2', assignmentRole: 'lead' },
+      'admin1',
+    )
+
+    const active = (await repository.listClassLecturers('class1')).filter(
+      (assignment) => assignment.status === 'active',
+    )
+    expect(active.filter((assignment) => assignment.assignment_role === 'lead')).toHaveLength(1)
+    expect(active.find((assignment) => assignment.lecturer_id === 'l2')?.assignment_role).toBe(
+      'lead',
+    )
+    expect(active.find((assignment) => assignment.lecturer_id === 'l1')?.assignment_role).toBe(
+      'lecturer',
+    )
+  })
+
   it('creates curriculum and shared practice content through the admin scope', async () => {
     const repository = createAdminRepository(db)
     const chapter = await repository.createChapter(
@@ -142,5 +162,43 @@ describe('admin management API', () => {
     )
     expect(question).toMatchObject({ scope: 'subject_shared', status: 'published' })
     expect(question.options.find((option) => option.isCorrect)?.key).toBe('A')
+  })
+
+  it('imports the admin CSV question batch atomically as shared drafts', async () => {
+    const adminCookie = await login('admin@ptit.edu.vn', 'Admin@123')
+    const response = await api('/api/admin/practice-questions/import', adminCookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        subjectId: 'sub1',
+        chapterId: 'chap1',
+        questions: [
+          {
+            content: 'Nội dung câu hỏi CSV dùng chung thứ nhất?',
+            explanation: 'Giải thích hợp lệ cho câu hỏi thứ nhất.',
+            correctOptionKey: 'A',
+            options: ['A', 'B', 'C', 'D'].map((key) => ({ key, content: `Lựa chọn ${key} một` })),
+          },
+          {
+            content: 'Nội dung câu hỏi CSV dùng chung thứ hai?',
+            explanation: 'Giải thích hợp lệ cho câu hỏi thứ hai.',
+            correctOptionKey: 'B',
+            options: ['A', 'B', 'C', 'D'].map((key) => ({ key, content: `Lựa chọn ${key} hai` })),
+          },
+        ],
+      }),
+    })
+    expect(response.status).toBe(201)
+    await expect(parseData(response)).resolves.toMatchObject({
+      importedCount: 2,
+      scope: 'subject_shared',
+      status: 'draft',
+    })
+    expect(
+      Number(
+        db.one(
+          "SELECT COUNT(*) AS count FROM practice_questions WHERE source_type = 'csv' AND scope = 'subject_shared' AND status = 'draft'",
+        ).count,
+      ),
+    ).toBe(2)
   })
 })

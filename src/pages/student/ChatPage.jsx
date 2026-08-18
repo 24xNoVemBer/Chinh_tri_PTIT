@@ -41,8 +41,10 @@ export default function ChatPage() {
   const [isReplying, setIsReplying] = useState(false)
   const [feedback, setFeedback] = useState({})
   const [selectedSubjectId, setSelectedSubjectId] = useState('')
+  const [selectedClassId, setSelectedClassId] = useState('')
   const inputRef = useRef(null)
   const threadRef = useRef(null)
+  const messageSequence = useRef(0)
   const subjectLoader = useCallback(
     () => learningRepository.listSubjectProgress(user.id),
     [user.id],
@@ -53,6 +55,9 @@ export default function ChatPage() {
     error: subjectsError,
   } = useAsyncData(subjectLoader)
   const effectiveSubjectId = selectedSubjectId || subjects?.[0]?.id || ''
+  const selectedSubject = subjects?.find((subject) => subject.id === effectiveSubjectId)
+  const availableClasses = selectedSubject?.classes ?? []
+  const effectiveClassId = selectedClassId || availableClasses[0]?.id || ''
 
   const latestCitations = useMemo(
     () => [...messages].reverse().find((message) => message.citations?.length)?.citations ?? [],
@@ -82,8 +87,9 @@ export default function ChatPage() {
       return
     }
 
+    messageSequence.current += 1
     const userMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${messageSequence.current}`,
       role: 'user',
       content: trimmedQuestion,
       citations: [],
@@ -99,9 +105,12 @@ export default function ChatPage() {
     setIsReplying(true)
 
     chatRepository
-      .createMessage({ content: trimmedQuestion, subjectId: effectiveSubjectId })
+      .createMessage({
+        content: trimmedQuestion,
+        subjectId: effectiveSubjectId,
+        classId: effectiveClassId,
+      })
       .then((reply) => {
-        const selectedSubject = subjects?.find((subject) => subject.id === effectiveSubjectId)
         setMessages((current) => [
           ...current,
           {
@@ -160,6 +169,7 @@ export default function ChatPage() {
               disabled={subjectsLoading || !subjects?.length}
               onChange={(event) => {
                 setSelectedSubjectId(event.target.value)
+                setSelectedClassId('')
                 setError('')
               }}
             >
@@ -172,6 +182,25 @@ export default function ChatPage() {
               ))}
             </select>
             {subjectsError && <small>Không thể tải học phần. Hãy tải lại trang.</small>}
+          </label>
+
+          <label className="chat-context__field">
+            <span>Lớp tín chỉ</span>
+            <select
+              value={effectiveClassId}
+              disabled={!availableClasses.length}
+              onChange={(event) => {
+                setSelectedClassId(event.target.value)
+                setError('')
+              }}
+            >
+              {!availableClasses.length && <option value="">Chưa có lớp đã ghi danh</option>}
+              {availableClasses.map((courseClass) => (
+                <option key={courseClass.id} value={courseClass.id}>
+                  {courseClass.classCode} · Tổ {courseClass.groupNumber}
+                </option>
+              ))}
+            </select>
           </label>
 
           <nav aria-label="Công cụ học tập liên quan">
@@ -305,7 +334,13 @@ export default function ChatPage() {
               type="submit"
               aria-label="Gửi câu hỏi"
               title="Gửi câu hỏi"
-              disabled={isReplying || subjectsLoading || !effectiveSubjectId || !question.trim()}
+              disabled={
+                isReplying ||
+                subjectsLoading ||
+                !effectiveSubjectId ||
+                !effectiveClassId ||
+                !question.trim()
+              }
             >
               <Send aria-hidden="true" size={19} />
             </button>

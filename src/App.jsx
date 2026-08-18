@@ -39,6 +39,7 @@ const AdminSubjectsPage = lazy(() => import('./pages/admin/AdminSubjectsPage'))
 const AdminTermsPage = lazy(() => import('./pages/admin/AdminTermsPage'))
 const AdminClassesPage = lazy(() => import('./pages/admin/AdminClassesPage'))
 const AdminQuestionBankPage = lazy(() => import('./pages/admin/AdminQuestionBankPage'))
+const AdminQuestionImportPage = lazy(() => import('./pages/admin/AdminQuestionImportPage'))
 const AdminOperationsPage = lazy(() => import('./pages/admin/AdminOperationsPage'))
 
 function LegacyStudentSubjectRedirect() {
@@ -126,6 +127,7 @@ export default function App() {
             <Route path="terms" element={<AdminTermsPage />} />
             <Route path="classes" element={<AdminClassesPage />} />
             <Route path="question-bank" element={<AdminQuestionBankPage />} />
+            <Route path="question-bank/import" element={<AdminQuestionImportPage />} />
             <Route path="analytics" element={<PracticeAnalyticsPage />} />
             <Route path="operations" element={<AdminOperationsPage />} />
           </Route>

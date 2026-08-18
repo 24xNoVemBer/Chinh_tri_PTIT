@@ -95,11 +95,11 @@ Sao chép `.env.example` thành `.env` nếu cần thay đổi cấu hình mặc
 
 ## Tài khoản demo
 
-| Vai trò    | Email                 | Mật khẩu       |
-| ---------- | --------------------- | -------------- |
-| Admin      | `admin01@ptit.edu.vn` | `Admin@123`    |
-| Sinh viên  | `tuananh@ptit.edu.vn` | `Student@123`  |
-| Giảng viên | `ductu@ptit.edu.vn`   | `Lecturer@123` |
+| Vai trò    | Tên hiển thị        | Email                      | Mật khẩu       |
+| ---------- | ------------------- | -------------------------- | -------------- |
+| Admin      | Quản trị demo       | `admin.demo01@ptit.edu.vn` | `Admin@123`    |
+| Sinh viên  | Nguyễn Văn Tuấn Anh | `tuananh@ptit.edu.vn`      | `Student@123`  |
+| Giảng viên | TS. Đào Đức Tú      | `ductu@ptit.edu.vn`        | `Lecturer@123` |
 
 Các tài khoản trên chỉ phục vụ development và review cục bộ.
 

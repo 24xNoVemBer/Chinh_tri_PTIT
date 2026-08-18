@@ -1,4 +1,6 @@
+import { Archive, FileUp, Send } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ErrorState, LoadingState } from '../../components/common/AsyncState'
 import useAsyncData from '../../hooks/useAsyncData'
 import { adminRepository } from '../../services/appRepositories'
@@ -16,8 +18,43 @@ export default function AdminQuestionBankPage() {
   const [subjectId, setSubjectId] = useState('')
   const [chapters, setChapters] = useState([])
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
+  const [busyId, setBusyId] = useState('')
+  const [creating, setCreating] = useState(false)
+  async function mutateQuestion(question, action) {
+    if (busyId || creating) return
+    setBusyId(question.id)
+    setFeedback('')
+    setFeedbackError(false)
+    try {
+      if (action === 'archive') {
+        await adminRepository.archiveSharedQuestion(question.id)
+        setFeedback('Đã lưu trữ câu hỏi.')
+      } else {
+        await adminRepository.updateSharedQuestion(question.id, {
+          subjectId: question.subjectId,
+          chapterId: question.chapterId,
+          lessonId: question.lessonId,
+          content: question.content,
+          explanation: question.explanation,
+          correctOptionKey: question.options.find((option) => option.isCorrect)?.key,
+          options: question.options,
+          status: 'published',
+        })
+        setFeedback('Đã xuất bản câu hỏi.')
+      }
+      await reload()
+    } catch (cause) {
+      setFeedback(cause.message ?? 'Không thể cập nhật câu hỏi.')
+      setFeedbackError(true)
+    } finally {
+      setBusyId('')
+    }
+  }
   async function selectSubject(value) {
     setSubjectId(value)
+    setFeedback('')
+    setFeedbackError(false)
     if (!value) {
       setChapters([])
       return
@@ -25,7 +62,9 @@ export default function AdminQuestionBankPage() {
     try {
       setChapters(await adminRepository.listChapters(value))
     } catch (cause) {
-      setFeedback(cause.message)
+      setChapters([])
+      setFeedback(cause.message ?? 'Không thể tải danh sách chương.')
+      setFeedbackError(true)
     }
   }
   if (loading) return <LoadingState label="Đang tải ngân hàng dùng chung…" />
@@ -38,9 +77,15 @@ export default function AdminQuestionBankPage() {
           <h1>Câu hỏi trắc nghiệm dùng chung</h1>
           <p>Câu hỏi do admin phát hành sẽ sẵn sàng cho mọi lớp tín chỉ của môn.</p>
         </div>
+        <Link className="button button--secondary" to="/admin/question-bank/import">
+          <FileUp aria-hidden="true" size={18} /> Nhập từ CSV
+        </Link>
       </header>
       {feedback && (
-        <p className="admin-feedback" role="status">
+        <p
+          className={`admin-feedback ${feedbackError ? 'admin-feedback--error' : ''}`}
+          role={feedbackError ? 'alert' : 'status'}
+        >
           {feedback}
         </p>
       )}
@@ -61,11 +106,37 @@ export default function AdminQuestionBankPage() {
                     {question.subjectName} · {question.chapterTitle}
                   </small>
                 </div>
-                <span
-                  className={`admin-status ${question.status !== 'published' ? 'admin-status--muted' : ''}`}
-                >
-                  {question.status === 'published' ? 'Đã xuất bản' : question.status}
-                </span>
+                <div className="admin-inline-actions">
+                  <span
+                    className={`admin-status ${question.status !== 'published' ? 'admin-status--muted' : ''}`}
+                  >
+                    {question.status === 'published'
+                      ? 'Đã xuất bản'
+                      : question.status === 'draft'
+                        ? 'Bản nháp'
+                        : 'Lưu trữ'}
+                  </span>
+                  {question.status === 'draft' && (
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      disabled={Boolean(busyId) || creating}
+                      onClick={() => mutateQuestion(question, 'publish')}
+                    >
+                      <Send aria-hidden="true" size={15} /> Xuất bản
+                    </button>
+                  )}
+                  {question.status !== 'archived' && (
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      disabled={Boolean(busyId) || creating}
+                      onClick={() => mutateQuestion(question, 'archive')}
+                    >
+                      <Archive aria-hidden="true" size={15} /> Lưu trữ
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -75,11 +146,17 @@ export default function AdminQuestionBankPage() {
           className="admin-panel admin-form"
           onSubmit={async (event) => {
             event.preventDefault()
-            const form = new FormData(event.currentTarget)
+            if (creating || busyId) return
+            const formElement = event.currentTarget
+            const form = new FormData(formElement, event.nativeEvent.submitter)
+            const requestedStatus = form.get('status')
             const options = ['A', 'B', 'C', 'D'].map((key) => ({
               key,
               content: form.get(`option${key}`),
             }))
+            setCreating(true)
+            setFeedback('')
+            setFeedbackError(false)
             try {
               await adminRepository.createSharedQuestion({
                 subjectId: form.get('subjectId'),
@@ -87,14 +164,23 @@ export default function AdminQuestionBankPage() {
                 content: form.get('content'),
                 explanation: form.get('explanation'),
                 correctOptionKey: form.get('correctOptionKey'),
+                status: requestedStatus,
                 options,
               })
-              setFeedback('Đã xuất bản câu hỏi dùng chung.')
-              event.currentTarget.reset()
+              setFeedback(
+                requestedStatus === 'draft'
+                  ? 'Đã lưu bản nháp.'
+                  : 'Đã xuất bản câu hỏi dùng chung.',
+              )
+              formElement.reset()
               setSubjectId('')
-              reload()
+              setChapters([])
+              await reload()
             } catch (cause) {
-              setFeedback(cause.message)
+              setFeedback(cause.message ?? 'Không thể tạo câu hỏi.')
+              setFeedbackError(true)
+            } finally {
+              setCreating(false)
             }
           }}
         >
@@ -150,8 +236,23 @@ export default function AdminQuestionBankPage() {
             <textarea id="shared-explanation" name="explanation" required />
           </div>
           <div className="admin-actions">
-            <button className="button button--primary" type="submit">
-              Lưu & xuất bản
+            <button
+              className="button button--secondary"
+              type="submit"
+              name="status"
+              value="draft"
+              disabled={creating || Boolean(busyId)}
+            >
+              {creating ? 'Đang lưu…' : 'Lưu nháp'}
+            </button>
+            <button
+              className="button button--primary"
+              type="submit"
+              name="status"
+              value="published"
+              disabled={creating || Boolean(busyId)}
+            >
+              {creating ? 'Đang lưu…' : 'Lưu & xuất bản'}
             </button>
           </div>
         </form>

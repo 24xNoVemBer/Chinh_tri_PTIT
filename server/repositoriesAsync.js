@@ -391,7 +391,7 @@ async function getStudentSubjectIds(db, studentId) {
       `SELECT DISTINCT course_classes.subject_id
        FROM enrollments
        JOIN course_classes ON course_classes.id = enrollments.class_id
-       WHERE enrollments.student_id = ?`,
+       WHERE enrollments.student_id = ? AND course_classes.status = 'active'`,
       [studentId],
     )
   ).map((row) => row.subject_id)
@@ -408,6 +408,8 @@ async function getStudentClassOptions(db, studentId, subjectId) {
        course_classes.name,
        course_classes.subject_id,
        course_classes.semester,
+       course_classes.class_code,
+       course_classes.group_number,
        (
          SELECT class_lead.lecturer_id
          FROM class_lecturer_assignments AS class_lead
@@ -430,6 +432,7 @@ async function getStudentClassOptions(db, studentId, subjectId) {
      FROM enrollments
      JOIN course_classes ON course_classes.id = enrollments.class_id
      WHERE enrollments.student_id = ? AND course_classes.subject_id = ?
+       AND course_classes.status = 'active'
      ORDER BY course_classes.semester DESC, course_classes.name`,
     [studentId, subjectId],
   )
@@ -3175,6 +3178,7 @@ export function createAsyncRepositories(db) {
       )
       const result = []
       for (const subject of subjectRows) {
+        const classes = await getStudentClassOptions(db, studentId, subject.id)
         const lessons = (await getSubjectLessons(db, subject.id)).map((lesson) =>
           enrichLessonProgress(lesson, progressMap),
         )
@@ -3187,6 +3191,15 @@ export function createAsyncRepositories(db) {
           progress: lessons.length
             ? Math.round(lessons.reduce((sum, lesson) => sum + lesson.progress, 0) / lessons.length)
             : 0,
+          classes: classes.map((courseClass) => ({
+            id: courseClass.id,
+            name: courseClass.name,
+            classCode: courseClass.class_code,
+            groupNumber: courseClass.group_number,
+            semester: courseClass.semester,
+            lecturerId: courseClass.lecturer_id,
+            lecturerName: courseClass.lecturer_name,
+          })),
         })
       }
       return result
@@ -3196,6 +3209,7 @@ export function createAsyncRepositories(db) {
       const subject = await db.one('SELECT * FROM subjects WHERE id = ?', [subjectId])
       if (!subject) return null
       const progressMap = await getProgressMap(db, studentId)
+      const classes = await getStudentClassOptions(db, studentId, subjectId)
       const lessons = (await getSubjectLessons(db, subjectId)).map((lesson) =>
         enrichLessonProgress(lesson, progressMap),
       )
@@ -3212,6 +3226,15 @@ export function createAsyncRepositories(db) {
           name: subject.name,
           credits: subject.credits,
         },
+        classes: classes.map((courseClass) => ({
+          id: courseClass.id,
+          name: courseClass.name,
+          classCode: courseClass.class_code,
+          groupNumber: courseClass.group_number,
+          semester: courseClass.semester,
+          lecturerId: courseClass.lecturer_id,
+          lecturerName: courseClass.lecturer_name,
+        })),
         chapters: chapterRows.map((chapter) => ({
           id: chapter.id,
           subjectId: chapter.subject_id,

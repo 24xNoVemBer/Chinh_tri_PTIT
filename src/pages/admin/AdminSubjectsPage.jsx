@@ -6,10 +6,14 @@ import './AdminPage.css'
 
 export default function AdminSubjectsPage() {
   const loader = useCallback(() => adminRepository.listSubjects(), [])
-  const { data: subjects = [], loading, error, reload } = useAsyncData(loader)
+  const { data: loadedSubjects, loading, error, reload } = useAsyncData(loader)
+  const subjects = loadedSubjects ?? []
   const [selectedId, setSelectedId] = useState('')
   const [selectedChapterId, setSelectedChapterId] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
+  const [editing, setEditing] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const selectedSubject = subjects.find((subject) => subject.id === selectedId) ?? subjects[0]
   const selectedSubjectId = selectedSubject?.id ?? ''
@@ -21,25 +25,36 @@ export default function AdminSubjectsPage() {
     ])
     return { chapters, materials }
   }, [selectedSubjectId])
-  const { data: curriculum = { chapters: [], materials: [] }, reload: reloadCurriculum } =
-    useAsyncData(curriculumLoader)
+  const curriculumState = useAsyncData(curriculumLoader)
   const lessonLoader = useCallback(
     () =>
       selectedChapterId ? adminRepository.listLessons(selectedChapterId) : Promise.resolve([]),
     [selectedChapterId],
   )
-  const { data: lessons = [], reload: reloadLessons } = useAsyncData(lessonLoader)
-  const { chapters, materials } = curriculum
+  const lessonState = useAsyncData(lessonLoader)
+  const { chapters = [], materials = [] } = curriculumState.data ?? {}
+  const lessons = lessonState.data ?? []
+  const reloadCurriculum = curriculumState.reload
+  const reloadLessons = lessonState.reload
 
   async function submit(action, success) {
+    if (busy) return false
+    setBusy(true)
     setFeedback('')
+    setFeedbackError(false)
     try {
       await action()
       setFeedback(success)
       await reload()
       await reloadCurriculum()
+      setEditing('')
+      return true
     } catch (cause) {
-      setFeedback(cause.message)
+      setFeedback(cause.message ?? 'Không thể cập nhật nội dung môn học.')
+      setFeedbackError(true)
+      return false
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -55,9 +70,15 @@ export default function AdminSubjectsPage() {
         </div>
       </header>
       {feedback && (
-        <p className="admin-feedback" role="status">
+        <p
+          className={`admin-feedback ${feedbackError ? 'admin-feedback--error' : ''}`}
+          role={feedbackError ? 'alert' : 'status'}
+        >
           {feedback}
         </p>
+      )}
+      {curriculumState.error && (
+        <ErrorState message={curriculumState.error.message} onRetry={reloadCurriculum} />
       )}
       <div className="admin-grid">
         <section className="admin-panel">
@@ -91,16 +112,84 @@ export default function AdminSubjectsPage() {
                 >
                   {subject.status === 'active' ? 'Đang dùng' : 'Lưu trữ'}
                 </span>
+                <div className="admin-inline-actions">
+                  <button
+                    className="button button--ghost"
+                    type="button"
+                    onClick={() => setEditing(`subject:${subject.id}`)}
+                  >
+                    Sửa
+                  </button>
+                  {subject.status === 'active' && (
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        submit(
+                          () => adminRepository.archiveSubject(subject.id),
+                          'Đã lưu trữ môn học.',
+                        )
+                      }
+                    >
+                      Lưu trữ
+                    </button>
+                  )}
+                </div>
+                {editing === `subject:${subject.id}` && (
+                  <form
+                    className="admin-inline-editor"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      const form = new FormData(event.currentTarget)
+                      submit(
+                        () =>
+                          adminRepository.updateSubject(subject.id, {
+                            name: form.get('name'),
+                            credits: Number(form.get('credits')),
+                            status: subject.status,
+                          }),
+                        'Đã cập nhật môn học.',
+                      )
+                    }}
+                  >
+                    <input
+                      name="name"
+                      defaultValue={subject.name}
+                      aria-label="Tên môn học"
+                      required
+                    />
+                    <input
+                      name="credits"
+                      type="number"
+                      min="1"
+                      defaultValue={subject.credits}
+                      aria-label="Số tín chỉ"
+                      required
+                    />
+                    <button className="button button--secondary" type="submit" disabled={busy}>
+                      Lưu
+                    </button>
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      onClick={() => setEditing('')}
+                    >
+                      Hủy
+                    </button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
         </section>
         <form
           className="admin-panel admin-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault()
-            const form = new FormData(event.currentTarget)
-            submit(
+            const formElement = event.currentTarget
+            const form = new FormData(formElement)
+            const saved = await submit(
               () =>
                 adminRepository.createSubject({
                   name: form.get('name'),
@@ -108,7 +197,7 @@ export default function AdminSubjectsPage() {
                 }),
               'Đã tạo môn học.',
             )
-            event.currentTarget.reset()
+            if (saved) formElement.reset()
           }}
         >
           <h2>Thêm môn học</h2>
@@ -121,7 +210,7 @@ export default function AdminSubjectsPage() {
             <input id="subject-credits" name="credits" type="number" min="1" required />
           </div>
           <div className="admin-actions">
-            <button className="button button--primary" type="submit">
+            <button className="button button--primary" type="submit" disabled={busy}>
               Tạo môn
             </button>
           </div>
@@ -153,15 +242,70 @@ export default function AdminSubjectsPage() {
                   >
                     Quản lý bài
                   </button>
+                  <div className="admin-inline-actions">
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      onClick={() => setEditing(`chapter:${chapter.id}`)}
+                    >
+                      Sửa
+                    </button>
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        submit(() => adminRepository.deleteChapter(chapter.id), 'Đã xóa chương.')
+                      }
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                  {editing === `chapter:${chapter.id}` && (
+                    <form
+                      className="admin-inline-editor"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        const form = new FormData(event.currentTarget)
+                        submit(
+                          () =>
+                            adminRepository.updateChapter(chapter.id, {
+                              title: form.get('title'),
+                              order: Number(form.get('order')),
+                            }),
+                          'Đã cập nhật chương.',
+                        )
+                      }}
+                    >
+                      <input
+                        name="order"
+                        type="number"
+                        min="1"
+                        defaultValue={chapter.chapter_order}
+                        aria-label="Thứ tự chương"
+                        required
+                      />
+                      <input
+                        name="title"
+                        defaultValue={chapter.title}
+                        aria-label="Tên chương"
+                        required
+                      />
+                      <button className="button button--secondary" type="submit" disabled={busy}>
+                        Lưu
+                      </button>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>
             <form
               className="admin-form"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault()
-                const form = new FormData(event.currentTarget)
-                submit(
+                const formElement = event.currentTarget
+                const form = new FormData(formElement)
+                const saved = await submit(
                   () =>
                     adminRepository.createChapter(selectedSubject.id, {
                       title: form.get('title'),
@@ -169,7 +313,7 @@ export default function AdminSubjectsPage() {
                     }),
                   'Đã thêm chương.',
                 )
-                event.currentTarget.reset()
+                if (saved) formElement.reset()
               }}
             >
               <div className="admin-form__row">
@@ -183,7 +327,7 @@ export default function AdminSubjectsPage() {
                 </div>
               </div>
               <div className="admin-actions">
-                <button className="button button--secondary" type="submit">
+                <button className="button button--secondary" type="submit" disabled={busy}>
                   Thêm chương
                 </button>
               </div>
@@ -205,15 +349,121 @@ export default function AdminSubjectsPage() {
                       {material.author} · {material.type} · {material.version_count} phiên bản
                     </small>
                   </div>
+                  <div className="admin-inline-actions">
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      onClick={() => setEditing(`material:${material.id}`)}
+                    >
+                      Sửa
+                    </button>
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      onClick={() => setEditing(`version:${material.id}`)}
+                    >
+                      Thêm phiên bản
+                    </button>
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        submit(
+                          () => adminRepository.deleteMaterial(material.id),
+                          'Đã xóa học liệu.',
+                        )
+                      }
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                  {editing === `material:${material.id}` && (
+                    <form
+                      className="admin-inline-editor"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        const form = new FormData(event.currentTarget)
+                        submit(
+                          () =>
+                            adminRepository.updateMaterial(material.id, {
+                              title: form.get('title'),
+                              author: form.get('author'),
+                              type: form.get('type'),
+                            }),
+                          'Đã cập nhật học liệu.',
+                        )
+                      }}
+                    >
+                      <input
+                        name="title"
+                        defaultValue={material.title}
+                        aria-label="Tên học liệu"
+                        required
+                      />
+                      <input
+                        name="author"
+                        defaultValue={material.author}
+                        aria-label="Tác giả"
+                        required
+                      />
+                      <input
+                        name="type"
+                        defaultValue={material.type}
+                        aria-label="Loại tệp"
+                        required
+                      />
+                      <button className="button button--secondary" type="submit" disabled={busy}>
+                        Lưu
+                      </button>
+                    </form>
+                  )}
+                  {editing === `version:${material.id}` && (
+                    <form
+                      className="admin-inline-editor"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        const form = new FormData(event.currentTarget)
+                        submit(
+                          () =>
+                            adminRepository.createMaterialVersion(material.id, {
+                              year: Number(form.get('year')),
+                              fileUrl: form.get('fileUrl'),
+                            }),
+                          'Đã thêm phiên bản học liệu.',
+                        )
+                      }}
+                    >
+                      <input
+                        name="year"
+                        type="number"
+                        min="1900"
+                        defaultValue={new Date().getFullYear()}
+                        aria-label="Năm phát hành"
+                        required
+                      />
+                      <input
+                        name="fileUrl"
+                        type="url"
+                        placeholder="https://..."
+                        aria-label="Đường dẫn tệp"
+                        required
+                      />
+                      <button className="button button--secondary" type="submit" disabled={busy}>
+                        Thêm
+                      </button>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>
             <form
               className="admin-form"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault()
-                const form = new FormData(event.currentTarget)
-                submit(
+                const formElement = event.currentTarget
+                const form = new FormData(formElement)
+                const saved = await submit(
                   () =>
                     adminRepository.createMaterial(selectedSubject.id, {
                       title: form.get('title'),
@@ -222,7 +472,7 @@ export default function AdminSubjectsPage() {
                     }),
                   'Đã thêm học liệu.',
                 )
-                event.currentTarget.reset()
+                if (saved) formElement.reset()
               }}
             >
               <div className="admin-field">
@@ -240,7 +490,7 @@ export default function AdminSubjectsPage() {
                 </div>
               </div>
               <div className="admin-actions">
-                <button className="button button--secondary" type="submit">
+                <button className="button button--secondary" type="submit" disabled={busy}>
                   Thêm học liệu
                 </button>
               </div>
@@ -265,6 +515,67 @@ export default function AdminSubjectsPage() {
                   </strong>
                   <small>Nội dung dùng chung</small>
                 </div>
+                <div className="admin-inline-actions">
+                  <button
+                    className="button button--ghost"
+                    type="button"
+                    onClick={() => setEditing(`lesson:${lesson.id}`)}
+                  >
+                    Sửa
+                  </button>
+                  <button
+                    className="button button--ghost"
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      const removed = await submit(
+                        () => adminRepository.deleteLesson(lesson.id),
+                        'Đã xóa bài học.',
+                      )
+                      if (removed) await reloadLessons()
+                    }}
+                  >
+                    Xóa
+                  </button>
+                </div>
+                {editing === `lesson:${lesson.id}` && (
+                  <form
+                    className="admin-inline-editor"
+                    onSubmit={async (event) => {
+                      event.preventDefault()
+                      const form = new FormData(event.currentTarget)
+                      const saved = await submit(
+                        () =>
+                          adminRepository.updateLesson(lesson.id, {
+                            title: form.get('title'),
+                            order: Number(form.get('order')),
+                            contentHtml: form.get('contentHtml'),
+                          }),
+                        'Đã cập nhật bài học.',
+                      )
+                      if (saved) await reloadLessons()
+                    }}
+                  >
+                    <input
+                      name="order"
+                      type="number"
+                      min="1"
+                      defaultValue={lesson.lesson_order}
+                      aria-label="Thứ tự bài"
+                      required
+                    />
+                    <input name="title" defaultValue={lesson.title} aria-label="Tên bài" required />
+                    <textarea
+                      name="contentHtml"
+                      defaultValue={lesson.content_html}
+                      aria-label="Nội dung HTML"
+                      required
+                    />
+                    <button className="button button--secondary" type="submit" disabled={busy}>
+                      Lưu
+                    </button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
@@ -272,8 +583,9 @@ export default function AdminSubjectsPage() {
             className="admin-form"
             onSubmit={async (event) => {
               event.preventDefault()
-              const form = new FormData(event.currentTarget)
-              await submit(
+              const formElement = event.currentTarget
+              const form = new FormData(formElement)
+              const saved = await submit(
                 () =>
                   adminRepository.createLesson(selectedChapterId, {
                     title: form.get('title'),
@@ -282,8 +594,10 @@ export default function AdminSubjectsPage() {
                   }),
                 'Đã thêm bài học.',
               )
-              await reloadLessons()
-              event.currentTarget.reset()
+              if (saved) {
+                await reloadLessons()
+                formElement.reset()
+              }
             }}
           >
             <div className="admin-form__row">
@@ -301,7 +615,7 @@ export default function AdminSubjectsPage() {
               <textarea id="lesson-content" name="contentHtml" required />
             </div>
             <div className="admin-actions">
-              <button className="button button--secondary" type="submit">
+              <button className="button button--secondary" type="submit" disabled={busy}>
                 Thêm bài học
               </button>
             </div>

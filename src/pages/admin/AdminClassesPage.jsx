@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { Fragment, useCallback, useState } from 'react'
 import { ErrorState, LoadingState } from '../../components/common/AsyncState'
 import useAsyncData from '../../hooks/useAsyncData'
 import { adminRepository } from '../../services/appRepositories'
@@ -8,7 +8,7 @@ export default function AdminClassesPage() {
   const loader = useCallback(async () => {
     const [classes, subjects, terms, users] = await Promise.all([
       adminRepository.listClasses(),
-      adminRepository.listSubjects({ status: 'active' }),
+      adminRepository.listSubjects(),
       adminRepository.listTerms(),
       adminRepository.listUsers({ role: 'lecturer', status: 'active' }),
     ])
@@ -23,22 +23,38 @@ export default function AdminClassesPage() {
   const [selectedClassId, setSelectedClassId] = useState('')
   const [assignments, setAssignments] = useState([])
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [editingClassId, setEditingClassId] = useState('')
   async function selectClass(classId) {
     setSelectedClassId(classId)
+    setFeedback('')
+    setFeedbackError(false)
     try {
       setAssignments(await adminRepository.listClassLecturers(classId))
     } catch (cause) {
-      setFeedback(cause.message)
+      setAssignments([])
+      setFeedback(cause.message ?? 'Không thể tải danh sách phân công.')
+      setFeedbackError(true)
     }
   }
   async function submit(action, success) {
+    if (busy) return false
+    setBusy(true)
+    setFeedback('')
+    setFeedbackError(false)
     try {
       await action()
       setFeedback(success)
-      reload()
+      await reload()
       if (selectedClassId) setAssignments(await adminRepository.listClassLecturers(selectedClassId))
+      return true
     } catch (cause) {
       setFeedback(cause.message)
+      setFeedbackError(true)
+      return false
+    } finally {
+      setBusy(false)
     }
   }
   if (loading) return <LoadingState label="Đang tải lớp tín chỉ…" />
@@ -53,7 +69,10 @@ export default function AdminClassesPage() {
         </div>
       </header>
       {feedback && (
-        <p className="admin-feedback" role="status">
+        <p
+          className={`admin-feedback ${feedbackError ? 'admin-feedback--error' : ''}`}
+          role={feedbackError ? 'alert' : 'status'}
+        >
           {feedback}
         </p>
       )}
@@ -77,27 +96,148 @@ export default function AdminClassesPage() {
               </thead>
               <tbody>
                 {data.classes.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <strong>
-                        {item.classCode} · Tổ {item.groupNumber}
-                      </strong>
-                      <small>{item.subjectName}</small>
-                    </td>
-                    <td>{item.termCode || item.semester}</td>
-                    <td>
-                      {item.studentCount} SV · {item.lecturerCount} GV
-                    </td>
-                    <td>
-                      <button
-                        className="button button--ghost"
-                        type="button"
-                        onClick={() => selectClass(item.id)}
-                      >
-                        Phân công
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={item.id}>
+                    <tr>
+                      <td>
+                        <strong>
+                          {item.classCode} · Tổ {item.groupNumber}
+                        </strong>
+                        <small>{item.subjectName}</small>
+                      </td>
+                      <td>{item.termCode || item.semester}</td>
+                      <td>
+                        {item.studentCount} SV · {item.lecturerCount} GV
+                      </td>
+                      <td>
+                        <div className="admin-inline-actions">
+                          <button
+                            className="button button--ghost"
+                            type="button"
+                            onClick={() => selectClass(item.id)}
+                          >
+                            Phân công
+                          </button>
+                          <button
+                            className="button button--ghost"
+                            type="button"
+                            onClick={() =>
+                              setEditingClassId(editingClassId === item.id ? '' : item.id)
+                            }
+                          >
+                            Sửa
+                          </button>
+                          {item.status !== 'archived' && (
+                            <button
+                              className="button button--ghost"
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                submit(
+                                  () => adminRepository.archiveClass(item.id),
+                                  'Đã lưu trữ lớp tín chỉ.',
+                                )
+                              }
+                            >
+                              Lưu trữ
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {editingClassId === item.id && (
+                      <tr>
+                        <td colSpan="4">
+                          <form
+                            className="admin-inline-editor"
+                            onSubmit={async (event) => {
+                              event.preventDefault()
+                              const formElement = event.currentTarget
+                              const form = new FormData(formElement)
+                              const saved = await submit(
+                                () =>
+                                  adminRepository.updateClass(item.id, {
+                                    subjectId: form.get('subjectId'),
+                                    academicTermId: form.get('termId'),
+                                    classCode: form.get('classCode'),
+                                    groupNumber: Number(form.get('groupNumber')),
+                                    name: form.get('name'),
+                                    status: form.get('status'),
+                                  }),
+                                'Đã cập nhật lớp tín chỉ.',
+                              )
+                              if (saved) setEditingClassId('')
+                            }}
+                          >
+                            <select
+                              name="subjectId"
+                              defaultValue={item.subjectId}
+                              aria-label="Môn học"
+                            >
+                              {data.subjects.map((subject) => (
+                                <option key={subject.id} value={subject.id}>
+                                  {subject.name}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              name="termId"
+                              defaultValue={item.academicTermId}
+                              aria-label="Học kỳ"
+                            >
+                              {data.terms.map((term) => (
+                                <option key={term.id} value={term.id}>
+                                  {term.name}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              name="classCode"
+                              defaultValue={item.classCode}
+                              aria-label="Mã lớp"
+                              required
+                            />
+                            <input
+                              name="groupNumber"
+                              type="number"
+                              min="1"
+                              defaultValue={item.groupNumber}
+                              aria-label="Số tổ"
+                              required
+                            />
+                            <input
+                              name="name"
+                              defaultValue={item.name}
+                              aria-label="Tên hiển thị"
+                              required
+                            />
+                            <select
+                              name="status"
+                              defaultValue={item.status}
+                              aria-label="Trạng thái lớp"
+                            >
+                              <option value="active">Hoạt động</option>
+                              <option value="completed">Hoàn thành</option>
+                              <option value="archived">Lưu trữ</option>
+                            </select>
+                            <button
+                              className="button button--secondary"
+                              type="submit"
+                              disabled={busy}
+                            >
+                              Lưu
+                            </button>
+                            <button
+                              className="button button--ghost"
+                              type="button"
+                              onClick={() => setEditingClassId('')}
+                            >
+                              Hủy
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -105,10 +245,11 @@ export default function AdminClassesPage() {
         </section>
         <form
           className="admin-panel admin-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault()
-            const form = new FormData(event.currentTarget)
-            submit(
+            const formElement = event.currentTarget
+            const form = new FormData(formElement)
+            const saved = await submit(
               () =>
                 adminRepository.createClass({
                   subjectId: form.get('subjectId'),
@@ -119,7 +260,7 @@ export default function AdminClassesPage() {
                 }),
               'Đã tạo lớp tín chỉ.',
             )
-            event.currentTarget.reset()
+            if (saved) formElement.reset()
           }}
         >
           <h2>Tạo lớp tín chỉ</h2>
@@ -162,7 +303,7 @@ export default function AdminClassesPage() {
             <input id="class-name" name="name" />
           </div>
           <div className="admin-actions">
-            <button className="button button--primary" type="submit">
+            <button className="button button--primary" type="submit" disabled={busy}>
               Tạo lớp
             </button>
           </div>
@@ -187,32 +328,55 @@ export default function AdminClassesPage() {
                   </small>
                 </div>
                 {assignment.status === 'active' && (
-                  <button
-                    className="button button--ghost"
-                    type="button"
-                    onClick={() =>
-                      submit(
-                        () =>
-                          adminRepository.endLecturerAssignment(
-                            selectedClassId,
-                            assignment.lecturer_id,
-                          ),
-                        'Đã kết thúc phân công.',
-                      )
-                    }
-                  >
-                    Kết thúc
-                  </button>
+                  <div className="admin-inline-actions">
+                    <select
+                      aria-label={`Vai trò phân công của ${assignment.name}`}
+                      value={assignment.assignment_role}
+                      disabled={busy}
+                      onChange={(event) =>
+                        submit(
+                          () =>
+                            adminRepository.updateLecturerAssignment(
+                              selectedClassId,
+                              assignment.lecturer_id,
+                              { assignmentRole: event.target.value },
+                            ),
+                          'Đã cập nhật vai trò phân công.',
+                        )
+                      }
+                    >
+                      <option value="lecturer">Giảng viên</option>
+                      <option value="lead">Phụ trách chính</option>
+                    </select>
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        submit(
+                          () =>
+                            adminRepository.endLecturerAssignment(
+                              selectedClassId,
+                              assignment.lecturer_id,
+                            ),
+                          'Đã kết thúc phân công.',
+                        )
+                      }
+                    >
+                      Kết thúc
+                    </button>
+                  </div>
                 )}
               </li>
             ))}
           </ul>
           <form
             className="admin-form"
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault()
-              const form = new FormData(event.currentTarget)
-              submit(
+              const formElement = event.currentTarget
+              const form = new FormData(formElement)
+              const saved = await submit(
                 () =>
                   adminRepository.assignLecturer(selectedClassId, {
                     lecturerId: form.get('lecturerId'),
@@ -220,6 +384,7 @@ export default function AdminClassesPage() {
                   }),
                 'Đã phân công giảng viên.',
               )
+              if (saved) formElement.reset()
             }}
           >
             <div className="admin-form__row">
@@ -227,11 +392,20 @@ export default function AdminClassesPage() {
                 <label htmlFor="assignment-lecturer">Giảng viên</label>
                 <select id="assignment-lecturer" name="lecturerId" required>
                   <option value="">Chọn giảng viên</option>
-                  {data.lecturers.map((lecturer) => (
-                    <option key={lecturer.id} value={lecturer.id}>
-                      {lecturer.name}
-                    </option>
-                  ))}
+                  {data.lecturers
+                    .filter(
+                      (lecturer) =>
+                        !assignments.some(
+                          (assignment) =>
+                            assignment.lecturer_id === lecturer.id &&
+                            assignment.status === 'active',
+                        ),
+                    )
+                    .map((lecturer) => (
+                      <option key={lecturer.id} value={lecturer.id}>
+                        {lecturer.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="admin-field">
@@ -243,7 +417,7 @@ export default function AdminClassesPage() {
               </div>
             </div>
             <div className="admin-actions">
-              <button className="button button--secondary" type="submit">
+              <button className="button button--secondary" type="submit" disabled={busy}>
                 Thêm phân công
               </button>
             </div>

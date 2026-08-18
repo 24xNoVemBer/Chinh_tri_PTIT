@@ -143,6 +143,14 @@ paths:
     post:
       operationId: createSharedPracticeQuestion
       responses: { '201': { description: Shared question created } }
+  /api/admin/practice-questions/import:
+    post:
+      operationId: importSharedPracticeQuestionsFromCsv
+      description: Atomically imports up to 200 validated questions as subject-wide drafts.
+      responses:
+        '201': { description: Shared question drafts imported }
+        '400': { description: Invalid scope or question rows }
+        '409': { description: Question content already exists in the subject }
   /api/admin/practice-questions/{questionId}:
     patch:
       operationId: updateSharedPracticeQuestion

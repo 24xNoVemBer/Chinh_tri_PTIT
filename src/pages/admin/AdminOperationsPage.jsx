@@ -34,33 +34,57 @@ export default function AdminOperationsPage() {
   const [assigneeSelections, setAssigneeSelections] = useState({})
   const [busyQuestionId, setBusyQuestionId] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
   async function route(question) {
+    if (busyQuestionId) return
     const classId = selections[question.id]
     if (!classId) {
       setFeedback('Hãy chọn lớp tín chỉ phù hợp.')
-      return
-    }
-    try {
-      await adminRepository.routeQuestion(question.id, classId)
-      setFeedback('Đã điều phối câu hỏi.')
-      reload()
-    } catch (cause) {
-      setFeedback(cause.message)
-    }
-  }
-  async function reassign(question) {
-    const lecturerId = assigneeSelections[question.id]
-    if (!lecturerId) {
-      setFeedback('Hãy chọn giảng viên thuộc lớp tín chỉ này.')
+      setFeedbackError(true)
       return
     }
     setBusyQuestionId(question.id)
+    setFeedback('')
+    setFeedbackError(false)
+    try {
+      await adminRepository.routeQuestion(question.id, classId)
+      setFeedback('Đã điều phối câu hỏi.')
+      setSelections((current) => {
+        const next = { ...current }
+        delete next[question.id]
+        return next
+      })
+      await reload()
+    } catch (cause) {
+      setFeedback(cause.message ?? 'Không thể điều phối câu hỏi.')
+      setFeedbackError(true)
+    } finally {
+      setBusyQuestionId('')
+    }
+  }
+  async function reassign(question) {
+    if (busyQuestionId) return
+    const lecturerId = assigneeSelections[question.id]
+    if (!lecturerId) {
+      setFeedback('Hãy chọn giảng viên thuộc lớp tín chỉ này.')
+      setFeedbackError(true)
+      return
+    }
+    setBusyQuestionId(question.id)
+    setFeedback('')
+    setFeedbackError(false)
     try {
       await adminRepository.reassignQuestion(question.id, lecturerId)
       setFeedback('Đã chuyển người xử lý câu hỏi.')
+      setAssigneeSelections((current) => {
+        const next = { ...current }
+        delete next[question.id]
+        return next
+      })
       await reload()
     } catch (cause) {
-      setFeedback(cause.message)
+      setFeedback(cause.message ?? 'Không thể chuyển người xử lý câu hỏi.')
+      setFeedbackError(true)
     } finally {
       setBusyQuestionId('')
     }
@@ -77,7 +101,10 @@ export default function AdminOperationsPage() {
         </div>
       </header>
       {feedback && (
-        <p className="admin-feedback" role="status">
+        <p
+          className={`admin-feedback ${feedbackError ? 'admin-feedback--error' : ''}`}
+          role={feedbackError ? 'alert' : 'status'}
+        >
           {feedback}
         </p>
       )}
@@ -131,9 +158,10 @@ export default function AdminOperationsPage() {
                     <button
                       className="button button--secondary"
                       type="button"
+                      disabled={Boolean(busyQuestionId)}
                       onClick={() => route(question)}
                     >
-                      Điều phối
+                      {busyQuestionId === question.id ? 'Đang điều phối…' : 'Điều phối'}
                     </button>
                   </td>
                 </tr>
@@ -206,7 +234,7 @@ export default function AdminOperationsPage() {
                     <button
                       className="button button--secondary"
                       type="button"
-                      disabled={busyQuestionId === question.id}
+                      disabled={Boolean(busyQuestionId)}
                       onClick={() => reassign(question)}
                     >
                       {busyQuestionId === question.id ? 'Đang chuyển…' : 'Chuyển xử lý'}

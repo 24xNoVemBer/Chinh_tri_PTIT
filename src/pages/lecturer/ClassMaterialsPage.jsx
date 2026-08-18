@@ -22,6 +22,7 @@ export default function ClassMaterialsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [updatingId, setUpdatingId] = useState(null)
   const [feedback, setFeedback] = useState('')
+  const [feedbackError, setFeedbackError] = useState(false)
   const [formError, setFormError] = useState('')
 
   const loader = useCallback(async () => {
@@ -49,6 +50,7 @@ export default function ClassMaterialsPage() {
     }
     setSubmitting(true)
     setFeedback('')
+    setFeedbackError(false)
     setFormError('')
     try {
       await classContentRepository.attachMaterial(classId, { materialId })
@@ -65,6 +67,7 @@ export default function ClassMaterialsPage() {
   const handleStatusChange = async (classMaterial, nextStatus) => {
     setUpdatingId(classMaterial.id)
     setFeedback('')
+    setFeedbackError(false)
     try {
       await classContentRepository.updateMaterialStatus(classId, classMaterial.id, nextStatus)
       setFeedback(
@@ -74,7 +77,8 @@ export default function ClassMaterialsPage() {
       )
       await reload()
     } catch (updateError) {
-      setFeedback(updateError.message)
+      setFeedback(updateError.message ?? 'Không thể cập nhật trạng thái học liệu.')
+      setFeedbackError(true)
     } finally {
       setUpdatingId(null)
     }
@@ -137,7 +141,11 @@ export default function ClassMaterialsPage() {
             </div>
           </div>
           {feedback && (
-            <div className="feedback-banner" role="status" aria-live="polite">
+            <div
+              className={`feedback-banner ${feedbackError ? 'feedback-banner--error' : ''}`}
+              role={feedbackError ? 'alert' : 'status'}
+              aria-live="polite"
+            >
               {feedback}
             </div>
           )}

@@ -1,5 +1,5 @@
 export const students = [
-  { id: 's1', name: 'Nguyễn Tuấn Anh', email: 'tuananh@ptit.edu.vn' },
+  { id: 's1', name: 'Nguyễn Văn Tuấn Anh', email: 'tuananh@ptit.edu.vn' },
   { id: 's2', name: 'Trần Thị Mai', email: 'mai.tt@ptit.edu.vn' },
   { id: 's3', name: 'Lê Văn Hoàng', email: 'hoang.lv@ptit.edu.vn' },
   { id: 's4', name: 'Phạm Thu Trang', email: 'trang.pt@ptit.edu.vn' },
