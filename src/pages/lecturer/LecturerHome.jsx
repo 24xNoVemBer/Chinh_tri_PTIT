@@ -10,7 +10,6 @@ import {
   Users,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import lecturerGuideImage from '../../assets/dashboard/das-kapital-1867.jpg'
 import AnimatedNumber from '../../components/common/AnimatedNumber'
 import CourseCover from '../../components/common/CourseCover'
 import { ErrorState, LoadingState } from '../../components/common/AsyncState'
@@ -66,7 +65,6 @@ export default function LecturerHome() {
         <div>
           <p className="dashboard-home__role">Không gian giảng viên</p>
           <h1>Tổng quan lớp học</h1>
-          <p>Theo dõi lớp đang phụ trách và ưu tiên các việc cần xử lý.</p>
         </div>
         <div className="dashboard-compact-head__actions">
           <Link className="button button--secondary" to="/lecturer/questions">
@@ -259,59 +257,40 @@ export default function LecturerHome() {
         </div>
       </section>
 
-      <div className="lecturer-bottom-grid dashboard-reveal" style={{ '--reveal-order': 3 }}>
-        <section className="dashboard-panel" aria-labelledby="recent-activity-title">
-          <div className="dashboard-panel__heading">
-            <div>
-              <h2 id="recent-activity-title">Hoạt động gần đây</h2>
-              <p>Các phản hồi vừa hoàn tất.</p>
-            </div>
-            <Link className="dashboard-text-link" to="/lecturer/questions">
-              Xem tất cả <ArrowRight aria-hidden="true" size={16} />
-            </Link>
-          </div>
-          <div className="lecturer-activity-list">
-            {answeredQuestions.slice(0, 3).map((question) => (
-              <Link
-                className="lecturer-activity-list__item"
-                key={question.id}
-                to={`/lecturer/questions/${question.id}`}
-              >
-                <CheckCircle2 aria-hidden="true" size={18} />
-                <span>
-                  <strong>{question.student?.name ?? 'Sinh viên'}</strong>
-                  <small>{question.subject?.name ?? 'Học phần'}</small>
-                  <small>
-                    <Clock3 aria-hidden="true" size={13} />
-                    {formatDateTime(question.lecturerAnswer?.createdAt ?? question.createdAt)}
-                  </small>
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <aside className="lecturer-guide" aria-label="Học liệu lý luận chính trị">
-          <img
-            src={lecturerGuideImage}
-            alt="Ấn bản đầu tiên của bộ Tư bản của Karl Marx"
-            width="960"
-            height="810"
-            loading="lazy"
-            decoding="async"
-          />
+      <section
+        className="dashboard-panel dashboard-reveal"
+        style={{ '--reveal-order': 3 }}
+        aria-labelledby="recent-activity-title"
+      >
+        <div className="dashboard-panel__heading">
           <div>
-            <strong>Học liệu gắn với từng học phần.</strong>
-            <p>
-              Tư liệu kinh điển giúp định hướng câu hỏi, thảo luận và phản hồi theo đúng nội dung
-              môn học.
-            </p>
-            <Link className="button button--primary" to="/lecturer/classes">
-              Mở lớp học <ArrowRight aria-hidden="true" size={16} />
-            </Link>
+            <h2 id="recent-activity-title">Hoạt động gần đây</h2>
+            <p>Các phản hồi vừa hoàn tất.</p>
           </div>
-        </aside>
-      </div>
+          <Link className="dashboard-text-link" to="/lecturer/questions">
+            Xem tất cả <ArrowRight aria-hidden="true" size={16} />
+          </Link>
+        </div>
+        <div className="lecturer-activity-list">
+          {answeredQuestions.slice(0, 3).map((question) => (
+            <Link
+              className="lecturer-activity-list__item"
+              key={question.id}
+              to={`/lecturer/questions/${question.id}`}
+            >
+              <CheckCircle2 aria-hidden="true" size={18} />
+              <span>
+                <strong>{question.student?.name ?? 'Sinh viên'}</strong>
+                <small>{question.subject?.name ?? 'Học phần'}</small>
+                <small>
+                  <Clock3 aria-hidden="true" size={13} />
+                  {formatDateTime(question.lecturerAnswer?.createdAt ?? question.createdAt)}
+                </small>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }

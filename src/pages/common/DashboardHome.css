@@ -75,8 +75,7 @@
 
 .dashboard-compact-head__actions .button,
 .student-resume__actions .button,
-.dashboard-trust .button,
-.lecturer-guide .button {
+.dashboard-trust .button {
   width: 100%;
   white-space: nowrap;
 }
@@ -369,7 +368,6 @@
 
 .dashboard-grid,
 .lecturer-overview-grid,
-.lecturer-bottom-grid,
 .lecturer-class-grid {
   display: grid;
   min-width: 0;
@@ -377,7 +375,6 @@
 }
 
 .dashboard-panel,
-.lecturer-guide,
 .lecturer-class-card {
   min-width: 0;
   border: 1px solid var(--color-border);
@@ -845,37 +842,6 @@
   font-size: var(--text-xs);
 }
 
-.lecturer-guide {
-  display: grid;
-  overflow: hidden;
-  align-content: start;
-}
-
-.lecturer-guide > img {
-  width: 100%;
-  height: 11rem;
-  object-fit: cover;
-  object-position: center 52%;
-}
-
-.lecturer-guide > div {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-5);
-}
-
-.lecturer-guide strong {
-  color: var(--color-heading);
-  font-family: var(--font-heading);
-  font-size: var(--text-lg);
-}
-
-.lecturer-guide p {
-  color: var(--color-muted-foreground);
-  font-size: var(--text-sm);
-  line-height: 1.55;
-}
-
 .dashboard-empty {
   display: grid;
   justify-items: start;
@@ -922,8 +888,7 @@
   }
 
   .dashboard-compact-head__actions .button,
-  .dashboard-trust .button,
-  .lecturer-guide .button {
+  .dashboard-trust .button {
     width: auto;
   }
 
@@ -988,10 +953,6 @@
     grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
   }
 
-  .lecturer-bottom-grid {
-    grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
-  }
-
   .student-practice-dashboard__subjects {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1033,8 +994,7 @@
     display: none;
   }
 
-  .dashboard-panel,
-  .lecturer-guide > div {
+  .dashboard-panel {
     padding-inline: var(--space-4);
   }
 
