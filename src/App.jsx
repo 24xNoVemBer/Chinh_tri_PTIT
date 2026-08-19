@@ -13,6 +13,7 @@ const ClassStudentsPage = lazy(() => import('./pages/lecturer/ClassStudentsPage'
 const ClassLessonsPage = lazy(() => import('./pages/lecturer/ClassLessonsPage'))
 const ClassMaterialsPage = lazy(() => import('./pages/lecturer/ClassMaterialsPage'))
 const LecturerHome = lazy(() => import('./pages/lecturer/LecturerHome'))
+const LecturerAssistantPage = lazy(() => import('./pages/lecturer/LecturerAssistantPage'))
 const QuestionInboxPage = lazy(() => import('./pages/lecturer/QuestionInboxPage'))
 const QuestionDetailPage = lazy(() => import('./pages/lecturer/QuestionDetailPage'))
 const QuestionsPage = lazy(() => import('./pages/lecturer/QuestionsPage'))
@@ -73,6 +74,7 @@ export default function App() {
         <Route element={<RoleGuard role="lecturer" />}>
           <Route path="/lecturer" element={<LecturerLayout />}>
             <Route index element={<LecturerHome />} />
+            <Route path="assistant" element={<LecturerAssistantPage />} />
             <Route path="classes" element={<ClassesPage />} />
             <Route path="classes/:classId" element={<ClassPage />} />
             <Route path="classes/:classId/students" element={<ClassStudentsPage />} />

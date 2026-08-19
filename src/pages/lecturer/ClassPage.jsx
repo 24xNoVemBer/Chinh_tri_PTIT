@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { ArrowRight, BookOpen, FileText, Gauge, MessageCircleQuestion, Users } from 'lucide-react'
+import { ArrowRight, BookOpen, FileText, MessageCircleQuestion, Users } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import {
   EmptyState,
@@ -93,13 +93,6 @@ export default function ClassPage() {
           <div>
             <strong>{data.students.length}</strong>
             <span>Sinh viên</span>
-          </div>
-        </article>
-        <article className="stat-card">
-          <Gauge aria-hidden="true" />
-          <div>
-            <strong>{data.metrics.averageProgress}%</strong>
-            <span>Tiến độ trung bình</span>
           </div>
         </article>
         <article className="stat-card stat-card--attention">

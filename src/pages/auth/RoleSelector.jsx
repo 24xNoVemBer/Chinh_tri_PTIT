@@ -133,7 +133,7 @@ export default function RoleSelector() {
             <div className="login-panel__header">
               <p className="login-panel__kicker">Hệ thống học tập PTIT</p>
               <h1 id="login-title">Đăng nhập</h1>
-              <p>Sử dụng tài khoản PTIT để truy cập không gian học tập phù hợp.</p>
+              <p>Sử dụng tài khoản PTIT để truy cập không gian phù hợp với vai trò của bạn.</p>
             </div>
 
             <form
@@ -289,23 +289,26 @@ export default function RoleSelector() {
             </figure>
 
             <div className="role-selector-intro__copy">
-              <h2 id="login-intro-title">Học đúng môn. Hỏi đúng ngữ cảnh.</h2>
+              <h2 id="login-intro-title">
+                <span>Học hiệu quả hơn.</span>
+                <span>Dạy chất lượng hơn.</span>
+              </h2>
               <p>
-                Tra cứu giáo trình, đặt câu hỏi với AI trợ giảng và tiếp tục ôn tập theo từng học
-                phần.
+                Một không gian chung để sinh viên học tập, hỏi đáp và ôn luyện; giảng viên quản lý
+                lớp học, học liệu và phản hồi.
               </p>
               <ul>
                 <li>
                   <BookOpenCheck aria-hidden="true" size={19} />
-                  Hỏi theo học phần đang học
-                </li>
-                <li>
-                  <ShieldCheck aria-hidden="true" size={19} />
-                  Đối chiếu giáo trình và nguồn chính thống
+                  Sinh viên học và hỏi theo đúng học phần
                 </li>
                 <li>
                   <GraduationCap aria-hidden="true" size={19} />
-                  Tiếp tục lộ trình ôn tập
+                  Giảng viên quản lý lớp học và học liệu
+                </li>
+                <li>
+                  <ShieldCheck aria-hidden="true" size={19} />
+                  Cùng theo dõi câu hỏi và phản hồi
                 </li>
               </ul>
             </div>

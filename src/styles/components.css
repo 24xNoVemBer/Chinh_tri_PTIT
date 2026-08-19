@@ -826,6 +826,27 @@ tbody tr:last-child td {
   width: 100%;
 }
 
+.management-form__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-muted-foreground);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.management-form__divider::before,
+.management-form__divider::after {
+  height: 1px;
+  flex: 1;
+  background: var(--color-border);
+  content: '';
+}
+
+.management-form__divider span {
+  flex: 0 0 auto;
+}
+
 .management-list,
 .compact-list {
   display: grid;

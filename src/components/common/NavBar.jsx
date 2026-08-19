@@ -68,9 +68,12 @@ export default function NavBar({ role, userName }) {
         </nav>
 
         <div className="navbar__account">
-          {role === 'student' && (
+          {(role === 'student' || role === 'lecturer') && (
             <>
-              <NavLink className="navbar__assistant" to="/student/chat">
+              <NavLink
+                className="navbar__assistant"
+                to={role === 'student' ? '/student/chat' : '/lecturer/assistant'}
+              >
                 <Bot aria-hidden="true" size={17} />
                 Hỏi trợ giảng
               </NavLink>
@@ -133,10 +136,10 @@ export default function NavBar({ role, userName }) {
                 </NavLink>
               )
             })}
-            {role === 'student' && (
+            {(role === 'student' || role === 'lecturer') && (
               <NavLink
                 className="navbar__mobile-link navbar__mobile-link--assistant"
-                to="/student/chat"
+                to={role === 'student' ? '/student/chat' : '/lecturer/assistant'}
                 onClick={() => setMenuOpen(false)}
               >
                 <Bot aria-hidden="true" size={18} />

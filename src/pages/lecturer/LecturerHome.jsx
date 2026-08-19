@@ -5,12 +5,10 @@ import {
   CheckCircle2,
   CircleHelp,
   Clock3,
-  MessageSquareText,
   School,
   Users,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import lecturerGuideImage from '../../assets/dashboard/das-kapital-1867.jpg'
 import AnimatedNumber from '../../components/common/AnimatedNumber'
 import CourseCover from '../../components/common/CourseCover'
 import { ErrorState, LoadingState } from '../../components/common/AsyncState'
@@ -62,25 +60,7 @@ export default function LecturerHome() {
 
   return (
     <div className="dashboard-home dashboard-home--lecturer">
-      <header className="dashboard-compact-head dashboard-reveal" style={{ '--reveal-order': 0 }}>
-        <div>
-          <p className="dashboard-home__role">Không gian giảng viên</p>
-          <h1>Tổng quan lớp học</h1>
-          <p>Theo dõi lớp đang phụ trách và ưu tiên các việc cần xử lý.</p>
-        </div>
-        <div className="dashboard-compact-head__actions">
-          <Link className="button button--secondary" to="/lecturer/questions">
-            <MessageSquareText aria-hidden="true" size={18} />
-            Xem hỏi đáp
-          </Link>
-          <Link className="button button--primary" to="/lecturer/classes">
-            <School aria-hidden="true" size={18} />
-            Quản lý lớp
-          </Link>
-        </div>
-      </header>
-
-      <div className="lecturer-overview-grid dashboard-reveal" style={{ '--reveal-order': 1 }}>
+      <div className="lecturer-overview-grid dashboard-reveal" style={{ '--reveal-order': 0 }}>
         <section
           className="dashboard-panel dashboard-panel--priority"
           aria-labelledby="priority-title"
@@ -88,7 +68,6 @@ export default function LecturerHome() {
           <div className="dashboard-panel__heading dashboard-panel__heading--priority">
             <div>
               <h2 id="priority-title">Cần xử lý</h2>
-              <p>Câu hỏi mới từ sinh viên.</p>
             </div>
             <span
               className="dashboard-count"
@@ -142,7 +121,6 @@ export default function LecturerHome() {
           <div className="dashboard-panel__heading">
             <div>
               <h2 id="class-snapshot-title">Tình hình lớp học</h2>
-              <p>Dữ liệu từ các lớp đang phụ trách.</p>
             </div>
           </div>
           <div className="lecturer-metric-grid" role="list" aria-label="Thống kê lớp học">
@@ -195,7 +173,7 @@ export default function LecturerHome() {
 
       <section
         className="dashboard-section dashboard-reveal"
-        style={{ '--reveal-order': 2 }}
+        style={{ '--reveal-order': 1 }}
         aria-labelledby="lecturer-classes-title"
       >
         <div className="dashboard-panel__heading dashboard-panel__heading--outside">
@@ -259,7 +237,7 @@ export default function LecturerHome() {
         </div>
       </section>
 
-      <div className="lecturer-bottom-grid dashboard-reveal" style={{ '--reveal-order': 3 }}>
+      <div className="lecturer-bottom-grid dashboard-reveal" style={{ '--reveal-order': 2 }}>
         <section className="dashboard-panel" aria-labelledby="recent-activity-title">
           <div className="dashboard-panel__heading">
             <div>
@@ -291,26 +269,6 @@ export default function LecturerHome() {
           </div>
         </section>
 
-        <aside className="lecturer-guide" aria-label="Học liệu lý luận chính trị">
-          <img
-            src={lecturerGuideImage}
-            alt="Ấn bản đầu tiên của bộ Tư bản của Karl Marx"
-            width="960"
-            height="810"
-            loading="lazy"
-            decoding="async"
-          />
-          <div>
-            <strong>Học liệu gắn với từng học phần.</strong>
-            <p>
-              Tư liệu kinh điển giúp định hướng câu hỏi, thảo luận và phản hồi theo đúng nội dung
-              môn học.
-            </p>
-            <Link className="button button--primary" to="/lecturer/classes">
-              Mở lớp học <ArrowRight aria-hidden="true" size={16} />
-            </Link>
-          </div>
-        </aside>
       </div>
     </div>
   )

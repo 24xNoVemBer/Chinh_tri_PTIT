@@ -522,6 +522,10 @@
   .chat-sources {
     grid-column: auto;
   }
+
+  .chat-layout--lecturer {
+    grid-template-columns: minmax(14rem, 0.42fr) minmax(0, 1.58fr);
+  }
 }
 
 @media (max-width: 38rem) {

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { CalendarDays, Plus } from 'lucide-react'
+import { CalendarDays, Plus, Upload } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import {
   EmptyState,
@@ -25,6 +25,7 @@ export default function ClassLessonsPage() {
   const [updatingId, setUpdatingId] = useState(null)
   const [feedback, setFeedback] = useState('')
   const [formError, setFormError] = useState('')
+  const [lessonFile, setLessonFile] = useState(null)
 
   const loader = useCallback(async () => {
     const courseClass = await classRepository.getById(classId, {
@@ -83,6 +84,15 @@ export default function ClassLessonsPage() {
     }
   }
 
+  const handleDemoUpload = () => {
+    if (!lessonFile) {
+      setFormError('Hãy chọn tệp bài giảng cần tải lên.')
+      return
+    }
+    setFormError('')
+    setFeedback(`Đã chọn “${lessonFile.name}”. Tệp sẽ được lưu khi API upload được kết nối.`)
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
@@ -138,6 +148,29 @@ export default function ClassLessonsPage() {
           >
             <Plus aria-hidden="true" size={18} />
             {submitting ? 'Đang thêm…' : 'Thêm bài học'}
+          </button>
+
+          <div className="management-form__divider">
+            <span>Hoặc thêm nội dung mới</span>
+          </div>
+          <div className="field-group">
+            <label htmlFor="lesson-upload">Tệp bài giảng</label>
+            <input
+              id="lesson-upload"
+              type="file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx"
+              onChange={(event) => {
+                setLessonFile(event.target.files?.[0] ?? null)
+                setFormError('')
+              }}
+            />
+            <p className="field-hint">
+              PDF, Word hoặc PowerPoint · Giao diện demo, chưa tải lên máy chủ.
+            </p>
+          </div>
+          <button className="button button--secondary" type="button" onClick={handleDemoUpload}>
+            <Upload aria-hidden="true" size={18} />
+            Tải bài giảng lên
           </button>
         </form>
 

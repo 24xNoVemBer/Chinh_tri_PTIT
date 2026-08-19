@@ -508,6 +508,10 @@ body {
   overflow-wrap: anywhere;
 }
 
+.role-selector-intro__copy h2 > span {
+  display: block;
+}
+
 .role-selector-intro__copy > p {
   max-width: 46ch;
   color: var(--login-dark-muted);

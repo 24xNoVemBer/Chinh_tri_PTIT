@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useState } from 'react'
-import { Gauge, Search, TriangleAlert, Users } from 'lucide-react'
+import { Search, TriangleAlert, Users } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import {
   EmptyState,
@@ -90,13 +90,6 @@ export default function ClassStudentsPage() {
           <div>
             <strong>{data.students.length}</strong>
             <span>Tổng sinh viên</span>
-          </div>
-        </article>
-        <article className="stat-card">
-          <Gauge aria-hidden="true" />
-          <div>
-            <strong>{data.metrics.averageProgress}%</strong>
-            <span>Tiến độ trung bình</span>
           </div>
         </article>
         <article className="stat-card stat-card--attention">

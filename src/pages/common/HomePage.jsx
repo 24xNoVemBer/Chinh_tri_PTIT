@@ -4,7 +4,6 @@ import {
   BookOpenCheck,
   CheckCircle2,
   ExternalLink,
-  FileText,
   GraduationCap,
   Mail,
   MapPin,
@@ -12,16 +11,14 @@ import {
   Pause,
   Phone,
   Play,
-  Search,
   Sparkles,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import courseHoChiMinhImage from '../../assets/course-ho-chi-minh-unsplash.jpg'
-import coursePhilosophyImage from '../../assets/course-philosophy-unsplash.jpg'
 import courseShowcaseHoChiMinhImage from '../../assets/course-showcase-ho-chi-minh.jpg'
 import courseShowcaseMarxEngelsImage from '../../assets/course-showcase-marx-engels.jpg'
 import courseShowcaseVietnam1945Image from '../../assets/course-showcase-vietnam-1945.jpg'
+import karlMarxPortraitImage from '../../assets/courses/karl-marx-portrait.jpg'
 import ptitReadingDayImage from '../../assets/ptit-reading-day.jpg'
 import { useAuth } from '../../features/auth/useAuth'
 import './HomePage.css'
@@ -63,49 +60,52 @@ const COURSE_SHOWCASE = [
   },
 ]
 
-const HERO_MESSAGES = ['hiểu bài sâu hơn.', 'hỏi đúng trọng tâm.', 'ôn thi có hệ thống.']
+const HERO_MESSAGES = [
+  { text: 'học hiệu quả hơn.', tone: 'learn' },
+  { text: 'dạy chất lượng hơn.', tone: 'teach' },
+]
 
 const HERO_BENEFITS = [
   {
-    title: 'Hỏi theo môn đang học',
-    description: 'Giữ câu hỏi đúng học phần, chương và khái niệm.',
+    title: 'Cho sinh viên',
+    description: 'Hỏi nhanh, học đúng trọng tâm.',
   },
   {
-    title: 'Đọc đúng nguồn',
-    description: 'Đối chiếu giáo trình, văn kiện và vị trí trích dẫn.',
+    title: 'Cho giảng viên',
+    description: 'Quản lý lớp, theo dõi và duyệt phản hồi.',
   },
   {
-    title: 'Ôn theo tiến độ',
-    description: 'Tiếp tục từ phần còn vướng thay vì học lại từ đầu.',
+    title: 'Đáng tin cậy',
+    description: 'Bám sát giáo trình và học liệu được phê duyệt.',
   },
 ]
 const STUDENT_MOMENTS = [
   {
-    context: 'Khi đang học',
+    context: 'Trước buổi học',
     description:
-      'Chọn đúng môn và chương trước khi hỏi để cuộc hội thoại luôn bám vào phần kiến thức bạn đang học.',
-    highlights: ['Giữ ngữ cảnh theo học phần', 'Gợi ý cách đặt câu hỏi rõ hơn'],
+      'Xem trước nội dung trọng tâm, tra cứu khái niệm và chuẩn bị câu hỏi cho bài học sắp tới.',
+    highlights: ['Nắm trước nội dung chính', 'Chuẩn bị câu hỏi cần làm rõ'],
     icon: MessageCircleQuestion,
     preview: 'question',
-    title: 'Gỡ đúng phần đang vướng, không phải tìm lại từ đầu',
+    title: 'Chuẩn bị đúng trọng tâm trước khi vào bài',
   },
   {
-    context: 'Khi cần tra cứu',
+    context: 'Trong buổi học',
     description:
-      'Đi từ phần giải thích tới giáo trình, văn kiện hoặc tác phẩm liên quan trong cùng một mạch đọc.',
-    highlights: ['Phân loại nguồn theo tài liệu', 'Hiển thị chương và mục cần đọc'],
+      'Theo dõi bài giảng, làm rõ phần còn vướng và ghi lại câu hỏi trong đúng ngữ cảnh môn học.',
+    highlights: ['Giữ mạch kiến thức đang học', 'Đối chiếu nguồn khi cần'],
     icon: BookOpenCheck,
     preview: 'source',
-    title: 'Biết nội dung đến từ đâu và nên đọc tiếp ở chỗ nào',
+    title: 'Làm rõ phần còn vướng ngay trong buổi học',
   },
   {
-    context: 'Khi chuẩn bị kiểm tra',
+    context: 'Sau buổi học',
     description:
-      'Gom các khái niệm, luận điểm và câu hỏi tự kiểm tra thành một lộ trình ôn tập theo từng chuyên đề.',
-    highlights: ['Ôn theo phần chưa nắm chắc', 'So sánh luận điểm trước vấn đáp'],
+      'Hệ thống lại kiến thức, kiểm tra nguồn và tiếp tục ôn tập theo tiến độ của riêng bạn.',
+    highlights: ['Củng cố phần chưa nắm chắc', 'Ôn tập theo từng chuyên đề'],
     icon: GraduationCap,
     preview: 'review',
-    title: 'Ôn có trọng tâm theo tiến độ của riêng bạn',
+    title: 'Củng cố kiến thức và tiếp tục ôn tập',
   },
 ]
 
@@ -119,22 +119,22 @@ function StudentMomentPreview({ type }) {
         <div className="home-demo home-demo--question">
           <div className="home-demo__context">
             <span>Triết học Mác - Lênin</span>
-            <span>Chương 2</span>
+            <span>Chương 1</span>
           </div>
           <div className="home-demo__question">
             <MessageCircleQuestion size={20} aria-hidden="true" />
-            <p>Vì sao thực tiễn là cơ sở của nhận thức?</p>
+            <p>Triết học Mác - Lênin là gì?</p>
           </div>
           <div className="home-demo__answer">
             <div>
               <Sparkles size={18} aria-hidden="true" />
-              <strong>AI trợ giảng · Mẫu giao diện</strong>
+              <strong>PTIT Trợ giảng AI · Mẫu giao diện</strong>
             </div>
             <p>
-              Thực tiễn đặt ra nhu cầu, cung cấp đối tượng và phương tiện để con người nhận thức thế
-              giới.
+              Triết học Mác - Lênin là hệ thống quan điểm duy vật biện chứng về tự nhiên, xã hội và
+              tư duy, do C. Mác, Ph. Ăngghen xây dựng và V.I. Lênin phát triển.
             </p>
-            <span>Đối chiếu: Giáo trình · Chương 2</span>
+            <span>Đối chiếu: Giáo trình · Chương 1</span>
           </div>
         </div>
         <figcaption className="sr-only">
@@ -147,37 +147,32 @@ function StudentMomentPreview({ type }) {
   if (type === 'source') {
     return (
       <figure
-        className="home-use-case__preview home-use-case__preview--source"
-        aria-label="Minh họa giao diện tra cứu nguồn học liệu"
+        className="home-use-case__preview home-use-case__preview--question"
+        aria-label="Minh họa giao diện hỏi đáp trong buổi học"
       >
-        <img
-          src={coursePhilosophyImage}
-          width="1000"
-          height="924"
-          loading="lazy"
-          decoding="async"
-          alt="Kệ sách trong thư viện minh họa không gian tra cứu giáo trình"
-        />
-        <div className="home-source-demo">
-          <div className="home-source-demo__search">
-            <Search size={18} aria-hidden="true" />
-            <span>Mối quan hệ giữa vật chất và ý thức</span>
+        <div className="home-demo home-demo--question">
+          <div className="home-demo__context">
+            <span>Triết học Mác - Lênin</span>
+            <span>Chương 2</span>
           </div>
-          <div className="home-source-demo__result">
-            <BookOpenCheck size={22} aria-hidden="true" />
+          <div className="home-demo__question">
+            <MessageCircleQuestion size={20} aria-hidden="true" />
+            <p>Mối quan hệ giữa vật chất và ý thức là gì?</p>
+          </div>
+          <div className="home-demo__answer">
             <div>
-              <strong>Giáo trình Triết học Mác - Lênin</strong>
-              <span>Chương 2 · Mục 1.2</span>
+              <Sparkles size={18} aria-hidden="true" />
+              <strong>PTIT Trợ giảng AI · Mẫu giao diện</strong>
             </div>
-          </div>
-          <div className="home-source-demo__tags" aria-label="Nhóm nguồn có thể tra cứu">
-            <span>Giáo trình</span>
-            <span>Văn kiện</span>
-            <span>Tác phẩm kinh điển</span>
+            <p>
+              Vật chất quyết định ý thức; ý thức phản ánh vật chất và có thể tác động trở lại vật
+              chất thông qua hoạt động thực tiễn.
+            </p>
+            <span>Đối chiếu: Giáo trình · Chương 2</span>
           </div>
         </div>
         <figcaption className="sr-only">
-          Mẫu tra cứu hiển thị đúng loại tài liệu, chương và mục cần đọc.
+          Mẫu giao diện hỏi đáp có ngữ cảnh môn học và phần đối chiếu tài liệu.
         </figcaption>
       </figure>
     )
@@ -338,11 +333,15 @@ export default function HomePage() {
       </a>
 
       <header className="home-nav">
-        <Link className="home-wordmark" to="/" aria-label="Trang chủ PTIT Chính Trị">
+        <Link
+          className="home-wordmark"
+          to="/"
+          aria-label="Trang chủ PTIT Trợ giảng AI cho các môn Chính trị"
+        >
           <span className="home-wordmark__mark" aria-hidden="true">
             P
           </span>
-          <span>PTIT Chính Trị</span>
+          <span>PTIT Trợ giảng AI cho các môn Chính trị</span>
         </Link>
         <nav className="home-nav__links" aria-label="Điều hướng trang giới thiệu">
           <a href="#tinh-nang">Tính năng</a>
@@ -360,26 +359,26 @@ export default function HomePage() {
           onBlurCapture={handleHeroBlur}
         >
           <div className="home-hero__copy">
-            <p className="home-kicker">AI trợ giảng cho sinh viên PTIT</p>
+            <p className="home-kicker">PTIT Trợ giảng AI</p>
             <h1 id="home-title">
-              <span>PTIT Chính Trị giúp bạn</span>
+              <span>Cùng Trợ giảng AI,</span>
               <span className="home-title-message-stage">
                 {HERO_MESSAGES.map((message, index) => (
                   <span
-                    className={`home-title-message ${
+                    className={`home-title-message home-title-message--${message.tone} ${
                       index === activeHeroMessageIndex ? 'is-active' : ''
                     }`.trim()}
                     aria-hidden={index !== activeHeroMessageIndex}
-                    key={message}
+                    key={message.text}
                   >
-                    {message}
+                    {message.text}
                   </span>
                 ))}
               </span>
             </h1>
-            <p className="home-hero__lede">
-              Tra cứu giáo trình, đặt câu hỏi và ôn tập năm học phần chính trị cùng AI trợ giảng.
-            </p>
+            <div className="home-hero__audiences" aria-label="Đối tượng sử dụng">
+              <span>Đồng hành cùng sinh viên và giảng viên PTIT</span>
+            </div>
             <div className="home-hero__actions">
               <Link className="home-button home-button--primary" to={workspacePath}>
                 <span>{workspaceLabel}</span>
@@ -398,22 +397,20 @@ export default function HomePage() {
 
           <div
             className="home-learning-scene"
-            aria-label="Minh họa sinh viên học cùng AI trợ giảng"
+            aria-label="Minh họa Trợ giảng AI hỗ trợ theo học phần"
           >
-            <span className="home-learning-scene__track" aria-hidden="true" />
-
             <figure className="home-scene-photo home-scene-photo--left">
               <img
-                src={coursePhilosophyImage}
-                width="1000"
-                height="924"
-                alt="Không gian thư viện cho học phần Triết học Mác - Lênin"
+                src={karlMarxPortraitImage}
+                width="640"
+                height="918"
+                alt="Chân dung Karl Marx cho học phần Triết học Mác - Lênin"
               />
               <figcaption>Triết học Mác - Lênin</figcaption>
             </figure>
 
             <p className="home-scene-bubble home-scene-bubble--left">
-              Khái niệm này nằm ở chương nào?
+              Khái niệm này được trình bày ở chương nào?
             </p>
 
             <article className="home-scene-answer">
@@ -421,32 +418,25 @@ export default function HomePage() {
                 <span aria-hidden="true">
                   <BookOpenCheck size={22} />
                 </span>
-                <strong>AI trợ giảng PTIT</strong>
+                <strong>PTIT Trợ giảng AI</strong>
               </div>
               <p>Mình sẽ giải thích theo đúng học phần và chỉ rõ nguồn để bạn đọc tiếp.</p>
               <span className="home-scene-answer__source">Giáo trình và văn kiện chính thống</span>
             </article>
 
             <p className="home-scene-bubble home-scene-bubble--right">
-              Gợi ý giúp mình ôn phần này.
+              Giúp mình hệ thống lại nội dung trọng tâm.
             </p>
 
             <figure className="home-scene-photo home-scene-photo--right">
               <img
-                src={courseHoChiMinhImage}
-                width="1000"
-                height="667"
-                alt="Kệ sách cho học phần Tư tưởng Hồ Chí Minh"
+                src={courseShowcaseHoChiMinhImage}
+                width="960"
+                height="1281"
+                alt="Chân dung Chủ tịch Hồ Chí Minh cho học phần Tư tưởng Hồ Chí Minh"
               />
               <figcaption>Tư tưởng Hồ Chí Minh</figcaption>
             </figure>
-
-            <span className="home-scene-token home-scene-token--question" aria-hidden="true">
-              <MessageCircleQuestion size={24} />
-            </span>
-            <span className="home-scene-token home-scene-token--source" aria-hidden="true">
-              <FileText size={24} />
-            </span>
           </div>
 
           <ul className="home-hero-benefits" aria-label="Lợi ích chính">
@@ -461,10 +451,10 @@ export default function HomePage() {
 
         <section className="home-courses" aria-labelledby="courses-title">
           <div className="home-section-heading home-reveal" data-home-reveal>
-            <h2 id="courses-title">Học theo đúng học phần của bạn.</h2>
+            <h2 id="courses-title">Mỗi học phần, một ngữ cảnh rõ ràng.</h2>
             <p>
-              Mỗi không gian học tập giữ nguyên ngữ cảnh môn học để câu hỏi, nguồn đọc và phần ôn
-              tập luôn đi cùng nhau.
+              <span>Sinh viên học tập và đặt câu hỏi trong đúng ngữ cảnh môn học.</span>
+              <span>Giảng viên quản lý lớp, học liệu và phản hồi trên cùng nền tảng.</span>
             </p>
           </div>
           <div
@@ -567,17 +557,7 @@ export default function HomePage() {
 
         <section className="home-features" id="tinh-nang" aria-labelledby="features-title">
           <div className="home-feature-intro home-reveal" data-home-reveal>
-            <div>
-              <h2 id="features-title">Bạn đang học ở bước nào?</h2>
-              <p>
-                PTIT Chính Trị đi cùng ba việc sinh viên thường phải tách ra nhiều nơi: hỏi phần còn
-                vướng, kiểm tra nguồn và ôn lại theo chuyên đề.
-              </p>
-            </div>
-            <p className="home-feature-intro__note">
-              Mỗi không gian được thiết kế theo đúng việc cần làm, để bạn không phải bắt đầu lại ngữ
-              cảnh sau mỗi lần chuyển công cụ.
-            </p>
+            <h2 id="features-title">Trợ giảng AI đồng hành trong suốt quá trình học.</h2>
           </div>
 
           <div className="home-use-case-list">
@@ -624,11 +604,8 @@ export default function HomePage() {
             <span className="home-learning-cta__mark" aria-hidden="true">
               <GraduationCap size={24} />
             </span>
-            <h2 id="learning-title">Sẵn sàng học chính trị rõ ràng hơn?</h2>
-            <p>
-              Đăng nhập để tiếp tục đúng học phần, lưu mạch câu hỏi và quay lại phần kiến thức bạn
-              đang ôn.
-            </p>
+            <h2 id="learning-title">Sẵn sàng đồng hành cùng Trợ giảng AI?</h2>
+            <p>Đăng nhập để học hiệu quả hơn và dạy chất lượng hơn.</p>
             <Link className="home-button home-button--poster" to={workspacePath}>
               <span>{workspaceLabel}</span>
               <span className="home-button__icon" aria-hidden="true">
@@ -663,8 +640,8 @@ export default function HomePage() {
             <span>PTIT Chính Trị</span>
           </Link>
           <p>
-            Nền tảng học tập giúp sinh viên PTIT tiếp cận các học phần chính trị, giáo trình và công
-            cụ AI trợ giảng trong một không gian thống nhất.
+            Trợ giảng AI hỗ trợ sinh viên học tập hiệu quả và giúp giảng viên quản lý lớp học, học
+            liệu và câu hỏi trên một nền tảng thống nhất.
           </p>
         </div>
 
