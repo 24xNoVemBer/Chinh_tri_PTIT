@@ -1,15 +1,16 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from uuid import uuid4
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
-from adapter import PilotEngine, classify_provider_error, create_app
+from adapter import PilotEngine, classify_provider_error, create_app, resolve_model_config
 from corpus import sha256_bytes
 
 
@@ -25,6 +26,54 @@ def request_body():
         "limits": {"deadlineMs": 30000, "maxRetrievedChunks": 3, "maxContextTokens": 6000},
         "client": {"name": "ptit-backend", "version": "1.0.0"},
     }
+
+
+class ModelConfigTests(unittest.TestCase):
+    def test_rag_owned_defaults_match_mba_api_models(self):
+        config = resolve_model_config({"MODEL_API_KEY": "test-only"})
+        self.assertEqual(config["provider"], "openai")
+        self.assertEqual(config["base_url"], "https://api.openai.com/v1")
+        self.assertEqual(config["model"], "gpt-4o-mini")
+        self.assertEqual(config["embedding_model"], "text-embedding-3-large")
+
+    def test_legacy_mba_key_is_not_implicitly_reused(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "legacy-mba-key"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "MODEL_API_KEY"):
+                PilotEngine(mode="openai")
+
+    def test_provider_url_rejects_credentials_and_plain_http(self):
+        invalid_urls = [
+            "http://provider.example/v1",
+            "https://user:secret@provider.example/v1",
+            "https://provider.example/v1?token=secret",
+        ]
+        for base_url in invalid_urls:
+            with self.subTest(base_url=base_url):
+                with self.assertRaisesRegex(ValueError, "MODEL_API_BASE_URL"):
+                    resolve_model_config({"MODEL_API_KEY": "test-only", "MODEL_API_BASE_URL": base_url})
+
+    def test_loopback_http_gateway_is_allowed(self):
+        config = resolve_model_config({
+            "MODEL_API_KEY": "test-only",
+            "MODEL_API_BASE_URL": "http://127.0.0.1:4000/v1/",
+        })
+        self.assertEqual(config["base_url"], "http://127.0.0.1:4000/v1")
+
+    def test_model_engine_uses_rag_owned_connection_without_network_call(self):
+        env = {
+            "MODEL_API_KEY": "test-only",
+            "MODEL_API_BASE_URL": "http://127.0.0.1:4000/v1",
+            "MODEL_ID": "gpt-4o-mini",
+            "EMBEDDING_MODEL_ID": "text-embedding-3-large",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            engine = PilotEngine(mode="openai")
+        try:
+            self.assertEqual(engine.provider, "openai")
+            self.assertEqual(engine.model, "gpt-4o-mini")
+            self.assertEqual(str(engine.client.base_url), "http://127.0.0.1:4000/v1/")
+        finally:
+            engine.client.close()
 
 
 class AdapterTests(unittest.TestCase):

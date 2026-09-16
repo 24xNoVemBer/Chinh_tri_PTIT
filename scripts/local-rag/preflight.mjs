@@ -12,6 +12,7 @@ const defaultPython =
     ? join(mbaPath, '.venv', 'Scripts', 'python.exe')
     : join(mbaPath, '.venv', 'bin', 'python')
 const python = process.env.MBA_PYTHON || defaultPython
+const mode = process.env.RAG_LOCAL_MODE || 'extractive'
 const expectedDataRoot = resolve(root, 'data', 'local-rag')
 const checks = []
 function record(name, ok, detail) {
@@ -31,8 +32,35 @@ try {
 
 const nodeMajor = Number(process.versions.node.split('.')[0])
 record('node', nodeMajor >= 24, process.versions.node)
+record('rag-mode', ['extractive', 'openai'].includes(mode), mode)
 record('mba-api-checkout', existsSync(join(mbaPath, 'course_rag.py')), mbaPath)
 record('python-runtime', existsSync(python), python)
+if (mode === 'openai') {
+  record(
+    'model-provider',
+    (process.env.MODEL_PROVIDER || 'openai') === 'openai',
+    process.env.MODEL_PROVIDER || 'openai',
+  )
+  record(
+    'model-api-key',
+    Boolean(process.env.MODEL_API_KEY?.trim()),
+    'configured=' + Boolean(process.env.MODEL_API_KEY?.trim()),
+  )
+  try {
+    const providerUrl = new URL(process.env.MODEL_API_BASE_URL || 'https://api.openai.com/v1')
+    const loopbackHosts = new Set(['127.0.0.1', 'localhost', '[::1]'])
+    const safe =
+      ['http:', 'https:'].includes(providerUrl.protocol) &&
+      !providerUrl.username &&
+      !providerUrl.password &&
+      !providerUrl.search &&
+      !providerUrl.hash &&
+      (providerUrl.protocol === 'https:' || loopbackHosts.has(providerUrl.hostname))
+    record('model-api-base-url', safe, `${providerUrl.protocol}//${providerUrl.host}`)
+  } catch {
+    record('model-api-base-url', false, 'invalid URL')
+  }
+}
 if (datasetConfig) {
   const databasePath = resolve(datasetConfig.databasePath)
   record(

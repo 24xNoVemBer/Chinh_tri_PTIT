@@ -104,17 +104,27 @@ không đặt HTTP đồng bộ trực tiếp trong `async def`.
 Không fabricate `retrievalScore`, `rerankScore`, số trang hoặc token model.
 Timing offline có thể là `0ms` do làm tròn; không dùng con số này để ước lượng latency LLM.
 
-## Bật nhánh model sau khi sửa key
+## Bật nhánh model bằng cùng hạ tầng với MBA_API
 
-Tự cập nhật `OPENAI_API_KEY` hợp lệ trong `ChatBot/MBA_API/.env`, không gửi key qua chat.
-Sau đó dừng pilot hiện tại, chạy:
+RAG dùng cùng provider/model với `MBA_API`, nhưng nhận credential riêng qua biến môi trường của process.
+Không đọc `ChatBot/MBA_API/.env`, không lấy key từ Langfuse và không ghi secret vào repo hoặc log.
+Quản trị viên cấp `MODEL_API_KEY` riêng cho RAG trong cùng provider/project; nếu chưa cấp được thì giữ
+`RAG_LOCAL_MODE=extractive`.
+
+Chỉ sau khi được phép dừng/restart đúng pilot do stack này quản lý, chạy:
 
 ```powershell
 $env:RAG_LOCAL_MODE = 'openai'
+$env:MODEL_PROVIDER = 'openai'
+$env:MODEL_API_BASE_URL = 'https://api.openai.com/v1'
+$env:MODEL_ID = 'gpt-4o-mini'
+$env:EMBEDDING_MODEL_ID = 'text-embedding-3-large'
+# Nhập MODEL_API_KEY trong terminal/secret environment; không lưu vào file được commit.
 npm run local:rag
 ```
 
-Giữ `OPENAI_MODEL` đang cấu hình (hiện kiểm tra là `gpt-4o-mini`), gọi endpoint OpenAI chính thức.
+`MODEL_API_BASE_URL` có thể trỏ tới gateway OpenAI-compatible đã được quản trị viên phê duyệt. Endpoint HTTP
+chỉ được chấp nhận trên loopback; endpoint từ xa phải dùng HTTPS và không được chứa credential/query/fragment.
 Chỉ câu hỏi và các đoạn tài liệu mẫu được chọn đi tới OpenAI; không gửi toàn bộ database.
 Mỗi câu có nguồn sẽ phát sinh một call tính phí. Nhánh này vẫn **BM25-only**, không phải dense RAG.
 Nếu key lỗi, UI nhận lỗi; không có fallback ngầm. Để quay lại offline ở terminal đó:

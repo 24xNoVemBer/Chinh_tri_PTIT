@@ -5,14 +5,14 @@ import os
 from pathlib import Path
 import sys
 import time
+from urllib.parse import urlparse
 
-from dotenv import load_dotenv
 from openai import OpenAI
 
 ROOT = Path(__file__).resolve().parents[2]
 MBA_PATH = Path(os.environ.get("MBA_API_PATH", ROOT.parent / "ChatBot" / "MBA_API"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from adapter import classify_provider_error  # noqa: E402
+from adapter import classify_provider_error, resolve_model_config  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--confirm-api-call", action="store_true")
@@ -21,17 +21,18 @@ if not args.confirm_api_call:
     print(json.dumps({"result": "BLOCKED", "reason": "confirmation_flag_required"}))
     raise SystemExit(2)
 
-load_dotenv(MBA_PATH / ".env", override=False)
-model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini").strip()
-embedding_model = "text-embedding-3-large"  # Matches current MBA_API query/ingestion code.
-key = os.environ.get("OPENAI_API_KEY", "").strip()
-if not key:
-    print(json.dumps({"result": "FAIL", "stage": "config", "code": "PROVIDER_AUTH_MISSING",
-                      "model": model, "embeddingModel": embedding_model}))
+try:
+    config = resolve_model_config()
+except ValueError as error:
+    print(json.dumps({"result": "FAIL", "stage": "config", "code": "PROVIDER_CONFIG_INVALID",
+                      "detail": str(error)}))
     raise SystemExit(1)
 
-client = OpenAI(api_key=key, base_url="https://api.openai.com/v1", max_retries=0, timeout=15)
+model = config["model"]
+embedding_model = config["embedding_model"]
+client = OpenAI(api_key=config["api_key"], base_url=config["base_url"], max_retries=0, timeout=15)
 report = {"result": "FAIL", "limits": {"embeddingCalls": 1, "completionCalls": 1, "retries": 0},
+          "provider": config["provider"], "providerHost": urlparse(config["base_url"]).hostname,
           "configuredModel": model, "embeddingModel": embedding_model}
 try:
     started = time.monotonic()

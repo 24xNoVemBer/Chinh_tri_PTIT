@@ -19,11 +19,35 @@ const mode = process.env.RAG_LOCAL_MODE || 'extractive'
 const datasetConfig = resolveDatasetConfig(root)
 const { dataset, descriptor: fixture, databasePath } = datasetConfig
 const queryGate = process.env.RAG_QUERY_GATE || (dataset === 'private' ? 'domain-v1' : 'none')
+const modelProvider = process.env.MODEL_PROVIDER || 'openai'
+const modelApiBaseUrl = process.env.MODEL_API_BASE_URL || 'https://api.openai.com/v1'
+const modelId = process.env.MODEL_ID || 'gpt-4o-mini'
+const embeddingModelId = process.env.EMBEDDING_MODEL_ID || 'text-embedding-3-large'
 const runtimeStatePath = join(root, 'data', 'local-rag', 'runtime.json')
 const launchedAt = new Date().toISOString()
 if (!['extractive', 'openai'].includes(mode)) throw new Error('RAG_LOCAL_MODE: extractive | openai')
 if (!['none', 'domain-v1'].includes(queryGate)) {
   throw new Error('RAG_QUERY_GATE: none | domain-v1')
+}
+if (mode === 'openai') {
+  if (modelProvider !== 'openai') throw new Error('MODEL_PROVIDER must be openai for this pilot.')
+  if (!process.env.MODEL_API_KEY?.trim()) {
+    throw new Error('MODEL_API_KEY is required for RAG_LOCAL_MODE=openai.')
+  }
+  const providerUrl = new URL(modelApiBaseUrl)
+  const loopbackHosts = new Set(['127.0.0.1', 'localhost', '[::1]'])
+  if (
+    !['http:', 'https:'].includes(providerUrl.protocol) ||
+    providerUrl.username ||
+    providerUrl.password ||
+    providerUrl.search ||
+    providerUrl.hash ||
+    (providerUrl.protocol === 'http:' && !loopbackHosts.has(providerUrl.hostname))
+  ) {
+    throw new Error(
+      'MODEL_API_BASE_URL must use HTTPS, or HTTP on loopback, without credentials/query/fragment.',
+    )
+  }
 }
 if (!existsSync(python) || !existsSync(join(mbaPath, 'course_rag.py'))) {
   throw new Error(
@@ -98,6 +122,10 @@ const env = {
   RAG_LOCAL_MODE: mode,
   RAG_DATASET: dataset,
   RAG_QUERY_GATE: queryGate,
+  MODEL_PROVIDER: modelProvider,
+  MODEL_API_BASE_URL: modelApiBaseUrl,
+  MODEL_ID: modelId,
+  EMBEDDING_MODEL_ID: embeddingModelId,
   ...(dataset === 'private' ? { RAG_CORPUS_MANIFEST: datasetConfig.sourcePath } : {}),
   PYTHONDONTWRITEBYTECODE: '1',
   PYTHONIOENCODING: 'utf-8',
@@ -172,6 +200,11 @@ try {
   console.log(
     `\nLocal pilot: http://127.0.0.1:3101/student/chat\nMode: ${mode}; ${dataLabel}; query gate: ${queryGate}`,
   )
+  if (mode === 'openai') {
+    console.log(
+      `Model provider: ${modelProvider}; model: ${modelId}; embedding probe: ${embeddingModelId}`,
+    )
+  }
   console.log('Login: tuananh@ptit.edu.vn / Student@123; select Triết học Mác - Lênin (sub1).')
   console.log('Ctrl+C stops both child services. Your normal database is untouched.')
 } catch (error) {

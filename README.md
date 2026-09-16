@@ -174,6 +174,11 @@ toàn khi `NODE_ENV=production`.
 | `NODE_ENV`                                | `development`                         | Môi trường chạy                                                                  |
 | `VITE_DATA_SOURCE`                        | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                       |
 | `RAG_DEMO_DATA`                           | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                       |
+| `MODEL_PROVIDER`                          | `openai`                              | Provider OpenAI-compatible của RAG pilot                                         |
+| `MODEL_API_BASE_URL`                      | `https://api.openai.com/v1`           | Endpoint cùng hạ tầng MBA_API; endpoint từ xa bắt buộc HTTPS                     |
+| `MODEL_API_KEY`                           | _(trống)_                             | Credential riêng của RAG, cấp qua secret environment; không dùng key Langfuse    |
+| `MODEL_ID`                                | `gpt-4o-mini`                         | Model generation khớp baseline MBA_API                                           |
+| `EMBEDDING_MODEL_ID`                      | `text-embedding-3-large`              | Model probe/ingestion; phải thống nhất dimension với index                       |
 
 ## Build production cục bộ
 

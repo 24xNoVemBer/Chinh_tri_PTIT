@@ -12,6 +12,7 @@ from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -29,7 +30,45 @@ from corpus import load_private_corpus  # noqa: E402
 from query_gate import GATE_VERSION, evaluate_query  # noqa: E402
 
 FIXTURE_PATH = ROOT / "public" / "local-rag-sample.json"
+DEFAULT_MODEL_API_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_MODEL_ID = "gpt-4o-mini"
+DEFAULT_EMBEDDING_MODEL_ID = "text-embedding-3-large"
 STOP_WORDS = set("là gì và của trong một những các có được như nào về cho với hãy tôi bạn mình này đó ở theo".split())
+
+
+def resolve_model_config(env=None):
+    """Resolve the RAG-owned model connection without reading MBA_API secrets."""
+    env = os.environ if env is None else env
+    provider = str(env.get("MODEL_PROVIDER", "openai")).strip().lower()
+    if provider != "openai":
+        raise ValueError("MODEL_PROVIDER must be openai for this pilot")
+
+    base_url = str(env.get("MODEL_API_BASE_URL", DEFAULT_MODEL_API_BASE_URL)).strip().rstrip("/")
+    parsed = urlparse(base_url)
+    if (not parsed.scheme or not parsed.hostname or parsed.scheme not in ("http", "https")
+            or parsed.username or parsed.password or parsed.query or parsed.fragment):
+        raise ValueError(
+            "MODEL_API_BASE_URL must be an absolute HTTP(S) URL without credentials, query, or fragment"
+        )
+    if parsed.scheme == "http" and parsed.hostname not in ("127.0.0.1", "localhost", "::1"):
+        raise ValueError("MODEL_API_BASE_URL must use HTTPS unless it is loopback-only")
+
+    api_key = str(env.get("MODEL_API_KEY", "")).strip()
+    if not api_key:
+        raise ValueError("MODEL_API_KEY is required for RAG_LOCAL_MODE=openai")
+
+    model = str(env.get("MODEL_ID", DEFAULT_MODEL_ID)).strip()
+    embedding_model = str(env.get("EMBEDDING_MODEL_ID", DEFAULT_EMBEDDING_MODEL_ID)).strip()
+    for name, value in (("MODEL_ID", model), ("EMBEDDING_MODEL_ID", embedding_model)):
+        if not value or len(value) > 200 or any(character.isspace() for character in value):
+            raise ValueError(f"{name} must be a non-empty model identifier without whitespace")
+    return {
+        "provider": provider,
+        "base_url": base_url,
+        "api_key": api_key,
+        "model": model,
+        "embedding_model": embedding_model,
+    }
 
 
 def classify_provider_error(error):
@@ -154,21 +193,26 @@ class PilotEngine:
         self.chunks = self.fixture["chunks"]
         self.sample_data = self.fixture["sampleData"] is True
         self.client = None
+        self.provider = "none"
         self.model = "none-extractive"
+        self.embedding_model = "none-lexical-only"
         self.provider_configured = False
         self.last_provider_success_at = None
         self.last_provider_error_code = None
         if mode == "openai":
-            from dotenv import load_dotenv
             from openai import OpenAI
-            load_dotenv(MBA_PATH / ".env", override=False)
-            self.model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-            api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-            if not api_key:
-                raise ValueError("OPENAI_API_KEY is required for RAG_LOCAL_MODE=openai")
+            config = resolve_model_config()
+            self.provider = config["provider"]
+            self.model = config["model"]
+            self.embedding_model = config["embedding_model"]
             self.provider_configured = True
             # No silent fallback to extractive on provider errors, no automatic retries.
-            self.client = OpenAI(api_key=api_key, base_url="https://api.openai.com/v1", max_retries=0, timeout=25)
+            self.client = OpenAI(
+                api_key=config["api_key"],
+                base_url=config["base_url"],
+                max_retries=0,
+                timeout=25,
+            )
 
     def retrieve(self, request):
         if request.policy.publicationMode != "provisional":
