@@ -2,12 +2,21 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { assertSchema, schemaIds } from '../../server/contracts/schemaRegistry.js'
+import { resolveDatasetConfig } from './dataset.mjs'
 
 const baseUrl = 'http://127.0.0.1:3101'
-const fixture = JSON.parse(
-  readFileSync(new URL('../../public/local-rag-sample.json', import.meta.url), 'utf8'),
-)
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+const datasetConfig = resolveDatasetConfig(root)
+const fixture = datasetConfig.descriptor
+if (datasetConfig.dataset === 'private') {
+  fixture.chunks = readFileSync(join(dirname(datasetConfig.sourcePath), fixture.chunksFile), 'utf8')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line))
+}
 let cookie
 async function request(path, body) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -27,7 +36,8 @@ const login = await request('/api/auth/login', {
 assert.equal(login.response.status, 200)
 cookie = login.response.headers.get('set-cookie').split(';')[0]
 const status = await request('/api/student/chat/status')
-assert.equal(status.payload.data.sampleData, true)
+assert.equal(status.payload.data.sampleData, fixture.sampleData)
+assert.equal(status.payload.data.dataset, datasetConfig.dataset)
 assert.equal(
   status.payload.data.mode,
   'extractive',
@@ -39,13 +49,13 @@ const chat = await request('/api/student/chat', {
 })
 assert.equal(chat.response.status, 201, JSON.stringify(chat.payload))
 assert.equal(chat.payload.data.answerMode, 'extractive')
-assert.equal(chat.payload.data.sampleData, true)
+assert.equal(chat.payload.data.sampleData, fixture.sampleData)
 assert.equal(chat.payload.data.moderation.requiresReview, true)
 assert.ok(chat.payload.data.citations.length > 0)
 assert.ok(
   chat.payload.data.citations.every((c) => c.materialVersionId === fixture.materialVersionId),
 )
-const db = new DatabaseSync(new URL('../../data/local-rag/pilot.sqlite', import.meta.url), {
+const db = new DatabaseSync(datasetConfig.databasePath, {
   readOnly: true,
 })
 try {
@@ -64,6 +74,7 @@ try {
     const chunk = fixture.chunks.find((c) => c.id === citation.chunkId)
     assert.equal(citation.quote, chunk.text)
     assert.equal(citation.chunkSha256, createHash('sha256').update(chunk.text).digest('hex'))
+    if (datasetConfig.dataset === 'private') assert.equal(citation.page, chunk.pdfPageStart)
   }
   const absent = await request('/api/student/chat', {
     subjectId: 'sub1',
@@ -80,10 +91,10 @@ try {
     JSON.stringify(
       {
         result: 'PASS',
-        mode: 'extractive-no-LLM',
+        mode: `extractive-no-LLM-${datasetConfig.dataset}`,
         checks: [
           'authentication',
-          'sample mode',
+          `${datasetConfig.dataset} dataset mode`,
           'chat POST',
           'persisted answer contract',
           'citation IDs/quotes/SHA256',

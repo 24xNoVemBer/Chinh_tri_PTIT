@@ -235,7 +235,9 @@ export default function ChatPage() {
               <p>
                 {chatStatus?.sampleData
                   ? 'DỮ LIỆU THỬ KỸ THUẬT · Chưa được thẩm định. Hãy hỏi từng câu đầy đủ.'
-                  : 'Kiểm tra trích dẫn và trạng thái duyệt trước khi sử dụng câu trả lời.'}
+                  : chatStatus?.dataset === 'private'
+                    ? 'GIÁO TRÌNH PILOT RIÊNG · Chưa được giảng viên thẩm định. Luôn kiểm tra trang trích dẫn.'
+                    : 'Kiểm tra trích dẫn và trạng thái duyệt trước khi sử dụng câu trả lời.'}
               </p>
             </div>
             <Clock3 aria-hidden="true" size={20} />

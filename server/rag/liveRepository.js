@@ -330,8 +330,7 @@ export function createLiveRagRepository({ db, ragClient, questionRepository }) {
           content: question.ragResponse.content,
           reviewStatus: question.ragResponse.reviewStatus,
           isDemo: false,
-          answerMode:
-            answer.provenance.provider === 'local-rag-extractive' ? 'extractive' : 'model',
+          answerMode: answer.provenance.provider.endsWith('-extractive') ? 'extractive' : 'model',
           sampleData: ['local-rag-extractive', 'local-rag-openai'].includes(
             answer.provenance.provider,
           ),
@@ -346,9 +345,11 @@ export function createLiveRagRepository({ db, ragClient, questionRepository }) {
               answer.provenance.provider,
             )
               ? 'Tài liệu mẫu · chưa được thẩm định'
-              : citation.pageNumber
-                ? 'Trang ' + citation.pageNumber
-                : 'Học liệu đã phê duyệt',
+              : answer.provenance.provider.startsWith('local-rag-private-')
+                ? `Pilot riêng · ${citation.pageNumber ? `Trang PDF ${citation.pageNumber}` : 'chưa rõ trang'} · chưa thẩm định`
+                : citation.pageNumber
+                  ? 'Trang ' + citation.pageNumber
+                  : 'Học liệu đã phê duyệt',
             pageNumber: citation.pageNumber,
             quote: citation.quote,
           })),

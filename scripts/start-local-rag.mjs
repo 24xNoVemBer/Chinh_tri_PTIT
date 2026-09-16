@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createDatabase } from '../server/database.js'
+import { resolveDatasetConfig } from './local-rag/dataset.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const mbaPath = resolve(process.env.MBA_API_PATH || join(root, '..', 'ChatBot', 'MBA_API'))
@@ -15,6 +16,8 @@ const defaultPython =
     : join(mbaPath, '.venv', 'bin', 'python')
 const python = process.env.MBA_PYTHON || defaultPython
 const mode = process.env.RAG_LOCAL_MODE || 'extractive'
+const datasetConfig = resolveDatasetConfig(root)
+const { dataset, descriptor: fixture, databasePath } = datasetConfig
 const runtimeStatePath = join(root, 'data', 'local-rag', 'runtime.json')
 const launchedAt = new Date().toISOString()
 if (!['extractive', 'openai'].includes(mode)) throw new Error('RAG_LOCAL_MODE: extractive | openai')
@@ -35,8 +38,6 @@ for (const port of [3101, 8787]) {
   })
 }
 
-const fixture = JSON.parse(readFileSync(join(root, 'public/local-rag-sample.json'), 'utf8'))
-const databasePath = join(root, 'data', 'local-rag', 'pilot.sqlite')
 const db = createDatabase({ databasePath })
 const now = new Date().toISOString()
 try {
@@ -49,18 +50,24 @@ try {
   db.prepare(
     `INSERT OR IGNORE INTO material_versions
     (id, material_id, year, file_url, uploaded_by, created_at)
-    VALUES (?, ?, 2026, '/local-rag-sample.json', 'l1', ?)`,
-  ).run(fixture.materialVersionId, fixture.materialId, now)
+    VALUES (?, ?, ?, ?, 'l1', ?)`,
+  ).run(
+    fixture.materialVersionId,
+    fixture.materialId,
+    datasetConfig.year,
+    datasetConfig.fileUrl,
+    now,
+  )
   db.prepare(
     `INSERT OR IGNORE INTO approved_sources
     (id, material_id, is_approved, approved_by, approved_at)
-    VALUES ('approved-local-rag-sample', ?, 1, 'l1', ?)`,
-  ).run(fixture.materialId, now)
+    VALUES (?, ?, 1, 'l1', ?)`,
+  ).run(datasetConfig.approvalId, fixture.materialId, now)
   db.prepare(
     `INSERT OR REPLACE INTO class_materials
     (id, class_id, material_id, version_id, status, added_by, added_at)
-    VALUES ('cm-local-rag-sample', 'class1', ?, ?, 'published', 'l1', ?)`,
-  ).run(fixture.materialId, fixture.materialVersionId, now)
+    VALUES (?, 'class1', ?, ?, 'published', 'l1', ?)`,
+  ).run(datasetConfig.classMaterialId, fixture.materialId, fixture.materialVersionId, now)
 } finally {
   db.close()
 }
@@ -81,6 +88,8 @@ const env = {
   RAG_MAX_RETRIES: '0',
   MBA_API_PATH: mbaPath,
   RAG_LOCAL_MODE: mode,
+  RAG_DATASET: dataset,
+  ...(dataset === 'private' ? { RAG_CORPUS_MANIFEST: datasetConfig.sourcePath } : {}),
   PYTHONDONTWRITEBYTECODE: '1',
   PYTHONIOENCODING: 'utf-8',
 }
@@ -141,6 +150,7 @@ try {
         ],
         ports: { web: 3101, rag: 8787 },
         mode,
+        dataset,
         databasePath,
         startedAt: launchedAt,
       },
@@ -148,7 +158,8 @@ try {
       2,
     ),
   )
-  console.log(`\nLocal pilot: http://127.0.0.1:3101/student/chat\nMode: ${mode}; SAMPLE DATA ONLY`)
+  const dataLabel = dataset === 'sample' ? 'SAMPLE DATA ONLY' : 'PRIVATE CORPUS · UNREVIEWED'
+  console.log(`\nLocal pilot: http://127.0.0.1:3101/student/chat\nMode: ${mode}; ${dataLabel}`)
   console.log('Login: tuananh@ptit.edu.vn / Student@123; select Triết học Mác - Lênin (sub1).')
   console.log('Ctrl+C stops both child services. Your normal database is untouched.')
 } catch (error) {

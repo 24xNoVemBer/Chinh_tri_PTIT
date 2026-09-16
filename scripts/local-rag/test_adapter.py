@@ -1,5 +1,8 @@
 import copy
 import hashlib
+import json
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import Mock
 from uuid import uuid4
@@ -7,6 +10,7 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from adapter import PilotEngine, classify_provider_error, create_app
+from corpus import sha256_bytes
 
 
 def request_body():
@@ -156,6 +160,64 @@ class AdapterTests(unittest.TestCase):
             usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1), model="test",
         )
         self.assertEqual(self.post().status_code, 502)
+
+
+class PrivateCorpusAdapterTests(unittest.TestCase):
+    def test_private_corpus_reports_real_mode_and_pdf_page(self):
+        chunk = {
+            "id": "private-v1-vat-chat",
+            "section": "Vật chất và ý thức",
+            "text": "Vật chất là thực tại khách quan tồn tại độc lập với ý thức.",
+            "pdfPageStart": 42,
+            "pdfPageEnd": 42,
+            "printedPageStart": 40,
+            "printedPageEnd": 40,
+            "tokenCount": 16,
+            "chunkSha256": hashlib.sha256(
+                "Vật chất là thực tại khách quan tồn tại độc lập với ý thức.".encode()
+            ).hexdigest(),
+        }
+        raw = (json.dumps(chunk, ensure_ascii=False) + "\n").encode()
+        manifest = {
+            "schemaVersion": "private-corpus-1", "datasetId": "private-test",
+            "sampleData": False, "tenantId": "ptit", "subjectId": "sub1",
+            "materialId": "mat-private-test", "materialVersionId": "mv-private-test-v1",
+            "title": "Giáo trình riêng", "author": "PTIT", "notice": "Chưa thẩm định",
+            "source": {"fileName": "test.pdf", "sha256": "a" * 64, "byteSize": 1, "pageCount": 50},
+            "parser": {}, "chunker": {}, "indexVersion": "idx-private-test-v1",
+            "chunksFile": "chunks.jsonl", "chunksSha256": sha256_bytes(raw),
+            "chunkCount": 1, "status": "ready",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "chunks.jsonl").write_bytes(raw)
+            path = root / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            engine = PilotEngine(dataset="private", manifest_path=path)
+            body = request_body()
+            body["scope"]["allowedMaterialVersionIds"] = ["mv-private-test-v1"]
+            client = TestClient(create_app(engine, "t" * 32))
+            with client:
+                capabilities = client.get(
+                    "/internal/v1/capabilities",
+                    headers={"Authorization": "Bearer " + "t" * 32},
+                ).json()
+                self.assertFalse(capabilities["sampleData"])
+                self.assertEqual(capabilities["dataset"], "private")
+                response = client.post(
+                    "/internal/v1/answers",
+                    json=body,
+                    headers={
+                        "Authorization": "Bearer " + "t" * 32,
+                        "Idempotency-Key": "private-test",
+                        "X-Request-ID": body["requestId"],
+                    },
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                answer = response.json()
+                self.assertEqual(answer["provenance"]["provider"], "local-rag-private-extractive")
+                self.assertEqual(answer["citations"][0]["page"], 42)
+                self.assertIn("private_corpus_unreviewed", answer["review"]["reasonCodes"])
 
 
 if __name__ == "__main__":

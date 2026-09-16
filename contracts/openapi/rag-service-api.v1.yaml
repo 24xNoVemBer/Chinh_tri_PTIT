@@ -71,6 +71,7 @@ paths:
                   maxContextTokens: { type: integer, minimum: 1 }
                   mode: { enum: [extractive, model] }
                   sampleData: { type: boolean }
+                  dataset: { enum: [sample, private] }
                   multiTurn: { type: boolean }
                   contractVersion: { type: string }
                   subjectIds:

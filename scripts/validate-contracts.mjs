@@ -44,6 +44,10 @@ const checks = [
     'ingestion-manifest.json',
     'https://contracts.ptit-chinh-tri.local/schemas/ingestion/material-manifest.schema.json',
   ],
+  [
+    'private-pilot-corpus.json',
+    'https://contracts.ptit-chinh-tri.local/schemas/ingestion/private-pilot-corpus.schema.json',
+  ],
 ]
 
 let failed = false

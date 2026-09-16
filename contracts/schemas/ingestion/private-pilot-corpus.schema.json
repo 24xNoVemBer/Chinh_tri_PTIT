@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ptit-chinh-tri.local/schemas/ingestion/private-pilot-corpus.schema.json",
+  "title": "PrivatePilotCorpus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "datasetId",
+    "sampleData",
+    "tenantId",
+    "subjectId",
+    "materialId",
+    "materialVersionId",
+    "title",
+    "author",
+    "notice",
+    "source",
+    "parser",
+    "chunker",
+    "indexVersion",
+    "chunksFile",
+    "chunksSha256",
+    "chunkCount",
+    "status"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "private-corpus-1" },
+    "datasetId": { "$ref": "#/$defs/id" },
+    "sampleData": { "const": false },
+    "tenantId": { "$ref": "#/$defs/id" },
+    "subjectId": { "$ref": "#/$defs/id" },
+    "materialId": { "$ref": "#/$defs/id" },
+    "materialVersionId": { "$ref": "#/$defs/id" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "author": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "notice": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "sha256", "byteSize", "pageCount"],
+      "properties": {
+        "fileName": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "pageCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "parser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "unicodeNormalization", "marginDetection"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "unicodeNormalization": { "const": "NFC" },
+        "marginDetection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["headerLines", "footerLines", "removedLineCount"],
+          "properties": {
+            "headerLines": { "type": "array", "items": { "type": "string" } },
+            "footerLines": { "type": "array", "items": { "type": "string" } },
+            "removedLineCount": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "chunker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "tokenizer", "maxTokens", "overlapTokens"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "tokenizer": { "type": "string", "minLength": 1 },
+        "maxTokens": { "type": "integer", "minimum": 100 },
+        "overlapTokens": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "indexVersion": { "$ref": "#/$defs/id" },
+    "chunksFile": { "const": "chunks.jsonl" },
+    "chunksSha256": { "$ref": "#/$defs/sha256" },
+    "chunkCount": { "type": "integer", "minimum": 1 },
+    "status": { "const": "ready" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,160}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

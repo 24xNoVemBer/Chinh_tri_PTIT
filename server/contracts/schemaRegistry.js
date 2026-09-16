@@ -47,6 +47,8 @@ export const schemaIds = {
   feedback: 'https://contracts.ptit-chinh-tri.local/schemas/chat/feedback.schema.json',
   material:
     'https://contracts.ptit-chinh-tri.local/schemas/ingestion/material-manifest.schema.json',
+  privateCorpus:
+    'https://contracts.ptit-chinh-tri.local/schemas/ingestion/private-pilot-corpus.schema.json',
 }
 
 export function validateRequestScope(request) {

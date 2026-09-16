@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "private-corpus-1",
+  "datasetId": "private-triet-hoc-ptit-2021",
+  "sampleData": false,
+  "tenantId": "ptit",
+  "subjectId": "sub1",
+  "materialId": "mat-triet-hoc-ptit-2021",
+  "materialVersionId": "mv-triet-hoc-ptit-2021-9bc31657",
+  "title": "Bài giảng môn Triết học Mác - Lênin",
+  "author": "Tài liệu PTIT dùng trong pilot kỹ thuật",
+  "notice": "Pilot kỹ thuật riêng tư; nội dung chưa được giảng viên thẩm định.",
+  "source": {
+    "fileName": "BAI GIANG TRIET HOC MAC-LENIN.pdf",
+    "sha256": "9bc31657a5343e6cfd88bb7c1ed359d48c2c0430a3bb4b22de30ed251628ad1e",
+    "byteSize": 3991400,
+    "pageCount": 167
+  },
+  "parser": {
+    "name": "poppler-pdftotext-layout",
+    "unicodeNormalization": "NFC",
+    "marginDetection": {
+      "headerLines": ["BÀI GIẢNG MÔN TRIẾT HỌC MÁC - LÊNIN"],
+      "footerLines": [],
+      "removedLineCount": 166
+    }
+  },
+  "chunker": {
+    "name": "page-paragraph-token-window-v1",
+    "tokenizer": "cl100k_base",
+    "maxTokens": 700,
+    "overlapTokens": 100
+  },
+  "indexVersion": "idx-triet-hoc-bm25-v1",
+  "chunksFile": "chunks.jsonl",
+  "chunksSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "chunkCount": 250,
+  "status": "ready"
+}

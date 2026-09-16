@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveDatasetConfig } from './dataset.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const mbaPath = resolve(process.env.MBA_API_PATH || join(root, '..', 'ChatBot', 'MBA_API'))
@@ -11,42 +12,44 @@ const defaultPython =
     ? join(mbaPath, '.venv', 'Scripts', 'python.exe')
     : join(mbaPath, '.venv', 'bin', 'python')
 const python = process.env.MBA_PYTHON || defaultPython
-const fixturePath = join(root, 'public', 'local-rag-sample.json')
-const databasePath = resolve(root, 'data', 'local-rag', 'pilot.sqlite')
 const expectedDataRoot = resolve(root, 'data', 'local-rag')
-
 const checks = []
 function record(name, ok, detail) {
   checks.push({ name, ok, detail })
+}
+
+let datasetConfig
+try {
+  datasetConfig = resolveDatasetConfig(root)
+  record('dataset-config', true, datasetConfig.dataset)
+} catch (error) {
+  record('dataset-config', false, error.message)
 }
 
 const nodeMajor = Number(process.versions.node.split('.')[0])
 record('node', nodeMajor >= 24, process.versions.node)
 record('mba-api-checkout', existsSync(join(mbaPath, 'course_rag.py')), mbaPath)
 record('python-runtime', existsSync(python), python)
-record(
-  'isolated-database-path',
-  !isAbsolute(relative(expectedDataRoot, databasePath)) &&
-    !relative(expectedDataRoot, databasePath).startsWith('..'),
-  databasePath,
-)
-
-try {
-  const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'))
-  const ids = new Set(fixture.chunks?.map((chunk) => chunk.id))
+if (datasetConfig) {
+  const databasePath = resolve(datasetConfig.databasePath)
   record(
-    'sample-fixture',
-    fixture.sampleData === true &&
-      fixture.subjectId === 'sub1' &&
-      ids.size === fixture.chunks.length,
-    `${fixture.chunks?.length ?? 0} unique chunks`,
+    'isolated-database-path',
+    !isAbsolute(relative(expectedDataRoot, databasePath)) &&
+      !relative(expectedDataRoot, databasePath).startsWith('..'),
+    databasePath,
   )
-} catch (error) {
-  record('sample-fixture', false, error.message)
+  if (datasetConfig.dataset === 'sample') {
+    const ids = new Set(datasetConfig.descriptor.chunks.map((chunk) => chunk.id))
+    record(
+      'sample-fixture',
+      ids.size === datasetConfig.descriptor.chunks.length,
+      `${ids.size} unique chunks`,
+    )
+  }
 }
 
 if (existsSync(python)) {
-  const probe = spawnSync(
+  const imports = spawnSync(
     python,
     [
       '-B',
@@ -62,13 +65,35 @@ if (existsSync(python)) {
   )
   record(
     'python-imports',
-    probe.status === 0,
-    probe.status === 0
-      ? probe.stdout.trim()
-      : probe.error?.code
-        ? `process launch failed: ${probe.error.code}`
-        : `import failed with exit code ${probe.status}`,
+    imports.status === 0,
+    imports.status === 0
+      ? imports.stdout.trim()
+      : imports.error?.code
+        ? `process launch failed: ${imports.error.code}`
+        : `import failed with exit code ${imports.status}`,
   )
+  if (datasetConfig?.dataset === 'private') {
+    const validation = spawnSync(
+      python,
+      [
+        '-B',
+        '-c',
+        'from pathlib import Path; from corpus import load_private_corpus; import sys; m,c=load_private_corpus(Path(sys.argv[1])); print(len(c))',
+        datasetConfig.sourcePath,
+      ],
+      {
+        cwd: join(root, 'scripts', 'local-rag'),
+        encoding: 'utf8',
+        windowsHide: true,
+        env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+      },
+    )
+    record(
+      'private-corpus-integrity',
+      validation.status === 0,
+      validation.status === 0 ? `${validation.stdout.trim()} verified chunks` : 'validation failed',
+    )
+  }
 }
 
 for (const port of [3101, 8787]) {
