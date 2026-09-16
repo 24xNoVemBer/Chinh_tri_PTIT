@@ -97,3 +97,22 @@ Rollback an toàn:
 - Hai PDF scan không có text layer vẫn cần một phase OCR riêng; pipeline này chủ động từ chối corpus
   không sinh được text, không tự OCR hoặc cài thêm gói hệ thống.
 - Chưa đủ căn cứ để public dịch vụ, đánh giá tải lớn hoặc gọi đây là nguồn đã phê duyệt.
+
+## Chạy baseline retrieval
+
+Bộ eval bootstrap được commit tại `eval/private-triet-hoc-retrieval-v1.json`. Chạy trên server và
+giữ report đầy đủ trong thư mục private:
+
+```bash
+cd "$APP_ROOT"
+"$MBA_PYTHON" -B scripts/local-rag/evaluate_retrieval.py \
+  --manifest "$RAG_CORPUS_MANIFEST" \
+  --eval-set eval/private-triet-hoc-retrieval-v1.json \
+  --output "$PILOT_ROOT/private/retrieval-baseline-v1.json" \
+  --summary-only
+chmod 600 "$PILOT_ROOT/private/retrieval-baseline-v1.json"
+```
+
+`--summary-only` chỉ giới hạn stdout; file report vẫn có kết quả theo case nhưng không chứa query,
+quote, chunk text hoặc section. Kết quả baseline đầu tiên và phân tích threshold được ghi tại
+`docs/RAG_RETRIEVAL_BASELINE_V1.md`.
