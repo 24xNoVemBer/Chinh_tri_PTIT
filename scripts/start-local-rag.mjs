@@ -18,9 +18,13 @@ const python = process.env.MBA_PYTHON || defaultPython
 const mode = process.env.RAG_LOCAL_MODE || 'extractive'
 const datasetConfig = resolveDatasetConfig(root)
 const { dataset, descriptor: fixture, databasePath } = datasetConfig
+const queryGate = process.env.RAG_QUERY_GATE || (dataset === 'private' ? 'domain-v1' : 'none')
 const runtimeStatePath = join(root, 'data', 'local-rag', 'runtime.json')
 const launchedAt = new Date().toISOString()
 if (!['extractive', 'openai'].includes(mode)) throw new Error('RAG_LOCAL_MODE: extractive | openai')
+if (!['none', 'domain-v1'].includes(queryGate)) {
+  throw new Error('RAG_QUERY_GATE: none | domain-v1')
+}
 if (!existsSync(python) || !existsSync(join(mbaPath, 'course_rag.py'))) {
   throw new Error(
     'Set MBA_API_PATH and MBA_PYTHON to the existing MBA_API checkout and Python environment.',
@@ -93,6 +97,7 @@ const env = {
   MBA_API_PATH: mbaPath,
   RAG_LOCAL_MODE: mode,
   RAG_DATASET: dataset,
+  RAG_QUERY_GATE: queryGate,
   ...(dataset === 'private' ? { RAG_CORPUS_MANIFEST: datasetConfig.sourcePath } : {}),
   PYTHONDONTWRITEBYTECODE: '1',
   PYTHONIOENCODING: 'utf-8',
@@ -155,6 +160,7 @@ try {
         ports: { web: 3101, rag: 8787 },
         mode,
         dataset,
+        queryGate,
         databasePath,
         startedAt: launchedAt,
       },
@@ -163,7 +169,9 @@ try {
     ),
   )
   const dataLabel = dataset === 'sample' ? 'SAMPLE DATA ONLY' : 'PRIVATE CORPUS · UNREVIEWED'
-  console.log(`\nLocal pilot: http://127.0.0.1:3101/student/chat\nMode: ${mode}; ${dataLabel}`)
+  console.log(
+    `\nLocal pilot: http://127.0.0.1:3101/student/chat\nMode: ${mode}; ${dataLabel}; query gate: ${queryGate}`,
+  )
   console.log('Login: tuananh@ptit.edu.vn / Student@123; select Triết học Mác - Lênin (sub1).')
   console.log('Ctrl+C stops both child services. Your normal database is untouched.')
 } catch (error) {

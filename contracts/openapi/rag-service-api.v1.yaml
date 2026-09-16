@@ -72,6 +72,7 @@ paths:
                   mode: { enum: [extractive, model] }
                   sampleData: { type: boolean }
                   dataset: { enum: [sample, private] }
+                  queryGate: { enum: [none, domain-v1] }
                   multiTurn: { type: boolean }
                   contractVersion: { type: string }
                   subjectIds:

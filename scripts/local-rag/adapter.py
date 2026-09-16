@@ -26,6 +26,7 @@ sys.path.insert(0, str(MBA_PATH))
 # Reuse only this pure retrieval primitive. Do not import main/load_chat (Mongo).
 from course_rag import bm25_scores, tokenize  # noqa: E402
 from corpus import load_private_corpus  # noqa: E402
+from query_gate import GATE_VERSION, evaluate_query  # noqa: E402
 
 FIXTURE_PATH = ROOT / "public" / "local-rag-sample.json"
 STOP_WORDS = set("là gì và của trong một những các có được như nào về cho với hãy tôi bạn mình này đó ở theo".split())
@@ -119,13 +120,25 @@ class AnswerRequest(StrictModel):
 
 
 class PilotEngine:
-    def __init__(self, mode="extractive", fixture_path=FIXTURE_PATH, dataset="sample", manifest_path=None):
+    def __init__(
+        self,
+        mode="extractive",
+        fixture_path=FIXTURE_PATH,
+        dataset="sample",
+        manifest_path=None,
+        query_gate="none",
+    ):
         if mode not in ("extractive", "openai"):
             raise ValueError("Unsupported RAG_LOCAL_MODE")
         if dataset not in ("sample", "private"):
             raise ValueError("Unsupported RAG_DATASET")
+        if query_gate not in ("none", "domain-v1"):
+            raise ValueError("Unsupported RAG_QUERY_GATE")
+        if dataset == "sample" and query_gate != "none":
+            raise ValueError("Query gate is only available for the private corpus")
         self.mode = mode
         self.dataset = dataset
+        self.query_gate = query_gate
         if dataset == "private":
             if manifest_path is None:
                 raise ValueError("RAG_CORPUS_MANIFEST is required for RAG_DATASET=private")
@@ -167,6 +180,8 @@ class PilotEngine:
             raise HTTPException(409, "SOURCE_NOT_INDEXED")
         if request.conversation.history:
             raise HTTPException(422, "Pilot supports standalone questions only.")
+        if self.query_gate == "domain-v1" and not evaluate_query(request.query.text)["allowed"]:
+            return []
         query = " ".join(t for t in tokenize(request.query.text) if t not in STOP_WORDS)
         scores = bm25_scores(query, [chunk["text"] for chunk in self.chunks])
         ranked = sorted(zip(self.chunks, scores), key=lambda item: item[1], reverse=True)
@@ -255,6 +270,9 @@ class PilotEngine:
         finished = time.monotonic()
         provider_prefix = "local-rag" if self.sample_data else "local-rag-private"
         reason_code = "technical_sample" if self.sample_data else "private_corpus_unreviewed"
+        retriever_version = "mba-course-rag-bm25-pilot-v1"
+        if self.query_gate == "domain-v1":
+            retriever_version += "+" + GATE_VERSION
         return {
             "schemaVersion": "1.0", "requestId": str(request.requestId),
             "providerJobId": f"local-{uuid4()}",
@@ -268,7 +286,7 @@ class PilotEngine:
             "provenance": {
                 "provider": f"{provider_prefix}-{self.mode}", "model": self.model, "modelRevision": revision,
                 "promptVersion": "pilot-grounded-v2", "embeddingVersion": "none-lexical-only",
-                "retrieverVersion": "mba-course-rag-bm25-pilot-v1", "rerankerVersion": "none",
+                "retrieverVersion": retriever_version, "rerankerVersion": "none",
                 "indexVersion": self.index_version,
             },
             "usage": {"inputTokens": input_tokens, "outputTokens": output_tokens, "retrievedChunks": len(chunks)},
@@ -290,6 +308,7 @@ def create_app(engine=None, service_token=None):
             os.environ.get("RAG_LOCAL_MODE", "extractive"),
             dataset=os.environ.get("RAG_DATASET", "sample"),
             manifest_path=os.environ.get("RAG_CORPUS_MANIFEST"),
+            query_gate=os.environ.get("RAG_QUERY_GATE", "none"),
         )
         yield
         if app.state.engine.client:
@@ -326,6 +345,7 @@ def create_app(engine=None, service_token=None):
                 "supportedSchemaVersions": ["1.0"], "maxContextTokens": 6000,
                 "mode": "extractive" if engine.mode == "extractive" else "model",
                 "sampleData": engine.sample_data, "dataset": engine.dataset,
+                "queryGate": engine.query_gate,
                 "streaming": False, "multiTurn": False,
                 "contractVersion": "1.0", "subjectIds": [engine.fixture["subjectId"]],
                 "provider": {"configured": engine.provider_configured,

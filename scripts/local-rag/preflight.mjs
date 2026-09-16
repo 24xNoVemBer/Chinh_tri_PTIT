@@ -22,6 +22,9 @@ let datasetConfig
 try {
   datasetConfig = resolveDatasetConfig(root)
   record('dataset-config', true, datasetConfig.dataset)
+  const queryGate =
+    process.env.RAG_QUERY_GATE || (datasetConfig.dataset === 'private' ? 'domain-v1' : 'none')
+  record('query-gate', ['none', 'domain-v1'].includes(queryGate), queryGate)
 } catch (error) {
   record('dataset-config', false, error.message)
 }

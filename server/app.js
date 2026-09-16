@@ -1158,6 +1158,7 @@ export function createRequestHandler({
               mode: capabilities.mode === 'extractive' ? 'extractive' : 'model',
               sampleData: capabilities.sampleData === true,
               dataset: capabilities.dataset,
+              queryGate: capabilities.queryGate,
             })
           } catch {
             sendData(response, { mode: 'unavailable', sampleData: false })
