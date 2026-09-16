@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from statistics import median
 import sys
 import tempfile
 import time
@@ -123,6 +124,7 @@ def evaluate_cases(chunks: list[dict], cases: list[dict], score_fn=bm25_scores) 
             "cases": len(selected),
             "passed": sum(result["passed"] for result in selected),
             "passRate": round(sum(result["passed"] for result in selected) / len(selected), 4),
+            "failedCaseIds": [result["id"] for result in selected if not result["passed"]],
         }
         if selected[0]["expectedBehavior"] == "retrieve":
             for top_k in (1, 3, 5):
@@ -132,6 +134,14 @@ def evaluate_cases(chunks: list[dict], cases: list[dict], score_fn=bm25_scores) 
                     4,
                 )
     passed = sum(result["passed"] for result in results)
+    score_distributions = {}
+    for behavior in sorted(ALLOWED_BEHAVIORS):
+        values = [result["maxScore"] for result in results if result["expectedBehavior"] == behavior]
+        score_distributions[behavior] = {
+            "minimum": min(values),
+            "median": round(median(values), 6),
+            "maximum": max(values),
+        }
     return {
         "summary": {
             "cases": len(results),
@@ -139,6 +149,7 @@ def evaluate_cases(chunks: list[dict], cases: list[dict], score_fn=bm25_scores) 
             "passRate": round(passed / len(results), 4),
             "durationMs": round((time.monotonic() - started) * 1000),
             "categories": categories,
+            "maxScoreDistributions": score_distributions,
         },
         "cases": results,
     }
