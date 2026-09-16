@@ -84,3 +84,37 @@ việc chọn threshold trên cùng tập đo sẽ overfit.
 
 Mục tiêu vòng tiếp theo đề xuất: direct top-5 ≥95%, paraphrase và multi-part top-5 ≥85%,
 abstention ≥90%, đồng thời không làm giảm citation integrity hoặc scope isolation.
+
+## Thử nghiệm query gate v1
+
+Đã thử `triet-hoc-domain-gate-v1` trước BM25. Gate chặn trước các pattern prompt injection,
+sau đó chỉ cho câu có tín hiệu thuộc miền Triết học vào retrieval. Đây là bộ lọc pilot xác định,
+không phải safety classifier tổng quát.
+
+| Chỉ số                         | BM25 thuần | BM25 + gate v1 |
+| ------------------------------ | ---------: | -------------: |
+| Direct top-5                   |        95% |            95% |
+| Paraphrase top-5               |        70% |            70% |
+| Multi-part top-5               |        75% |            75% |
+| Out-of-scope abstention        |         0% |           100% |
+| Prompt-injection abstention    |         0% |           100% |
+| Câu hợp lệ được gate chấp nhận |          — |          38/38 |
+| Tổng case đạt                  |      32/50 |          44/50 |
+
+Report chi tiết `retrieval-gated-v1.json` được giữ private trên server với mode `600`. Code runtime
+đã có feature flag `RAG_QUERY_GATE=domain-v1`; sample dataset tiếp tục dùng `none`. Việc bật flag
+trên process đang chạy cần restart đúng session pilot và phải được người vận hành cho phép rõ ràng.
+
+### Khảo sát hybrid embedding
+
+Chưa chạy được hybrid semantic an toàn bằng dependency hiện có:
+
+- Python environment có `numpy` nhưng không có `sentence-transformers` hoặc `scikit-learn`.
+- MBA_API hiện chỉ cấu hình OpenAI embeddings; key trước đó không hợp lệ và không được phép gửi
+  corpus private ra dịch vụ ngoài trong thử nghiệm này.
+- Ollama local chỉ có `qwen3-vl:32b`, capability gồm completion/vision/tools/thinking, không hỗ trợ
+  embedding.
+
+Không tự cài package hoặc pull thêm model trên server dùng chung. Để thử hybrid local cần duyệt một
+embedding model tiếng Việt/multilingual, dung lượng đĩa/RAM và vị trí cache; index mới phải có version
+riêng và không ghi đè BM25 hiện tại.

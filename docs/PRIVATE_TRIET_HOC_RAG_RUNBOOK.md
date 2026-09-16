@@ -52,6 +52,7 @@ Chạy lại với cùng input/cấu hình phải sinh cùng chunk ID và hash.
 cd "$APP_ROOT"
 export RAG_DATASET=private
 export RAG_LOCAL_MODE=extractive
+export RAG_QUERY_GATE=domain-v1
 npm run local:rag:preflight
 npm run build
 npm run local:rag
@@ -61,6 +62,8 @@ Launcher chỉ bind `127.0.0.1:3101` và `127.0.0.1:8787`. Nó dùng
 `data/local-rag/private-pilot.sqlite`, tách khỏi cả database ứng dụng và DB fixture mẫu.
 Nguồn được whitelist kỹ thuật chỉ trong DB cô lập này để kiểm thử đường quyền; đó không phải phê
 duyệt học thuật. Adapter chỉ nhận đúng `tenantId`, môn và `materialVersionId` trong manifest.
+`RAG_QUERY_GATE=domain-v1` chặn prompt injection đã biết và câu ngoài miền trước BM25. Có thể rollback
+gate bằng `RAG_QUERY_GATE=none`, nhưng chỉ thực hiện khi restart đúng session pilot được cho phép.
 
 Ở terminal khác, giữ nguyên các biến rồi chạy:
 
