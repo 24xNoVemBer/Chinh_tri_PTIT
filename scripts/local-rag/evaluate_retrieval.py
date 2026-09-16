@@ -142,6 +142,39 @@ def evaluate_cases(chunks: list[dict], cases: list[dict], score_fn=bm25_scores) 
             "median": round(median(values), 6),
             "maximum": max(values),
         }
+
+    retrieve_results = [result for result in results if result["expectedBehavior"] == "retrieve"]
+    abstain_results = [result for result in results if result["expectedBehavior"] == "abstain"]
+
+    def threshold_metrics(threshold: float) -> dict:
+        retrieval_passed = sum(
+            result["coverage"]["5"]["passed"] and result["maxScore"] > threshold
+            for result in retrieve_results
+        )
+        abstention_passed = sum(
+            result["maxScore"] <= threshold for result in abstain_results
+        )
+        retrieval_rate = retrieval_passed / len(retrieve_results)
+        abstention_rate = abstention_passed / len(abstain_results)
+        return {
+            "threshold": round(threshold, 6),
+            "retrievalPassRate": round(retrieval_rate, 4),
+            "abstentionRate": round(abstention_rate, 4),
+            "balancedScore": round((retrieval_rate + abstention_rate) / 2, 4),
+        }
+
+    candidates = sorted({0.0, *(result["maxScore"] for result in results)})
+    sweeps = [threshold_metrics(threshold) for threshold in candidates]
+    best_threshold = max(
+        sweeps,
+        key=lambda item: (
+            item["balancedScore"],
+            item["abstentionRate"],
+            item["retrievalPassRate"],
+            -item["threshold"],
+        ),
+    )
+    operating_points = [threshold_metrics(threshold) for threshold in (0, 5, 10, 15, 20)]
     return {
         "summary": {
             "cases": len(results),
@@ -150,6 +183,12 @@ def evaluate_cases(chunks: list[dict], cases: list[dict], score_fn=bm25_scores) 
             "durationMs": round((time.monotonic() - started) * 1000),
             "categories": categories,
             "maxScoreDistributions": score_distributions,
+            "thresholdAnalysis": {
+                "rule": "retrieve when maxScore > threshold",
+                "bestBalancedObserved": best_threshold,
+                "operatingPoints": operating_points,
+                "warning": "Exploratory only; selecting a threshold on this draft set would overfit.",
+            },
         },
         "cases": results,
     }

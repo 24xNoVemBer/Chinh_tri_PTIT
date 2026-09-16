@@ -33,6 +33,10 @@ class RetrievalEvaluationTests(unittest.TestCase):
         self.assertEqual(report["summary"]["passed"], 2)
         self.assertFalse(any("text" in result for result in report["cases"]))
         self.assertEqual(report["cases"][0]["topPages"], [2, 3])
+        self.assertEqual(
+            report["summary"]["thresholdAnalysis"]["bestBalancedObserved"]["balancedScore"],
+            1.0,
+        )
 
     def test_eval_validation_rejects_duplicate_ids(self):
         case = {
