@@ -12,6 +12,7 @@ class QueryGateTests(unittest.TestCase):
             "Cái mới ra đời có xóa sạch cái cũ không?",
             "Cái gì tồn tại bên ngoài và không phụ thuộc nhận biết của con người?",
             "Nền tảng kinh tế ảnh hưởng ra sao tới nhà nước và pháp luật?",
+            "Điều gì xảy ra khi tổ chức sản xuất lạc hậu so với công cụ và trình độ lao động?",
         ]
         for question in questions:
             with self.subTest(question=question):

@@ -48,6 +48,7 @@ DOMAIN_PATTERNS = [
         r"\bcái mới\b.{0,60}\bcái cũ\b",
         r"\btồn tại\b.{0,80}\bkhông phụ thuộc\b",
         r"\bngười lao động\b|\btư liệu sản xuất\b",
+        r"\btổ chức sản xuất\b.{0,100}\b(công cụ|lao động|trình độ)\b",
         r"\bnền tảng kinh tế\b.{0,100}\b(nhà nước|pháp luật|chính trị)\b",
         r"\btư tưởng xã hội\b.{0,100}\b(sinh hoạt vật chất|điều kiện vật chất)\b",
     ]
