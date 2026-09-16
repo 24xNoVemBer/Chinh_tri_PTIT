@@ -38,6 +38,18 @@ class RetrievalEvaluationTests(unittest.TestCase):
             1.0,
         )
 
+        gated = evaluate_cases(
+            chunks,
+            cases,
+            score_fn=scores,
+            gate_fn=lambda question: {
+                "allowed": "thời tiết" not in question,
+                "reason": "test",
+                "version": "test-gate",
+            },
+        )
+        self.assertEqual(gated["summary"]["gateAnalysis"]["abstainRejected"], 1)
+
     def test_eval_validation_rejects_duplicate_ids(self):
         case = {
             "id": "same",

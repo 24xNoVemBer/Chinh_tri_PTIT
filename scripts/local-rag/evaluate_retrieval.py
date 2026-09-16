@@ -14,6 +14,7 @@ import time
 import unicodedata
 
 from corpus import load_private_corpus
+from query_gate import GATE_VERSION, evaluate_query
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -77,13 +78,20 @@ def validate_eval(payload: dict, dataset_id: str) -> list[dict]:
     return cases
 
 
-def evaluate_cases(chunks: list[dict], cases: list[dict], score_fn=bm25_scores) -> dict:
+def evaluate_cases(
+    chunks: list[dict], cases: list[dict], score_fn=bm25_scores, gate_fn=None
+) -> dict:
     chunk_texts = [chunk["text"] for chunk in chunks]
     results = []
     started = time.monotonic()
     for case in cases:
+        gate = gate_fn(case["question"]) if gate_fn else {
+            "allowed": True,
+            "reason": "not_configured",
+            "version": "none",
+        }
         query = " ".join(token for token in tokenize(case["question"]) if token not in STOP_WORDS)
-        scores = score_fn(query, chunk_texts)
+        scores = score_fn(query, chunk_texts) if gate["allowed"] else [0.0] * len(chunks)
         ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)
         positive = [(index, score) for index, score in ranked if score > 0]
         max_score = positive[0][1] if positive else 0
@@ -93,6 +101,7 @@ def evaluate_cases(chunks: list[dict], cases: list[dict], score_fn=bm25_scores) 
             "expectedBehavior": case["expectedBehavior"],
             "maxScore": round(max_score, 6),
             "topPages": [chunks[index]["pdfPageStart"] for index, _score in positive[:5]],
+            "gate": gate,
         }
         if case["expectedBehavior"] == "abstain":
             detail["abstained"] = not positive
@@ -189,6 +198,13 @@ def evaluate_cases(chunks: list[dict], cases: list[dict], score_fn=bm25_scores) 
                 "operatingPoints": operating_points,
                 "warning": "Exploratory only; selecting a threshold on this draft set would overfit.",
             },
+            "gateAnalysis": {
+                "version": results[0]["gate"]["version"],
+                "retrieveAccepted": sum(result["gate"]["allowed"] for result in retrieve_results),
+                "retrieveTotal": len(retrieve_results),
+                "abstainRejected": sum(not result["gate"]["allowed"] for result in abstain_results),
+                "abstainTotal": len(abstain_results),
+            },
         },
         "cases": results,
     }
@@ -213,6 +229,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-set", required=True, type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--summary-only", action="store_true")
+    parser.add_argument("--query-gate", choices=["none", "domain-v1"], default="none")
     return parser.parse_args()
 
 
@@ -222,7 +239,8 @@ def main() -> None:
     eval_raw = args.eval_set.read_bytes()
     eval_payload = json.loads(eval_raw)
     cases = validate_eval(eval_payload, manifest["datasetId"])
-    evaluation = evaluate_cases(chunks, cases)
+    gate_fn = evaluate_query if args.query_gate == "domain-v1" else None
+    evaluation = evaluate_cases(chunks, cases, gate_fn=gate_fn)
     report = {
         "schemaVersion": "retrieval-baseline-1",
         "status": "draft_unreviewed",
@@ -234,6 +252,7 @@ def main() -> None:
         "indexVersion": manifest["indexVersion"],
         "evalSetSha256": hashlib.sha256(eval_raw).hexdigest(),
         "retrieverVersion": "mba-course-rag-bm25-pilot-v1",
+        "queryGateVersion": GATE_VERSION if gate_fn else "none",
         "decisionThreshold": "score > 0",
         "notice": "Keyword-proxy baseline only; not an academic correctness score.",
         **evaluation,
