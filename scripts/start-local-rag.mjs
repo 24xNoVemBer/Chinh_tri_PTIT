@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -70,6 +70,10 @@ try {
   ).run(datasetConfig.classMaterialId, fixture.materialId, fixture.materialVersionId, now)
 } finally {
   db.close()
+  if (dataset === 'private') {
+    chmodSync(dirname(databasePath), 0o700)
+    chmodSync(databasePath, 0o600)
+  }
 }
 
 const token = randomBytes(32).toString('hex')
