@@ -162,6 +162,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--eval-set", required=True, type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--summary-only", action="store_true")
     return parser.parse_args()
 
 
@@ -189,7 +190,8 @@ def main() -> None:
     }
     if args.output:
         atomic_write(args.output.resolve(), report)
-    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    printed = report["summary"] if args.summary_only else report
+    print(json.dumps(printed, ensure_ascii=False, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
