@@ -230,6 +230,8 @@
 .chat-message > p {
   margin: 0;
   line-height: 1.68;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .chat-message__citation {

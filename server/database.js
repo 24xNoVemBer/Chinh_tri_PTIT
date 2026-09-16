@@ -296,6 +296,7 @@ const SCHEMA = `
       review_status IN ('pending_review', 'approved', 'rejected', 'needs_revision')
     ),
     model_version TEXT,
+    index_version TEXT,
     raw_response_json TEXT,
     reviewed_by TEXT REFERENCES users(id),
     reviewed_at TEXT,
@@ -309,6 +310,9 @@ const SCHEMA = `
     material_id TEXT NOT NULL REFERENCES materials(id),
     material_version_id TEXT NOT NULL REFERENCES material_versions(id),
     page_number INTEGER,
+    chunk_id TEXT,
+    chunk_sha256 TEXT,
+    section TEXT,
     quote TEXT NOT NULL,
     citation_order INTEGER NOT NULL DEFAULT 0,
     retrieval_score REAL,
@@ -974,6 +978,22 @@ function ensurePracticeAnalyticsSchema(db) {
   `)
 }
 
+function ensureRagProvenanceSchema(db) {
+  const addColumnIfMissing = (table, column, definition) => {
+    const columns = db.many(`PRAGMA table_info(${table})`)
+    if (!columns.some((item) => item.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
+  // Preserve older local SQLite databases while retaining enough information
+  // to verify exactly which index and chunks produced every new RAG answer.
+  addColumnIfMissing('rag_responses', 'index_version', 'TEXT')
+  addColumnIfMissing('rag_citations', 'chunk_id', 'TEXT')
+  addColumnIfMissing('rag_citations', 'chunk_sha256', 'TEXT')
+  addColumnIfMissing('rag_citations', 'section', 'TEXT')
+}
+
 function ensureAdminRoleSchema(db) {
   const userTableSql = db.one(
     `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'`,
@@ -1183,13 +1203,14 @@ export function createDatabase({ databasePath = DEFAULT_DATABASE_PATH, seed = tr
   db.exec(SCHEMA)
   ensureAdminClassManagementSchema(db)
   ensurePracticeAnalyticsSchema(db)
+  ensureRagProvenanceSchema(db)
   if (databasePath !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
   if (seed) {
     seedDatabase(db)
     seedPracticeQuestions(db)
     seedDemoRagData(db)
   }
-  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '6')`).run()
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '7')`).run()
   return db
 }
 

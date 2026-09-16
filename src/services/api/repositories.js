@@ -487,6 +487,9 @@ export const apiAuditRepository = {
 }
 
 export const apiChatRepository = {
+  getStatus() {
+    return apiRequest('/api/student/chat/status')
+  },
   createMessage(input) {
     return apiRequest('/api/student/chat', {
       method: 'POST',

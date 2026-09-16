@@ -1,0 +1,32 @@
+{
+  "sampleData": true,
+  "tenantId": "ptit",
+  "subjectId": "sub1",
+  "materialId": "mat-local-rag-sample",
+  "materialVersionId": "mv-local-rag-sample-v1",
+  "title": "[DỮ LIỆU THỬ KỸ THUẬT] Một số khái niệm triết học",
+  "author": "Tài liệu mẫu tự soạn để kiểm thử, không phải giáo trình chính thức",
+  "notice": "Chỉ dùng kiểm tra truy xuất và citation. Nội dung chưa được giảng viên thẩm định.",
+  "chunks": [
+    {
+      "id": "sample-v1-vat-chat",
+      "section": "Vật chất và ý thức",
+      "text": "Trong tài liệu mẫu này, vật chất được trình bày là thực tại khách quan, tồn tại độc lập với ý thức. Ý thức là sự phản ánh hiện thực khách quan trong bộ óc con người, gắn với hoạt động thực tiễn và đời sống xã hội. Ví dụ kỹ thuật: một cái bàn tồn tại dù người học chưa nhìn thấy nó; hình ảnh và nhận thức về cái bàn thuộc về ý thức của người học. Ví dụ chỉ nhằm giúp kiểm thử chatbot, không thay thế định nghĩa trong giáo trình."
+    },
+    {
+      "id": "sample-v1-moi-lien-he",
+      "section": "Mối liên hệ phổ biến",
+      "text": "Mối liên hệ phổ biến nói đến sự quy định, tác động và chuyển hóa lẫn nhau giữa các sự vật, hiện tượng hoặc giữa các mặt của một sự vật. Khi xem xét một vấn đề, cần đặt nó trong các mối liên hệ cụ thể và phân biệt mối liên hệ chủ yếu với thứ yếu. Ví dụ mẫu: kết quả học tập chịu tác động của thời gian tự học, phương pháp học, sức khỏe và môi trường lớp học; không nên quy toàn bộ kết quả cho một yếu tố riêng lẻ."
+    },
+    {
+      "id": "sample-v1-thuc-tien",
+      "section": "Thực tiễn và nhận thức",
+      "text": "Thực tiễn là hoạt động vật chất có mục đích, mang tính lịch sử và xã hội của con người. Thực tiễn là cơ sở, động lực và mục đích của nhận thức, đồng thời là tiêu chuẩn kiểm tra chân lý. Ví dụ mẫu: người học đưa ra giả thuyết về một phương pháp học rồi áp dụng, quan sát kết quả và điều chỉnh. Một kết quả thử đơn lẻ chưa đủ để khẳng định phương pháp luôn đúng trong mọi điều kiện."
+    },
+    {
+      "id": "sample-v1-phat-trien",
+      "section": "Vận động và phát triển",
+      "text": "Vận động được hiểu là mọi sự biến đổi nói chung. Phát triển là quá trình vận động theo khuynh hướng từ thấp đến cao, từ đơn giản đến phức tạp, từ kém hoàn thiện đến hoàn thiện hơn. Không phải mọi thay đổi đều là phát triển. Ví dụ mẫu: việc đổi chỗ ngồi là một thay đổi, còn sự tiến bộ về năng lực phân tích sau quá trình học tập có thể minh họa cho phát triển."
+    }
+  ]
+}

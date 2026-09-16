@@ -37,3 +37,7 @@ data/backups/
 !.env.example
 !.env.*.example
 config/secrets/
+
+# Isolated local RAG pilot (generated indexes and runtime data)
+data/local-rag/
+__pycache__/

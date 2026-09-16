@@ -22,6 +22,7 @@ describe('runtime config', () => {
     const config = createRuntimeConfig({ NODE_ENV: 'test', PORT: '3001' })
     expect(config.rag.enabled).toBe(false)
     expect(config.rag.baseUrl).toBe('http://127.0.0.1:8787')
+    expect(config.rag.maxRetries).toBe(0)
   })
 
   it('rejects HTTP RAG endpoints in production', () => {
@@ -43,6 +44,44 @@ describe('runtime config', () => {
 })
 
 describe('RAG client', () => {
+  it('keeps the timeout active while reading the response body', async () => {
+    const client = createRagClient({
+      baseUrl: 'http://mock',
+      timeoutMs: 20,
+      maxRetries: 0,
+      fetchImpl: async (_url, { signal }) => ({
+        ok: true,
+        status: 200,
+        json: () =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener(
+              'abort',
+              () => reject(new DOMException('Aborted', 'AbortError')),
+              { once: true },
+            )
+          }),
+      }),
+    })
+    await expect(
+      client.generateAnswer(requestFixture, { idempotencyKey: 'slow-body' }),
+    ).rejects.toMatchObject({ code: 'PROVIDER_TIMEOUT', status: 504 })
+  })
+
+  it('rejects a response for a different request', async () => {
+    const client = createRagClient({
+      baseUrl: 'http://mock',
+      maxRetries: 0,
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ ...answerFixture, requestId: crypto.randomUUID() }),
+      }),
+    })
+    await expect(
+      client.generateAnswer(requestFixture, { idempotencyKey: 'wrong-request' }),
+    ).rejects.toMatchObject({ code: 'INVALID_CITATION', retryable: false })
+  })
+
   it('calls the private service with auth and validates the terminal answer', async () => {
     const client = createRagClient({ baseUrl, serviceToken: 'mock-service-token' })
     const answer = await client.generateAnswer(

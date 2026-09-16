@@ -167,7 +167,7 @@ export function createRuntimeConfig(env = process.env) {
       baseUrl: parsedUrl.toString().replace(/\/$/, ''),
       serviceToken: env.RAG_SERVICE_TOKEN ?? '',
       timeoutMs: asInteger(env.RAG_TIMEOUT_MS, 30_000, { min: 100, max: 120_000 }),
-      maxRetries: asInteger(env.RAG_MAX_RETRIES, 2, { min: 0, max: 5 }),
+      maxRetries: asInteger(env.RAG_MAX_RETRIES, 0, { min: 0, max: 5 }),
       retryDelayMs: asInteger(env.RAG_RETRY_DELAY_MS, 100, { min: 0, max: 10_000 }),
     }),
   })

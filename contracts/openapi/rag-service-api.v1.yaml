@@ -69,6 +69,21 @@ paths:
                   supportedSchemaVersions: { type: array, items: { type: string } }
                   streaming: { type: boolean }
                   maxContextTokens: { type: integer, minimum: 1 }
+                  mode: { enum: [extractive, model] }
+                  sampleData: { type: boolean }
+                  multiTurn: { type: boolean }
+                  contractVersion: { type: string }
+                  subjectIds:
+                    type: array
+                    items: { type: string }
+                  provider:
+                    type: object
+                    additionalProperties: false
+                    required: [configured, lastSuccessAt, lastErrorCode]
+                    properties:
+                      configured: { type: boolean }
+                      lastSuccessAt: { type: [string, 'null'], format: date-time }
+                      lastErrorCode: { type: [string, 'null'] }
 components:
   securitySchemes:
     serviceToken:

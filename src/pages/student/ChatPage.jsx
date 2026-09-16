@@ -28,7 +28,7 @@ const INITIAL_MESSAGES = [
     id: 'welcome',
     role: 'assistant',
     content:
-      'Bạn có thể hỏi theo môn học hoặc khái niệm đang học. Mình sẽ trả lời bằng dữ liệu mô phỏng để bạn review trải nghiệm trước khi nối model.',
+      'Bạn có thể hỏi theo môn học hoặc khái niệm đang học. Hãy kiểm tra chế độ kết nối và nguồn trích dẫn bên dưới; nội dung thử nghiệm không thay thế giáo trình.',
     citations: [],
   },
 ]
@@ -45,6 +45,17 @@ export default function ChatPage() {
   const inputRef = useRef(null)
   const threadRef = useRef(null)
   const messageSequence = useRef(0)
+  const statusLoader = useCallback(() => chatRepository.getStatus(), [])
+  const { data: chatStatus, loading: statusLoading } = useAsyncData(statusLoader)
+  const modeLabels = {
+    extractive: 'Local · truy xuất, chưa dùng LLM',
+    model: 'Đã cấu hình RAG · trả lời bằng model',
+    demo: 'Demo UI · câu trả lời mô phỏng',
+    unavailable: 'Chưa kết nối được dịch vụ RAG',
+  }
+  const statusLabel = statusLoading
+    ? 'Đang kiểm tra kết nối…'
+    : modeLabels[chatStatus?.mode || 'unavailable']
   const subjectLoader = useCallback(
     () => learningRepository.listSubjectProgress(user.id),
     [user.id],
@@ -80,6 +91,7 @@ export default function ChatPage() {
 
   const handleSubmit = (event) => {
     event.preventDefault()
+    if (isReplying) return
     const trimmedQuestion = question.trim()
     if (!trimmedQuestion) {
       setError('Nhập câu hỏi trước khi gửi.')
@@ -120,6 +132,7 @@ export default function ChatPage() {
             citations: reply.citations,
             reviewStatus: reply.reviewStatus,
             moderation: reply.moderation,
+            answerMode: reply.answerMode,
             subjectName: selectedSubject?.name,
           },
         ])
@@ -150,7 +163,7 @@ export default function ChatPage() {
         </div>
         <span className="chat-demo-badge">
           <Bot aria-hidden="true" size={16} />
-          Demo UI, chưa nối model
+          {statusLabel}
         </span>
       </header>
 
@@ -166,7 +179,7 @@ export default function ChatPage() {
             <span>Học phần đang hỏi</span>
             <select
               value={effectiveSubjectId}
-              disabled={subjectsLoading || !subjects?.length}
+              disabled={isReplying || subjectsLoading || !subjects?.length}
               onChange={(event) => {
                 setSelectedSubjectId(event.target.value)
                 setSelectedClassId('')
@@ -188,7 +201,7 @@ export default function ChatPage() {
             <span>Lớp tín chỉ</span>
             <select
               value={effectiveClassId}
-              disabled={!availableClasses.length}
+              disabled={isReplying || !availableClasses.length}
               onChange={(event) => {
                 setSelectedClassId(event.target.value)
                 setError('')
@@ -219,7 +232,11 @@ export default function ChatPage() {
           <div className="chat-panel__top">
             <div>
               <h2 id="chat-panel-title">Cuộc trò chuyện mới</h2>
-              <p>Nội dung bên dưới là dữ liệu mô phỏng.</p>
+              <p>
+                {chatStatus?.sampleData
+                  ? 'DỮ LIỆU THỬ KỸ THUẬT · Chưa được thẩm định. Hãy hỏi từng câu đầy đủ.'
+                  : 'Kiểm tra trích dẫn và trạng thái duyệt trước khi sử dụng câu trả lời.'}
+              </p>
             </div>
             <Clock3 aria-hidden="true" size={20} />
           </div>
@@ -235,7 +252,7 @@ export default function ChatPage() {
               <article
                 className={`chat-message chat-message--${message.role}`}
                 key={message.id}
-                aria-label={message.role === 'assistant' ? 'Trợ giảng demo' : 'Bạn'}
+                aria-label={message.role === 'assistant' ? 'Trợ giảng' : 'Bạn'}
               >
                 <div className="chat-message__identity">
                   {message.role === 'assistant' ? (
@@ -243,15 +260,17 @@ export default function ChatPage() {
                   ) : (
                     <span aria-hidden="true">{user?.name.charAt(0)}</span>
                   )}
-                  <strong>{message.role === 'assistant' ? 'Trợ giảng demo' : 'Bạn'}</strong>
+                  <strong>{message.role === 'assistant' ? 'Trợ giảng' : 'Bạn'}</strong>
                 </div>
                 <p>{message.content}</p>
 
                 {message.reviewStatus === 'pending_review' && (
                   <span className="chat-message__review-status">
-                    {message.moderation?.requiresReview
-                      ? 'AI tạo · Đang chờ giảng viên xem xét'
-                      : 'AI tạo · Có thể sử dụng ngay · Kiểm tra lấy mẫu'}
+                    {message.answerMode === 'extractive'
+                      ? 'Trích xuất tự động · Không phải câu trả lời do LLM tạo'
+                      : message.moderation?.requiresReview
+                        ? 'AI tạo · Đang chờ giảng viên xem xét'
+                        : 'AI tạo · Có thể sử dụng ngay · Kiểm tra lấy mẫu'}
                   </span>
                 )}
 
@@ -294,7 +313,7 @@ export default function ChatPage() {
             {isReplying && (
               <div className="chat-typing" role="status">
                 <Bot aria-hidden="true" size={17} />
-                <span>Đang chuẩn bị câu trả lời mẫu</span>
+                <span>Đang truy xuất nguồn và chuẩn bị câu trả lời…</span>
                 <span className="chat-typing__dots" aria-hidden="true">
                   <i />
                   <i />
@@ -362,17 +381,23 @@ export default function ChatPage() {
           {latestCitations.length ? (
             <ol>
               {latestCitations.map((citation) => (
-                <li key={`${citation.title}-${citation.location}`}>
+                <li key={citation.id}>
                   <strong>{citation.title}</strong>
                   <span>{citation.author}</span>
                   <small>{citation.location}</small>
+                  {citation.quote && (
+                    <details>
+                      <summary>Xem đoạn trích</summary>
+                      <p>{citation.quote}</p>
+                    </details>
+                  )}
                 </li>
               ))}
             </ol>
           ) : (
             <div className="chat-sources__empty">
               <FileText aria-hidden="true" size={22} />
-              <p>Nguồn mẫu sẽ xuất hiện sau câu trả lời đầu tiên.</p>
+              <p>Nguồn sẽ xuất hiện khi tìm được đoạn tài liệu phù hợp.</p>
             </div>
           )}
 

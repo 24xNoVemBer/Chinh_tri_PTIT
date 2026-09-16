@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'

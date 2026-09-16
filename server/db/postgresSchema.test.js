@@ -20,6 +20,11 @@ const sessionVersionMigrationPath = join(
   'migrations',
   '007_session-auth-version.sql',
 )
+const ragProvenanceMigrationPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'migrations',
+  '008_rag-provenance.sql',
+)
 
 describe('PostgreSQL initial schema', () => {
   it('contains the complete DB-0 table and index inventory', async () => {
@@ -58,5 +63,13 @@ describe('PostgreSQL initial schema', () => {
     const sql = await readFile(sessionVersionMigrationPath, 'utf8')
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS auth_version')
     expect(sql).toContain('SET auth_version = users.auth_version')
+  })
+
+  it('persists RAG index and chunk provenance', async () => {
+    const sql = await readFile(ragProvenanceMigrationPath, 'utf8')
+    expect(sql).toContain('rag_responses ADD COLUMN IF NOT EXISTS index_version')
+    expect(sql).toContain('rag_citations ADD COLUMN IF NOT EXISTS chunk_id')
+    expect(sql).toContain('rag_citations ADD COLUMN IF NOT EXISTS chunk_sha256')
+    expect(sql).toContain('rag_citations ADD COLUMN IF NOT EXISTS section')
   })
 })

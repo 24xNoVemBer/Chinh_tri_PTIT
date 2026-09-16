@@ -27,7 +27,7 @@ describe('live chat against the contract mock', () => {
     db.close()
   })
 
-  it('uses approved seeded material IDs end-to-end', async () => {
+  it('uses only the material version published for the selected class end-to-end', async () => {
     const login = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -45,6 +45,7 @@ describe('live chat against the contract mock', () => {
     expect(response.status).toBe(201)
     const payload = await response.json()
     expect(payload.data.isDemo).toBe(false)
-    expect(payload.data.citations[0].materialId).toBe('mat6')
+    expect(payload.data.citations[0].materialId).toBe('mat1')
+    expect(payload.data.citations[0].materialVersionId).toBe('mv1')
   })
 })

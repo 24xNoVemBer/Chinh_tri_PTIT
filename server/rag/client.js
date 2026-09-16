@@ -51,17 +51,18 @@ export function createRagClient({
           body: JSON.stringify(request),
           signal: controller.signal,
         })
-        clearTimeout(timeout)
         let payload
         try {
           payload = await response.json()
         } catch (error) {
+          if (controller.signal.aborted) throw error
           throw new RagClientError(
             'MALFORMED_PROVIDER_RESPONSE',
             'RAG response was not valid JSON.',
             { status: 502, retryable: attempt < maxRetries, requestId, cause: error },
           )
         }
+        clearTimeout(timeout)
         if (!response.ok) {
           const code = payload?.code ?? 'PROVIDER_UNAVAILABLE'
           const canRetry =
@@ -85,6 +86,8 @@ export function createRagClient({
         }
         try {
           assertSchema(schemaIds.answer, payload)
+          if (payload.requestId !== request.requestId)
+            throw new Error('RAG response requestId does not match.')
           validateAnswerScope(payload, request.scope.allowedMaterialVersionIds)
         } catch (error) {
           throw new RagClientError('INVALID_CITATION', error.message, {
@@ -98,7 +101,7 @@ export function createRagClient({
       } catch (error) {
         clearTimeout(timeout)
         if (error instanceof RagClientError) throw error
-        const timedOut = error?.name === 'AbortError'
+        const timedOut = controller.signal.aborted || error?.name === 'AbortError'
         const retryable = attempt < maxRetries
         if (retryable) {
           logger.warn?.(

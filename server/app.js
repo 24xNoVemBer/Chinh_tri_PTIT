@@ -1144,6 +1144,25 @@ export function createRequestHandler({
           sendData(response, await repositories.questionRepository.create(input, student.id), 201)
           return
         }
+        if (method === 'GET' && pathname === '/api/student/chat/status') {
+          if (!ragClient) {
+            sendData(response, {
+              mode: allowDemoRag ? 'demo' : 'unavailable',
+              sampleData: allowDemoRag,
+            })
+            return
+          }
+          try {
+            const capabilities = await ragClient.capabilities({ signal: AbortSignal.timeout(2000) })
+            sendData(response, {
+              mode: capabilities.mode === 'extractive' ? 'extractive' : 'model',
+              sampleData: capabilities.sampleData === true,
+            })
+          } catch {
+            sendData(response, { mode: 'unavailable', sampleData: false })
+          }
+          return
+        }
         if (method === 'POST' && pathname === '/api/student/chat') {
           const input = await readJson(request)
           requireFields(input, ['subjectId', 'content'])
