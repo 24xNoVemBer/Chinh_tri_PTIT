@@ -87,7 +87,9 @@ tên backup có timestamp. Không xóa PDF, corpus cũ hay DB mẫu.
 
 Rollback an toàn:
 
-1. Dừng đúng session pilot do tài khoản vận hành tạo.
+1. Dừng đúng session pilot do tài khoản vận hành tạo bằng `npm run local:rag:stop`. Script xác minh PID,
+   executable và thời điểm khởi chạy đã ghi trong `data/local-rag/runtime.json` trước khi gửi SIGTERM; nếu
+   bất kỳ danh tính tiến trình nào không khớp, script từ chối dừng toàn bộ.
 2. Bỏ `RAG_DATASET` và `RAG_CORPUS_MANIFEST` hoặc đặt `RAG_DATASET=sample`.
 3. Khởi động lại `npm run local:rag`; launcher quay về `data/local-rag/pilot.sqlite`.
 4. Chạy smoke sample. Corpus private vẫn được giữ nguyên để điều tra hoặc chạy lại.

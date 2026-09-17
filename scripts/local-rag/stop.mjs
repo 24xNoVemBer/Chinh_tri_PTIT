@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, readlinkSync, realpathSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -33,7 +33,7 @@ if (
   throw new Error('Runtime state contains an unsafe PID; refusing to stop any process.')
 }
 
-function inspectProcesses(items) {
+function inspectWindowsProcesses(items) {
   const ids = items.map((item) => item.pid).join(',')
   const command =
     `$items = Get-Process -Id ${ids} -ErrorAction SilentlyContinue; ` +
@@ -48,6 +48,52 @@ function inspectProcesses(items) {
   if (!inspection.stdout.trim()) return new Map()
   const parsed = JSON.parse(inspection.stdout)
   return new Map((Array.isArray(parsed) ? parsed : [parsed]).map((item) => [item.pid, item]))
+}
+
+function inspectLinuxProcesses(items) {
+  const observed = new Map()
+  for (const item of items) {
+    const procPath = `/proc/${item.pid}`
+    if (!existsSync(procPath)) continue
+
+    let executable
+    try {
+      executable = readlinkSync(`${procPath}/exe`)
+    } catch {
+      throw new Error(
+        `Could not verify executable for managed PID ${item.pid}; no process was stopped.`,
+      )
+    }
+
+    const inspection = spawnSync('ps', ['-p', String(item.pid), '-o', 'lstart='], {
+      encoding: 'utf8',
+    })
+    if (inspection.error || inspection.status !== 0 || !inspection.stdout.trim()) {
+      throw new Error(
+        `Could not verify start time for managed PID ${item.pid}; no process was stopped.`,
+      )
+    }
+    observed.set(item.pid, {
+      pid: item.pid,
+      path: executable,
+      started: new Date(inspection.stdout.trim()).toISOString(),
+    })
+  }
+  return observed
+}
+
+function inspectProcesses(items) {
+  if (process.platform === 'win32') return inspectWindowsProcesses(items)
+  if (process.platform === 'linux') return inspectLinuxProcesses(items)
+  throw new Error(`Unsupported platform ${process.platform}; no process was stopped.`)
+}
+
+function canonicalPath(path) {
+  try {
+    return realpathSync(path)
+  } catch {
+    return resolve(path)
+  }
 }
 
 const initialObserved = inspectProcesses(processes)
@@ -74,7 +120,7 @@ for (const expected of alive) {
   const actual = initialObserved.get(expected.pid)
   const samePath =
     actual?.path &&
-    resolve(actual.path).toLowerCase() === resolve(expected.executable).toLowerCase()
+    canonicalPath(actual.path).toLowerCase() === canonicalPath(expected.executable).toLowerCase()
   const closeStart = actual?.started && Math.abs(Date.parse(actual.started) - startedAt) < 60_000
   if (!samePath || !closeStart) {
     throw new Error(
