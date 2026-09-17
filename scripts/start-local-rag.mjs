@@ -34,8 +34,8 @@ if (!['extractive', 'openai'].includes(mode)) throw new Error('RAG_LOCAL_MODE: e
 if (!['none', 'domain-v1'].includes(queryGate)) {
   throw new Error('RAG_QUERY_GATE: none | domain-v1')
 }
-if (!['legacy-v1', 'top5-v2'].includes(retrievalProfile)) {
-  throw new Error('RAG_RETRIEVAL_PROFILE: legacy-v1 | top5-v2')
+if (!['legacy-v1', 'top5-v2', 'expanded-v3'].includes(retrievalProfile)) {
+  throw new Error('RAG_RETRIEVAL_PROFILE: legacy-v1 | top5-v2 | expanded-v3')
 }
 if (mode === 'openai') {
   if (!['openai', 'groq'].includes(modelProvider)) {

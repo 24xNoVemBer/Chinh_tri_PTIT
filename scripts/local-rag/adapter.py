@@ -29,6 +29,7 @@ from course_rag import bm25_scores, tokenize  # noqa: E402
 from corpus import load_private_corpus  # noqa: E402
 from query_gate import GATE_VERSION, evaluate_query  # noqa: E402
 from retrieval import (  # noqa: E402
+    prepare_retrieval_query,
     resolve_retrieval_profile,
     retriever_version as retriever_version_for_profile,
     select_ranked_chunks,
@@ -40,7 +41,6 @@ DEFAULT_MODEL_ID = "gpt-4o-mini"
 DEFAULT_EMBEDDING_MODEL_ID = "text-embedding-3-large"
 GROQ_MODEL_API_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_MODEL_ID = "openai/gpt-oss-20b"
-STOP_WORDS = set("là gì và của trong một những các có được như nào về cho với hãy tôi bạn mình này đó ở theo".split())
 
 
 def resolve_model_config(env=None):
@@ -245,7 +245,9 @@ class PilotEngine:
             raise HTTPException(422, "Pilot supports standalone questions only.")
         if self.query_gate == "domain-v1" and not evaluate_query(request.query.text)["allowed"]:
             return []
-        query = " ".join(t for t in tokenize(request.query.text) if t not in STOP_WORDS)
+        query, _expansion_terms = prepare_retrieval_query(
+            request.query.text, tokenize, self.retrieval_profile
+        )
         scores = bm25_scores(query, [chunk["text"] for chunk in self.chunks])
         ranked = sorted(zip(self.chunks, scores), key=lambda item: item[1], reverse=True)
         return select_ranked_chunks(

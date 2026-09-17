@@ -11,17 +11,13 @@ import unicodedata
 
 from corpus import load_private_corpus
 from query_gate import evaluate_query
+from retrieval import prepare_retrieval_query, resolve_retrieval_profile
 
 
 ROOT = Path(__file__).resolve().parents[2]
 MBA_PATH = Path(os.environ.get("MBA_API_PATH", ROOT.parent / "ChatBot" / "MBA_API"))
 sys.path.insert(0, str(MBA_PATH))
 from course_rag import bm25_scores, tokenize  # noqa: E402
-
-
-STOP_WORDS = set(
-    "là gì và của trong một những các có được như nào về cho với hãy tôi bạn mình này đó ở theo".split()
-)
 
 
 def normalize(value: str) -> str:
@@ -34,6 +30,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--query", required=True, action="append")
     parser.add_argument("--term", action="append", default=[])
     parser.add_argument("--top-k", type=int, default=8)
+    parser.add_argument(
+        "--profile", choices=["legacy-v1", "top5-v2", "expanded-v3"], default="legacy-v1"
+    )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--include-excerpts", action="store_true")
     args = parser.parse_args()
@@ -42,10 +41,17 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def diagnose(chunks: list[dict], query: str, terms: list[str], top_k: int, excerpts: bool) -> dict:
+def diagnose(
+    chunks: list[dict],
+    query: str,
+    terms: list[str],
+    top_k: int,
+    excerpts: bool,
+    profile: str,
+) -> dict:
     gate = evaluate_query(query)
     normalized_terms = [(term, normalize(term)) for term in terms]
-    prepared = " ".join(token for token in tokenize(query) if token not in STOP_WORDS)
+    prepared, expansion_terms = prepare_retrieval_query(query, tokenize, profile)
     scores = bm25_scores(prepared, [chunk["text"] for chunk in chunks]) if gate["allowed"] else []
     ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)
     positive = [(index, score) for index, score in ranked if score > 0][:top_k]
@@ -67,21 +73,29 @@ def diagnose(chunks: list[dict], query: str, terms: list[str], top_k: int, excer
         if excerpts:
             item["excerpt"] = chunk["text"][:600]
         results.append(item)
-    return {"query": query, "gate": gate, "positiveMatches": len(positive), "ranking": results}
+    return {
+        "query": query,
+        "gate": gate,
+        "expansionTerms": expansion_terms,
+        "positiveMatches": len(positive),
+        "ranking": results,
+    }
 
 
 def main() -> None:
     args = parse_args()
+    profile = resolve_retrieval_profile(args.profile)
     manifest, chunks = load_private_corpus(args.manifest)
     report = {
         "schemaVersion": "retrieval-diagnostic-1",
         "datasetId": manifest["datasetId"],
         "indexVersion": manifest["indexVersion"],
         "providerCalls": 0,
+        "retrievalProfile": profile,
         "topK": args.top_k,
         "terms": args.term,
         "queries": [
-            diagnose(chunks, query, args.term, args.top_k, args.include_excerpts)
+            diagnose(chunks, query, args.term, args.top_k, args.include_excerpts, profile)
             for query in args.query
         ],
     }

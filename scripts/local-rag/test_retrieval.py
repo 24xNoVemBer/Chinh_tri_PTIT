@@ -1,9 +1,12 @@
 import unittest
 
 from retrieval import (
+    EXPANDED_PROFILE,
     LEGACY_PROFILE,
     TOP5_PROFILE,
     context_cost,
+    prepare_retrieval_query,
+    query_expansion_terms,
     resolve_retrieval_profile,
     retriever_version,
     select_ranked_chunks,
@@ -30,6 +33,24 @@ class RetrievalProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "RAG_RETRIEVAL_PROFILE"):
             resolve_retrieval_profile("unknown")
 
+    def test_expanded_profile_adds_only_evidence_backed_definition_alias(self):
+        query = "Theo giáo trình, vật chất được định nghĩa như thế nào?"
+        self.assertEqual(query_expansion_terms(query, EXPANDED_PROFILE), ["V.I. Lênin"])
+        self.assertEqual(query_expansion_terms(query, TOP5_PROFILE), [])
+        self.assertEqual(
+            query_expansion_terms("Vật chất có vai trò gì?", EXPANDED_PROFILE), []
+        )
+        self.assertEqual(
+            query_expansion_terms("Định nghĩa vật chất của V.I. Lênin", EXPANDED_PROFILE), []
+        )
+
+    def test_prepared_expanded_query_contains_alias(self):
+        prepared, additions = prepare_retrieval_query(
+            "Khái niệm vật chất là gì?", lambda value: value.casefold().split(), EXPANDED_PROFILE
+        )
+        self.assertEqual(additions, ["V.I. Lênin"])
+        self.assertIn("lênin", prepared)
+
     def test_legacy_profile_preserves_three_chunk_cap(self):
         selected = select_ranked_chunks(
             ranked_chunks(),
@@ -49,6 +70,16 @@ class RetrievalProfileTests(unittest.TestCase):
         )
         self.assertEqual(len(selected), 5)
         self.assertIn("top5-token-budget", retriever_version(TOP5_PROFILE))
+
+    def test_expanded_profile_keeps_top5_cap_and_has_distinct_provenance(self):
+        selected = select_ranked_chunks(
+            ranked_chunks(),
+            requested_limit=8,
+            context_budget=100_000,
+            profile=EXPANDED_PROFILE,
+        )
+        self.assertEqual(len(selected), 5)
+        self.assertIn("expanded-top5", retriever_version(EXPANDED_PROFILE))
 
     def test_request_limit_remains_authoritative(self):
         selected = select_ranked_chunks(

@@ -4,19 +4,43 @@ from __future__ import annotations
 
 import json
 import math
+import re
+import unicodedata
 
 
 LEGACY_PROFILE = "legacy-v1"
 TOP5_PROFILE = "top5-v2"
-RETRIEVAL_PROFILES = {LEGACY_PROFILE, TOP5_PROFILE}
-PROFILE_LIMITS = {LEGACY_PROFILE: 3, TOP5_PROFILE: 5}
+EXPANDED_PROFILE = "expanded-v3"
+RETRIEVAL_PROFILES = {LEGACY_PROFILE, TOP5_PROFILE, EXPANDED_PROFILE}
+PROFILE_LIMITS = {LEGACY_PROFILE: 3, TOP5_PROFILE: 5, EXPANDED_PROFILE: 5}
+STOP_WORDS = set(
+    "là gì và của trong một những các có được như nào về cho với hãy tôi bạn mình này đó ở theo".split()
+)
 
 
 def resolve_retrieval_profile(value: str | None) -> str:
     profile = str(value or LEGACY_PROFILE).strip().lower()
     if profile not in RETRIEVAL_PROFILES:
-        raise ValueError("RAG_RETRIEVAL_PROFILE must be legacy-v1 or top5-v2")
+        raise ValueError("RAG_RETRIEVAL_PROFILE must be legacy-v1, top5-v2, or expanded-v3")
     return profile
+
+
+def query_expansion_terms(query: str, profile: str) -> list[str]:
+    profile = resolve_retrieval_profile(profile)
+    if profile != EXPANDED_PROFILE:
+        return []
+    normalized = unicodedata.normalize("NFC", query).casefold()
+    definition_intent = re.search(r"\b(định nghĩa|khái niệm)\b", normalized) or "là gì" in normalized
+    if definition_intent and "vật chất" in normalized and "lênin" not in normalized:
+        return ["V.I. Lênin"]
+    return []
+
+
+def prepare_retrieval_query(query: str, tokenize, profile: str) -> tuple[str, list[str]]:
+    additions = query_expansion_terms(query, profile)
+    expanded = " ".join([query, *additions])
+    prepared = " ".join(token for token in tokenize(expanded) if token not in STOP_WORDS)
+    return prepared, additions
 
 
 def context_cost(chunk: dict, profile: str) -> int:
@@ -61,4 +85,6 @@ def retriever_version(profile: str) -> str:
     profile = resolve_retrieval_profile(profile)
     if profile == LEGACY_PROFILE:
         return "mba-course-rag-bm25-pilot-v1"
-    return "mba-course-rag-bm25-pilot-v2-top5-token-budget"
+    if profile == TOP5_PROFILE:
+        return "mba-course-rag-bm25-pilot-v2-top5-token-budget"
+    return "mba-course-rag-bm25-pilot-v3-expanded-top5-token-budget"

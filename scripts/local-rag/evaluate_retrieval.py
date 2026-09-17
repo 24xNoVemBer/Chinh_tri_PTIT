@@ -15,6 +15,7 @@ import unicodedata
 
 from corpus import load_private_corpus
 from query_gate import GATE_VERSION, evaluate_query
+from retrieval import LEGACY_PROFILE, prepare_retrieval_query, retriever_version
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,9 +24,6 @@ sys.path.insert(0, str(MBA_PATH))
 from course_rag import bm25_scores, tokenize  # noqa: E402
 
 
-STOP_WORDS = set(
-    "là gì và của trong một những các có được như nào về cho với hãy tôi bạn mình này đó ở theo".split()
-)
 ALLOWED_CATEGORIES = {"direct", "paraphrase", "multi_part", "out_of_scope", "prompt_injection"}
 ALLOWED_BEHAVIORS = {"retrieve", "abstain"}
 
@@ -79,7 +77,11 @@ def validate_eval(payload: dict, dataset_id: str) -> list[dict]:
 
 
 def evaluate_cases(
-    chunks: list[dict], cases: list[dict], score_fn=bm25_scores, gate_fn=None
+    chunks: list[dict],
+    cases: list[dict],
+    score_fn=bm25_scores,
+    gate_fn=None,
+    retrieval_profile=LEGACY_PROFILE,
 ) -> dict:
     chunk_texts = [chunk["text"] for chunk in chunks]
     results = []
@@ -90,7 +92,9 @@ def evaluate_cases(
             "reason": "not_configured",
             "version": "none",
         }
-        query = " ".join(token for token in tokenize(case["question"]) if token not in STOP_WORDS)
+        query, expansion_terms = prepare_retrieval_query(
+            case["question"], tokenize, retrieval_profile
+        )
         scores = score_fn(query, chunk_texts) if gate["allowed"] else [0.0] * len(chunks)
         ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)
         positive = [(index, score) for index, score in ranked if score > 0]
@@ -102,6 +106,7 @@ def evaluate_cases(
             "maxScore": round(max_score, 6),
             "topPages": [chunks[index]["pdfPageStart"] for index, _score in positive[:5]],
             "gate": gate,
+            "expansionTerms": expansion_terms,
         }
         if case["expectedBehavior"] == "abstain":
             detail["abstained"] = not positive
@@ -230,6 +235,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--summary-only", action="store_true")
     parser.add_argument("--query-gate", choices=["none", "domain-v1"], default="none")
+    parser.add_argument(
+        "--retrieval-profile",
+        choices=["legacy-v1", "top5-v2", "expanded-v3"],
+        default="legacy-v1",
+    )
     return parser.parse_args()
 
 
@@ -240,7 +250,9 @@ def main() -> None:
     eval_payload = json.loads(eval_raw)
     cases = validate_eval(eval_payload, manifest["datasetId"])
     gate_fn = evaluate_query if args.query_gate == "domain-v1" else None
-    evaluation = evaluate_cases(chunks, cases, gate_fn=gate_fn)
+    evaluation = evaluate_cases(
+        chunks, cases, gate_fn=gate_fn, retrieval_profile=args.retrieval_profile
+    )
     report = {
         "schemaVersion": "retrieval-baseline-1",
         "status": "draft_unreviewed",
@@ -251,7 +263,7 @@ def main() -> None:
         "chunksSha256": manifest["chunksSha256"],
         "indexVersion": manifest["indexVersion"],
         "evalSetSha256": hashlib.sha256(eval_raw).hexdigest(),
-        "retrieverVersion": "mba-course-rag-bm25-pilot-v1",
+        "retrieverVersion": retriever_version(args.retrieval_profile),
         "queryGateVersion": GATE_VERSION if gate_fn else "none",
         "decisionThreshold": "score > 0",
         "notice": "Keyword-proxy baseline only; not an academic correctness score.",

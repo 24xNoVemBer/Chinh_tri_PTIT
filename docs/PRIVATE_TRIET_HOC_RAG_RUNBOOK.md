@@ -70,8 +70,10 @@ gate bằng `RAG_QUERY_GATE=none`, nhưng chỉ thực hiện khi restart đúng
 
 `RAG_RETRIEVAL_PROFILE=legacy-v1` giữ đúng giới hạn ba chunk và cách tính ngân sách byte ban đầu.
 `top5-v2` cho phép tối đa năm chunk, tôn trọng giới hạn request và dùng `tokenCount` của corpus để tính
-ngân sách context. Profile mới phải được đo offline trước khi bật. Có thể rollback về `legacy-v1` bằng
-restart đúng pilot, không cần reset Git hoặc thay corpus.
+ngân sách context. `expanded-v3` giữ cơ chế top 5 và chỉ thêm alias `V.I. Lênin` cho truy vấn có đồng thời
+ý định định nghĩa/khái niệm và thuật ngữ `vật chất`; nó không mở rộng câu hỏi khác. Profile mới phải được
+đo offline trước khi bật. Có thể rollback về `legacy-v1` bằng restart đúng pilot, không cần reset Git hoặc
+thay corpus.
 
 ## Chẩn đoán retrieval không gọi model
 
@@ -93,6 +95,22 @@ chmod 600 "$PILOT_ROOT/private/retrieval-diagnostic-v1.json"
 
 Nếu đoạn hỗ trợ nằm hạng 4–5 thì thử `top5-v2`. Nếu chỉ nằm ở chunk liền kề hoặc ngoài top 8, không bật
 profile mới chỉ để làm đẹp một câu hỏi; đánh giá adjacent context hoặc query expansion ở phase riêng.
+
+Sau khi baseline cho thấy câu tự nhiên không tìm thấy đoạn hỗ trợ trong top 8, so sánh profile mở rộng mà
+vẫn không gọi model:
+
+```bash
+"$MBA_PYTHON" -B scripts/local-rag/diagnose_retrieval.py \
+  --manifest "$RAG_CORPUS_MANIFEST" \
+  --profile expanded-v3 \
+  --query "Theo giáo trình, vật chất được định nghĩa như thế nào?" \
+  --query "Trình bày định nghĩa vật chất của V.I. Lênin." \
+  --term "thực tại khách quan" \
+  --term "cảm giác" \
+  --term "V.I. Lênin" \
+  --top-k 8 \
+  --output "$PILOT_ROOT/private/retrieval-diagnostic-expanded-v3.json"
+```
 
 Ở terminal khác, giữ nguyên các biến rồi chạy:
 

@@ -34,7 +34,11 @@ try {
 const nodeMajor = Number(process.versions.node.split('.')[0])
 record('node', nodeMajor >= 24, process.versions.node)
 record('rag-mode', ['extractive', 'openai'].includes(mode), mode)
-record('retrieval-profile', ['legacy-v1', 'top5-v2'].includes(retrievalProfile), retrievalProfile)
+record(
+  'retrieval-profile',
+  ['legacy-v1', 'top5-v2', 'expanded-v3'].includes(retrievalProfile),
+  retrievalProfile,
+)
 record('mba-api-checkout', existsSync(join(mbaPath, 'course_rag.py')), mbaPath)
 record('python-runtime', existsSync(python), python)
 if (mode === 'openai') {
