@@ -138,6 +138,23 @@ Nhánh model dùng JSON output và số token do API trả về theo
 [Chat Completions API chính thức](https://developers.openai.com/api/reference/python/resources/chat/subresources/completions/methods/create).
 Việc kiểm tra OpenAI Docs giúp giữ usage thật và không coi JSON hợp lệ là citation hợp lệ.
 
+### Dùng Groq cho generation, giữ BM25
+
+Groq là nhánh chat-only của pilot; không gọi embedding và không biến BM25 thành dense retrieval. Cấu hình secret
+environment như sau, không commit key:
+
+```text
+MODEL_PROVIDER=groq
+MODEL_API_BASE_URL=https://api.groq.com/openai/v1
+MODEL_API_KEY=<secret>
+MODEL_ID=openai/gpt-oss-20b
+EMBEDDING_MODEL_ID=none
+```
+
+Probe Groq thực hiện đúng một chat completion, không retry và báo `embeddingCalls: 0`. Adapter dùng JSON Object
+Mode, một generation cho mỗi câu có nguồn và `reasoning_effort=low`. Nếu cần dense retrieval, phải bổ sung một
+embedding provider riêng và tạo index mới; không đổi `none` thành model giả định của Groq.
+
 ## Kiểm thử
 
 Khi pilot đang chạy, ở terminal khác:

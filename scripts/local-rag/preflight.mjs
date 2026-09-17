@@ -36,30 +36,43 @@ record('rag-mode', ['extractive', 'openai'].includes(mode), mode)
 record('mba-api-checkout', existsSync(join(mbaPath, 'course_rag.py')), mbaPath)
 record('python-runtime', existsSync(python), python)
 if (mode === 'openai') {
-  record(
-    'model-provider',
-    (process.env.MODEL_PROVIDER || 'openai') === 'openai',
-    process.env.MODEL_PROVIDER || 'openai',
-  )
+  const provider = process.env.MODEL_PROVIDER || 'openai'
+  record('model-provider', ['openai', 'groq'].includes(provider), provider)
   record(
     'model-api-key',
     Boolean(process.env.MODEL_API_KEY?.trim()),
     'configured=' + Boolean(process.env.MODEL_API_KEY?.trim()),
   )
   try {
-    const providerUrl = new URL(process.env.MODEL_API_BASE_URL || 'https://api.openai.com/v1')
+    const defaultBaseUrl =
+      provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1'
+    const providerUrl = new URL(process.env.MODEL_API_BASE_URL || defaultBaseUrl)
     const loopbackHosts = new Set(['127.0.0.1', 'localhost', '[::1]'])
-    const safe =
+    const safeTransport =
       ['http:', 'https:'].includes(providerUrl.protocol) &&
       !providerUrl.username &&
       !providerUrl.password &&
       !providerUrl.search &&
       !providerUrl.hash &&
       (providerUrl.protocol === 'https:' || loopbackHosts.has(providerUrl.hostname))
-    record('model-api-base-url', safe, `${providerUrl.protocol}//${providerUrl.host}`)
+    const safeProvider =
+      provider !== 'groq' ||
+      providerUrl.href.replace(/\/$/, '') === 'https://api.groq.com/openai/v1'
+    record(
+      'model-api-base-url',
+      safeTransport && safeProvider,
+      `${providerUrl.protocol}//${providerUrl.host}`,
+    )
   } catch {
     record('model-api-base-url', false, 'invalid URL')
   }
+  const embeddingModel =
+    process.env.EMBEDDING_MODEL_ID || (provider === 'groq' ? 'none' : 'text-embedding-3-large')
+  record(
+    'embedding-mode',
+    provider !== 'groq' || embeddingModel.toLowerCase() === 'none',
+    embeddingModel,
+  )
 }
 if (datasetConfig) {
   const databasePath = resolve(datasetConfig.databasePath)

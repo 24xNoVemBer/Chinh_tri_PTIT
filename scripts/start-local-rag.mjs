@@ -20,9 +20,13 @@ const datasetConfig = resolveDatasetConfig(root)
 const { dataset, descriptor: fixture, databasePath } = datasetConfig
 const queryGate = process.env.RAG_QUERY_GATE || (dataset === 'private' ? 'domain-v1' : 'none')
 const modelProvider = process.env.MODEL_PROVIDER || 'openai'
-const modelApiBaseUrl = process.env.MODEL_API_BASE_URL || 'https://api.openai.com/v1'
-const modelId = process.env.MODEL_ID || 'gpt-4o-mini'
-const embeddingModelId = process.env.EMBEDDING_MODEL_ID || 'text-embedding-3-large'
+const groqMode = modelProvider === 'groq'
+const modelApiBaseUrl =
+  process.env.MODEL_API_BASE_URL ||
+  (groqMode ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1')
+const modelId = process.env.MODEL_ID || (groqMode ? 'openai/gpt-oss-20b' : 'gpt-4o-mini')
+const embeddingModelId =
+  process.env.EMBEDDING_MODEL_ID || (groqMode ? 'none' : 'text-embedding-3-large')
 const runtimeStatePath = join(root, 'data', 'local-rag', 'runtime.json')
 const launchedAt = new Date().toISOString()
 if (!['extractive', 'openai'].includes(mode)) throw new Error('RAG_LOCAL_MODE: extractive | openai')
@@ -30,7 +34,9 @@ if (!['none', 'domain-v1'].includes(queryGate)) {
   throw new Error('RAG_QUERY_GATE: none | domain-v1')
 }
 if (mode === 'openai') {
-  if (modelProvider !== 'openai') throw new Error('MODEL_PROVIDER must be openai for this pilot.')
+  if (!['openai', 'groq'].includes(modelProvider)) {
+    throw new Error('MODEL_PROVIDER must be openai or groq for this pilot.')
+  }
   if (!process.env.MODEL_API_KEY?.trim()) {
     throw new Error('MODEL_API_KEY is required for RAG_LOCAL_MODE=openai.')
   }
@@ -47,6 +53,12 @@ if (mode === 'openai') {
     throw new Error(
       'MODEL_API_BASE_URL must use HTTPS, or HTTP on loopback, without credentials/query/fragment.',
     )
+  }
+  if (groqMode && providerUrl.href.replace(/\/$/, '') !== 'https://api.groq.com/openai/v1') {
+    throw new Error('MODEL_API_BASE_URL must use the official Groq OpenAI-compatible endpoint.')
+  }
+  if (groqMode && embeddingModelId.toLowerCase() !== 'none') {
+    throw new Error('EMBEDDING_MODEL_ID must be none for the Groq chat-only pilot.')
   }
 }
 if (!existsSync(python) || !existsSync(join(mbaPath, 'course_rag.py'))) {

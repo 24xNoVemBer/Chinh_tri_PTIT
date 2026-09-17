@@ -1,4 +1,4 @@
-"""Bounded provider probe: at most one embedding and one chat completion, no retries."""
+"""Bounded provider probe: optional embedding plus one chat completion, no retries."""
 import argparse
 import json
 import os
@@ -34,26 +34,36 @@ client = OpenAI(api_key=config["api_key"], base_url=config["base_url"], max_retr
 report = {"result": "FAIL", "limits": {"embeddingCalls": 1, "completionCalls": 1, "retries": 0},
           "provider": config["provider"], "providerHost": urlparse(config["base_url"]).hostname,
           "configuredModel": model, "embeddingModel": embedding_model}
-try:
-    started = time.monotonic()
-    embedding = client.embeddings.create(model=embedding_model, input=["Kiểm tra kết nối RAG local."])
-    report["embedding"] = {"model": embedding.model, "dimensions": len(embedding.data[0].embedding),
-                           "inputTokens": embedding.usage.prompt_tokens,
-                           "totalMs": round((time.monotonic() - started) * 1000)}
-except Exception as error:
-    report.update({"stage": "embedding", "code": classify_provider_error(error),
-                   "httpStatus": getattr(error, "status_code", None)})
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-    raise SystemExit(1)
+if config["embedding_enabled"]:
+    try:
+        started = time.monotonic()
+        embedding = client.embeddings.create(model=embedding_model, input=["Kiểm tra kết nối RAG local."])
+        report["embedding"] = {"model": embedding.model, "dimensions": len(embedding.data[0].embedding),
+                               "inputTokens": embedding.usage.prompt_tokens,
+                               "totalMs": round((time.monotonic() - started) * 1000)}
+    except Exception as error:
+        report.update({"stage": "embedding", "code": classify_provider_error(error),
+                       "httpStatus": getattr(error, "status_code", None)})
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        raise SystemExit(1)
+else:
+    report["limits"]["embeddingCalls"] = 0
+    report["embedding"] = {"skipped": True, "reason": "disabled_by_configuration"}
 
 try:
     started = time.monotonic()
-    completion = client.chat.completions.create(
-        model=model, temperature=0, max_tokens=8,
-        messages=[{"role": "user", "content": "Trả lời đúng một từ: OK"}],
-    )
-    if completion.usage is None:
-        raise RuntimeError("usage_missing")
+    completion_options = {
+        "model": model,
+        "temperature": 0,
+        "max_tokens": 64 if config["provider"] == "groq" else 8,
+        "messages": [{"role": "user", "content": "Trả lời đúng một từ: OK"}],
+    }
+    if config["provider"] == "groq":
+        completion_options["reasoning_effort"] = "low"
+    completion = client.chat.completions.create(**completion_options)
+    if (completion.usage is None or completion.choices[0].finish_reason != "stop"
+            or not str(completion.choices[0].message.content or "").strip()):
+        raise RuntimeError("completion_incomplete")
     report["completion"] = {"model": completion.model,
                             "inputTokens": completion.usage.prompt_tokens,
                             "outputTokens": completion.usage.completion_tokens,

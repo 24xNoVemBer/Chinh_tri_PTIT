@@ -1,10 +1,13 @@
 import copy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
+import runpy
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import Mock, patch
 from uuid import uuid4
 from types import SimpleNamespace
@@ -59,6 +62,24 @@ class ModelConfigTests(unittest.TestCase):
         })
         self.assertEqual(config["base_url"], "http://127.0.0.1:4000/v1")
 
+    def test_groq_defaults_are_chat_only(self):
+        config = resolve_model_config({"MODEL_PROVIDER": "groq", "MODEL_API_KEY": "test-only"})
+        self.assertEqual(config["base_url"], "https://api.groq.com/openai/v1")
+        self.assertEqual(config["model"], "openai/gpt-oss-20b")
+        self.assertEqual(config["embedding_model"], "none")
+        self.assertFalse(config["embedding_enabled"])
+
+    def test_groq_rejects_non_official_host_and_embedding(self):
+        invalid_configs = [
+            {"MODEL_API_BASE_URL": "https://example.com/openai/v1"},
+            {"EMBEDDING_MODEL_ID": "text-embedding-3-large"},
+        ]
+        for override in invalid_configs:
+            with self.subTest(override=override):
+                env = {"MODEL_PROVIDER": "groq", "MODEL_API_KEY": "test-only", **override}
+                with self.assertRaises(ValueError):
+                    resolve_model_config(env)
+
     def test_model_engine_uses_rag_owned_connection_without_network_call(self):
         env = {
             "MODEL_API_KEY": "test-only",
@@ -74,6 +95,59 @@ class ModelConfigTests(unittest.TestCase):
             self.assertEqual(str(engine.client.base_url), "http://127.0.0.1:4000/v1/")
         finally:
             engine.client.close()
+
+
+class ProviderProbeTests(unittest.TestCase):
+    def test_groq_probe_skips_embedding_and_calls_chat_once(self):
+        class FakeEmbeddings:
+            calls = 0
+
+            def create(self, **_kwargs):
+                FakeEmbeddings.calls += 1
+                raise AssertionError("Groq probe must not call embeddings")
+
+        class FakeCompletions:
+            calls = 0
+
+            def create(self, **kwargs):
+                FakeCompletions.calls += 1
+                self.kwargs = kwargs
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(
+                        finish_reason="stop",
+                        message=SimpleNamespace(content="OK"),
+                    )],
+                    usage=SimpleNamespace(prompt_tokens=8, completion_tokens=1),
+                    model="openai/gpt-oss-20b",
+                )
+
+        class FakeOpenAI:
+            def __init__(self, **_kwargs):
+                self.embeddings = FakeEmbeddings()
+                self.chat = SimpleNamespace(completions=FakeCompletions())
+
+            def close(self):
+                return None
+
+        env = {"MODEL_PROVIDER": "groq", "MODEL_API_KEY": "test-only"}
+        output = io.StringIO()
+        probe_path = Path(__file__).with_name("provider_probe.py")
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("openai.OpenAI", FakeOpenAI),
+            patch("sys.argv", [str(probe_path), "--confirm-api-call"]),
+            redirect_stdout(output),
+        ):
+            with self.assertRaises(SystemExit) as exit_error:
+                runpy.run_path(str(probe_path), run_name="__main__")
+
+        self.assertEqual(exit_error.exception.code, 0)
+        report = json.loads(output.getvalue())
+        self.assertEqual(FakeEmbeddings.calls, 0)
+        self.assertEqual(FakeCompletions.calls, 1)
+        self.assertEqual(report["limits"]["embeddingCalls"], 0)
+        self.assertTrue(report["embedding"]["skipped"])
+        self.assertEqual(report["result"], "PASS")
 
 
 class AdapterTests(unittest.TestCase):
@@ -180,6 +254,22 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(answer["usage"]["inputTokens"], 123)
         self.assertEqual(answer["provenance"]["modelRevision"], "test-revision")
         call.assert_called_once()
+
+    def test_groq_model_branch_uses_low_reasoning_and_groq_provenance(self):
+        self.engine.mode = "openai"
+        self.engine.provider = "groq"
+        self.engine.model = "openai/gpt-oss-20b"
+        self.engine.client = Mock()
+        self.engine.client.with_options.return_value.chat.completions.create.return_value = SimpleNamespace(
+            choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content=
+                '{"text":"Tài liệu mẫu chưa thẩm định.","citationIds":["sample-v1-vat-chat"]}'))],
+            usage=SimpleNamespace(prompt_tokens=100, completion_tokens=20),
+            model="openai/gpt-oss-20b",
+        )
+        answer = self.post(key="groq-test").json()
+        call = self.engine.client.with_options.return_value.chat.completions.create
+        self.assertEqual(call.call_args.kwargs["reasoning_effort"], "low")
+        self.assertEqual(answer["provenance"]["provider"], "local-rag-groq")
 
     def test_model_failure_never_falls_back_to_sample_answer(self):
         self.engine.mode = "openai"
