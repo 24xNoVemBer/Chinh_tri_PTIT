@@ -201,6 +201,12 @@ class AdapterTests(unittest.TestCase):
         answer = self.post(key="definition-profile").json()
         self.assertIn("definition-top5", answer["provenance"]["retrieverVersion"])
 
+    def test_definition_profile_with_domain_gate_fits_answer_contract(self):
+        self.engine.retrieval_profile = DEFINITION_PROFILE
+        self.engine.query_gate = "domain-v1"
+        answer = self.post(key="definition-profile-domain-gate").json()
+        self.assertLessEqual(len(answer["provenance"]["retrieverVersion"]), 80)
+
     def test_readiness_does_not_claim_provider_success(self):
         response = self.client.get("/internal/v1/readiness", headers={"Authorization": "Bearer " + "t" * 32})
         self.assertEqual(response.status_code, 200)

@@ -107,4 +107,6 @@ def retriever_version(profile: str) -> str:
         return "mba-course-rag-bm25-pilot-v2-top5-token-budget"
     if profile == EXPANDED_PROFILE:
         return "mba-course-rag-bm25-pilot-v3-expanded-top5-token-budget"
-    return "mba-course-rag-bm25-pilot-v4-definition-top5-token-budget"
+    # Keep enough room for the "+<query-gate-version>" suffix added by the
+    # adapter. The terminal-answer contract caps retrieverVersion at 80 chars.
+    return "mba-course-rag-bm25-v4-definition-top5-token-budget"
