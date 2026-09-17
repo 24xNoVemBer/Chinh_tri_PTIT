@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 from adapter import PilotEngine, classify_provider_error, create_app, resolve_model_config
 from corpus import sha256_bytes
-from retrieval import EXPANDED_PROFILE, TOP5_PROFILE
+from retrieval import DEFINITION_PROFILE, EXPANDED_PROFILE, TOP5_PROFILE
 
 
 def request_body():
@@ -195,6 +195,11 @@ class AdapterTests(unittest.TestCase):
         self.engine.retrieval_profile = EXPANDED_PROFILE
         answer = self.post(key="expanded-profile").json()
         self.assertIn("expanded-top5", answer["provenance"]["retrieverVersion"])
+
+    def test_definition_profile_is_visible_in_retriever_provenance(self):
+        self.engine.retrieval_profile = DEFINITION_PROFILE
+        answer = self.post(key="definition-profile").json()
+        self.assertIn("definition-top5", answer["provenance"]["retrieverVersion"])
 
     def test_readiness_does_not_claim_provider_success(self):
         response = self.client.get("/internal/v1/readiness", headers={"Authorization": "Bearer " + "t" * 32})

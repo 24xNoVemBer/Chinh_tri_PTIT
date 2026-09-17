@@ -31,7 +31,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--term", action="append", default=[])
     parser.add_argument("--top-k", type=int, default=8)
     parser.add_argument(
-        "--profile", choices=["legacy-v1", "top5-v2", "expanded-v3"], default="legacy-v1"
+        "--profile",
+        choices=["legacy-v1", "top5-v2", "expanded-v3", "definition-v4"],
+        default="legacy-v1",
     )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--include-excerpts", action="store_true")

@@ -237,7 +237,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--query-gate", choices=["none", "domain-v1"], default="none")
     parser.add_argument(
         "--retrieval-profile",
-        choices=["legacy-v1", "top5-v2", "expanded-v3"],
+        choices=["legacy-v1", "top5-v2", "expanded-v3", "definition-v4"],
         default="legacy-v1",
     )
     return parser.parse_args()

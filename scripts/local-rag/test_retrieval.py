@@ -1,6 +1,7 @@
 import unittest
 
 from retrieval import (
+    DEFINITION_PROFILE,
     EXPANDED_PROFILE,
     LEGACY_PROFILE,
     TOP5_PROFILE,
@@ -44,6 +45,19 @@ class RetrievalProfileTests(unittest.TestCase):
             query_expansion_terms("Định nghĩa vật chất của V.I. Lênin", EXPANDED_PROFILE), []
         )
 
+    def test_definition_profile_uses_minimal_ranked_aliases(self):
+        query = "Theo giáo trình, vật chất được định nghĩa như thế nào?"
+        self.assertEqual(
+            query_expansion_terms(query, DEFINITION_PROFILE),
+            ["V.I. Lênin", "thực tại khách quan"],
+        )
+        self.assertEqual(
+            query_expansion_terms(
+                "Định nghĩa vật chất của V.I. Lênin là thực tại khách quan", DEFINITION_PROFILE
+            ),
+            [],
+        )
+
     def test_prepared_expanded_query_contains_alias(self):
         prepared, additions = prepare_retrieval_query(
             "Khái niệm vật chất là gì?", lambda value: value.casefold().split(), EXPANDED_PROFILE
@@ -80,6 +94,16 @@ class RetrievalProfileTests(unittest.TestCase):
         )
         self.assertEqual(len(selected), 5)
         self.assertIn("expanded-top5", retriever_version(EXPANDED_PROFILE))
+
+    def test_definition_profile_keeps_top5_cap_and_has_distinct_provenance(self):
+        selected = select_ranked_chunks(
+            ranked_chunks(),
+            requested_limit=8,
+            context_budget=100_000,
+            profile=DEFINITION_PROFILE,
+        )
+        self.assertEqual(len(selected), 5)
+        self.assertIn("definition-top5", retriever_version(DEFINITION_PROFILE))
 
     def test_request_limit_remains_authoritative(self):
         selected = select_ranked_chunks(

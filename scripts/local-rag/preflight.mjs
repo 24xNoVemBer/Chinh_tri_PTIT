@@ -36,7 +36,7 @@ record('node', nodeMajor >= 24, process.versions.node)
 record('rag-mode', ['extractive', 'openai'].includes(mode), mode)
 record(
   'retrieval-profile',
-  ['legacy-v1', 'top5-v2', 'expanded-v3'].includes(retrievalProfile),
+  ['legacy-v1', 'top5-v2', 'expanded-v3', 'definition-v4'].includes(retrievalProfile),
   retrievalProfile,
 )
 record('mba-api-checkout', existsSync(join(mbaPath, 'course_rag.py')), mbaPath)

@@ -71,9 +71,10 @@ gate bằng `RAG_QUERY_GATE=none`, nhưng chỉ thực hiện khi restart đúng
 `RAG_RETRIEVAL_PROFILE=legacy-v1` giữ đúng giới hạn ba chunk và cách tính ngân sách byte ban đầu.
 `top5-v2` cho phép tối đa năm chunk, tôn trọng giới hạn request và dùng `tokenCount` của corpus để tính
 ngân sách context. `expanded-v3` giữ cơ chế top 5 và chỉ thêm alias `V.I. Lênin` cho truy vấn có đồng thời
-ý định định nghĩa/khái niệm và thuật ngữ `vật chất`; nó không mở rộng câu hỏi khác. Profile mới phải được
-đo offline trước khi bật. Có thể rollback về `legacy-v1` bằng restart đúng pilot, không cần reset Git hoặc
-thay corpus.
+ý định định nghĩa/khái niệm và thuật ngữ `vật chất`. `definition-v4` bổ sung alias tối thiểu
+`thực tại khách quan` đã được kiểm tra offline để đưa đoạn định nghĩa từ hạng 7 lên hạng 1; nó không mở
+rộng câu hỏi khác. Profile mới phải được đo offline trước khi bật. Có thể rollback về `legacy-v1` bằng
+restart đúng pilot, không cần reset Git hoặc thay corpus.
 
 ## Chẩn đoán retrieval không gọi model
 
@@ -110,6 +111,29 @@ vẫn không gọi model:
   --term "V.I. Lênin" \
   --top-k 8 \
   --output "$PILOT_ROOT/private/retrieval-diagnostic-expanded-v3.json"
+```
+
+Chỉ bật profile đã qua canary cuối cùng sau khi chạy lại diagnostic và toàn bộ eval:
+
+```bash
+"$MBA_PYTHON" -B scripts/local-rag/diagnose_retrieval.py \
+  --manifest "$RAG_CORPUS_MANIFEST" \
+  --profile definition-v4 \
+  --query "Theo giáo trình, vật chất được định nghĩa như thế nào?" \
+  --query "Trình bày định nghĩa vật chất của V.I. Lênin." \
+  --term "thực tại khách quan" \
+  --term "cảm giác" \
+  --term "V.I. Lênin" \
+  --top-k 8 \
+  --output "$PILOT_ROOT/private/retrieval-diagnostic-definition-v4.json"
+
+"$MBA_PYTHON" -B scripts/local-rag/evaluate_retrieval.py \
+  --manifest "$RAG_CORPUS_MANIFEST" \
+  --eval-set eval/private-triet-hoc-retrieval-v1.json \
+  --query-gate domain-v1 \
+  --retrieval-profile definition-v4 \
+  --output "$PILOT_ROOT/private/retrieval-definition-v4.json" \
+  --summary-only
 ```
 
 Ở terminal khác, giữ nguyên các biến rồi chạy:
