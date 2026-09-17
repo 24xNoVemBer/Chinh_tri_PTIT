@@ -19,6 +19,7 @@ const mode = process.env.RAG_LOCAL_MODE || 'extractive'
 const datasetConfig = resolveDatasetConfig(root)
 const { dataset, descriptor: fixture, databasePath } = datasetConfig
 const queryGate = process.env.RAG_QUERY_GATE || (dataset === 'private' ? 'domain-v1' : 'none')
+const retrievalProfile = process.env.RAG_RETRIEVAL_PROFILE || 'legacy-v1'
 const modelProvider = process.env.MODEL_PROVIDER || 'openai'
 const groqMode = modelProvider === 'groq'
 const modelApiBaseUrl =
@@ -32,6 +33,9 @@ const launchedAt = new Date().toISOString()
 if (!['extractive', 'openai'].includes(mode)) throw new Error('RAG_LOCAL_MODE: extractive | openai')
 if (!['none', 'domain-v1'].includes(queryGate)) {
   throw new Error('RAG_QUERY_GATE: none | domain-v1')
+}
+if (!['legacy-v1', 'top5-v2'].includes(retrievalProfile)) {
+  throw new Error('RAG_RETRIEVAL_PROFILE: legacy-v1 | top5-v2')
 }
 if (mode === 'openai') {
   if (!['openai', 'groq'].includes(modelProvider)) {
@@ -134,6 +138,7 @@ const env = {
   RAG_LOCAL_MODE: mode,
   RAG_DATASET: dataset,
   RAG_QUERY_GATE: queryGate,
+  RAG_RETRIEVAL_PROFILE: retrievalProfile,
   MODEL_PROVIDER: modelProvider,
   MODEL_API_BASE_URL: modelApiBaseUrl,
   MODEL_ID: modelId,
@@ -201,6 +206,7 @@ try {
         mode,
         dataset,
         queryGate,
+        retrievalProfile,
         databasePath,
         startedAt: launchedAt,
       },
@@ -210,7 +216,7 @@ try {
   )
   const dataLabel = dataset === 'sample' ? 'SAMPLE DATA ONLY' : 'PRIVATE CORPUS · UNREVIEWED'
   console.log(
-    `\nLocal pilot: http://127.0.0.1:3101/student/chat\nMode: ${mode}; ${dataLabel}; query gate: ${queryGate}`,
+    `\nLocal pilot: http://127.0.0.1:3101/student/chat\nMode: ${mode}; ${dataLabel}; query gate: ${queryGate}; retrieval: ${retrievalProfile}`,
   )
   if (mode === 'openai') {
     console.log(

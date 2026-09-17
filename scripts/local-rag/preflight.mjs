@@ -13,6 +13,7 @@ const defaultPython =
     : join(mbaPath, '.venv', 'bin', 'python')
 const python = process.env.MBA_PYTHON || defaultPython
 const mode = process.env.RAG_LOCAL_MODE || 'extractive'
+const retrievalProfile = process.env.RAG_RETRIEVAL_PROFILE || 'legacy-v1'
 const expectedDataRoot = resolve(root, 'data', 'local-rag')
 const checks = []
 function record(name, ok, detail) {
@@ -33,6 +34,7 @@ try {
 const nodeMajor = Number(process.versions.node.split('.')[0])
 record('node', nodeMajor >= 24, process.versions.node)
 record('rag-mode', ['extractive', 'openai'].includes(mode), mode)
+record('retrieval-profile', ['legacy-v1', 'top5-v2'].includes(retrievalProfile), retrievalProfile)
 record('mba-api-checkout', existsSync(join(mbaPath, 'course_rag.py')), mbaPath)
 record('python-runtime', existsSync(python), python)
 if (mode === 'openai') {

@@ -28,6 +28,11 @@ sys.path.insert(0, str(MBA_PATH))
 from course_rag import bm25_scores, tokenize  # noqa: E402
 from corpus import load_private_corpus  # noqa: E402
 from query_gate import GATE_VERSION, evaluate_query  # noqa: E402
+from retrieval import (  # noqa: E402
+    resolve_retrieval_profile,
+    retriever_version as retriever_version_for_profile,
+    select_ranked_chunks,
+)
 
 FIXTURE_PATH = ROOT / "public" / "local-rag-sample.json"
 DEFAULT_MODEL_API_BASE_URL = "https://api.openai.com/v1"
@@ -176,6 +181,7 @@ class PilotEngine:
         dataset="sample",
         manifest_path=None,
         query_gate="none",
+        retrieval_profile=None,
     ):
         if mode not in ("extractive", "openai"):
             raise ValueError("Unsupported RAG_LOCAL_MODE")
@@ -188,6 +194,9 @@ class PilotEngine:
         self.mode = mode
         self.dataset = dataset
         self.query_gate = query_gate
+        self.retrieval_profile = resolve_retrieval_profile(
+            retrieval_profile or os.environ.get("RAG_RETRIEVAL_PROFILE")
+        )
         if dataset == "private":
             if manifest_path is None:
                 raise ValueError("RAG_CORPUS_MANIFEST is required for RAG_DATASET=private")
@@ -239,18 +248,12 @@ class PilotEngine:
         query = " ".join(t for t in tokenize(request.query.text) if t not in STOP_WORDS)
         scores = bm25_scores(query, [chunk["text"] for chunk in self.chunks])
         ranked = sorted(zip(self.chunks, scores), key=lambda item: item[1], reverse=True)
-        selected = []
-        context_bytes = 0
-        for chunk, score in ranked:
-            if score <= 0 or len(selected) >= min(request.limits.maxRetrievedChunks, 3):
-                break
-            # Conservative byte budget; no token-count download needed offline.
-            size = len(json.dumps(chunk, ensure_ascii=False).encode("utf-8"))
-            if context_bytes + size > request.limits.maxContextTokens:
-                continue
-            context_bytes += size
-            selected.append(chunk)
-        return selected
+        return select_ranked_chunks(
+            ranked,
+            requested_limit=request.limits.maxRetrievedChunks,
+            context_budget=request.limits.maxContextTokens,
+            profile=self.retrieval_profile,
+        )
 
     def answer(self, request):
         started = time.monotonic()
@@ -329,7 +332,7 @@ class PilotEngine:
         provider_prefix = "local-rag" if self.sample_data else "local-rag-private"
         provider_name = "extractive" if self.mode == "extractive" else self.provider
         reason_code = "technical_sample" if self.sample_data else "private_corpus_unreviewed"
-        retriever_version = "mba-course-rag-bm25-pilot-v1"
+        retriever_version = retriever_version_for_profile(self.retrieval_profile)
         if self.query_gate == "domain-v1":
             retriever_version += "+" + GATE_VERSION
         return {
@@ -368,6 +371,7 @@ def create_app(engine=None, service_token=None):
             dataset=os.environ.get("RAG_DATASET", "sample"),
             manifest_path=os.environ.get("RAG_CORPUS_MANIFEST"),
             query_gate=os.environ.get("RAG_QUERY_GATE", "none"),
+            retrieval_profile=os.environ.get("RAG_RETRIEVAL_PROFILE"),
         )
         yield
         if app.state.engine.client:

@@ -174,6 +174,7 @@ toàn khi `NODE_ENV=production`.
 | `NODE_ENV`                                | `development`                         | Môi trường chạy                                                                  |
 | `VITE_DATA_SOURCE`                        | `api`                                 | Dùng `api` cho backend hoặc `mock` cho repository mô phỏng                       |
 | `RAG_DEMO_DATA`                           | `true`                                | Đặt `false` để không seed dữ liệu RAG demo                                       |
+| `RAG_RETRIEVAL_PROFILE`                   | `legacy-v1`                           | `legacy-v1` để rollback; `top5-v2` dùng tối đa 5 chunk và ngân sách token        |
 | `MODEL_PROVIDER`                          | `openai`                              | `openai` hoặc `groq`; cả hai dùng OpenAI-compatible client                       |
 | `MODEL_API_BASE_URL`                      | `https://api.openai.com/v1`           | Endpoint cùng hạ tầng MBA_API; endpoint từ xa bắt buộc HTTPS                     |
 | `MODEL_API_KEY`                           | _(trống)_                             | Credential riêng của RAG, cấp qua secret environment; không dùng key Langfuse    |

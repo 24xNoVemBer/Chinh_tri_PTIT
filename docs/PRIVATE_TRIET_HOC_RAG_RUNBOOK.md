@@ -2,9 +2,11 @@
 
 ## Phạm vi
 
-Luồng này nối một PDF có text layer vào chatbot bằng BM25/extractive. PDF, text đã trích,
-chunk và database pilot đều nằm ngoài Git. Không có OCR, embedding, Qdrant, Mongo hay LLM.
-Mọi kết quả bắt buộc mang nhãn pilot riêng, chưa được giảng viên thẩm định và chờ review.
+Luồng này nối một PDF có text layer vào chatbot bằng BM25. Có thể chạy baseline extractive hoặc dùng một
+model OpenAI-compatible để tổng hợp câu trả lời từ đúng các chunk đã truy xuất. PDF, text đã trích, chunk
+và database pilot đều nằm ngoài Git; không có OCR, embedding, Qdrant hay Mongo. Khi bật model từ xa, câu
+hỏi và các chunk được chọn sẽ rời server để gửi tới nhà cung cấp. Mọi kết quả bắt buộc mang nhãn pilot
+riêng, chưa được giảng viên thẩm định và chờ review.
 
 Nguồn đầu tiên đã xác minh có 167 trang và SHA-256:
 `9bc31657a5343e6cfd88bb7c1ed359d48c2c0430a3bb4b22de30ed251628ad1e`.
@@ -53,6 +55,7 @@ cd "$APP_ROOT"
 export RAG_DATASET=private
 export RAG_LOCAL_MODE=extractive
 export RAG_QUERY_GATE=domain-v1
+export RAG_RETRIEVAL_PROFILE=legacy-v1
 npm run local:rag:preflight
 npm run build
 npm run local:rag
@@ -64,6 +67,32 @@ Nguồn được whitelist kỹ thuật chỉ trong DB cô lập này để ki�
 duyệt học thuật. Adapter chỉ nhận đúng `tenantId`, môn và `materialVersionId` trong manifest.
 `RAG_QUERY_GATE=domain-v1` chặn prompt injection đã biết và câu ngoài miền trước BM25. Có thể rollback
 gate bằng `RAG_QUERY_GATE=none`, nhưng chỉ thực hiện khi restart đúng session pilot được cho phép.
+
+`RAG_RETRIEVAL_PROFILE=legacy-v1` giữ đúng giới hạn ba chunk và cách tính ngân sách byte ban đầu.
+`top5-v2` cho phép tối đa năm chunk, tôn trọng giới hạn request và dùng `tokenCount` của corpus để tính
+ngân sách context. Profile mới phải được đo offline trước khi bật. Có thể rollback về `legacy-v1` bằng
+restart đúng pilot, không cần reset Git hoặc thay corpus.
+
+## Chẩn đoán retrieval không gọi model
+
+Công cụ sau chỉ chạy query gate và BM25, luôn báo `providerCalls: 0`. Report chi tiết nằm ngoài Git và
+được đặt mode `600` trên Linux.
+
+```bash
+"$MBA_PYTHON" -B scripts/local-rag/diagnose_retrieval.py \
+  --manifest "$RAG_CORPUS_MANIFEST" \
+  --query "Theo giáo trình, vật chất được định nghĩa như thế nào?" \
+  --query "Trình bày định nghĩa vật chất của V.I. Lênin." \
+  --term "thực tại khách quan" \
+  --term "cảm giác" \
+  --term "V.I. Lênin" \
+  --top-k 8 \
+  --output "$PILOT_ROOT/private/retrieval-diagnostic-v1.json"
+chmod 600 "$PILOT_ROOT/private/retrieval-diagnostic-v1.json"
+```
+
+Nếu đoạn hỗ trợ nằm hạng 4–5 thì thử `top5-v2`. Nếu chỉ nằm ở chunk liền kề hoặc ngoài top 8, không bật
+profile mới chỉ để làm đẹp một câu hỏi; đánh giá adjacent context hoặc query expansion ở phase riêng.
 
 Ở terminal khác, giữ nguyên các biến rồi chạy:
 
@@ -97,7 +126,8 @@ Rollback an toàn:
 ## Giới hạn còn lại
 
 - BM25 kém với câu đồng nghĩa và không thay thế dense retrieval/rerank.
-- Chế độ extractive trả đoạn khớp, chưa tổng hợp thành câu trả lời học thuật.
+- Chế độ extractive chỉ trả đoạn khớp; chế độ model có tổng hợp nhưng vẫn phụ thuộc chất lượng chunk BM25.
+- `top5-v2` có thể tăng recall nhưng gửi nhiều nội dung private hơn tới provider và tăng input token.
 - `page` trong citation là trang PDF; trang in chỉ được lưu trong chunk và có thể thiếu.
 - Hai PDF scan không có text layer vẫn cần một phase OCR riêng; pipeline này chủ động từ chối corpus
   không sinh được text, không tự OCR hoặc cài thêm gói hệ thống.
