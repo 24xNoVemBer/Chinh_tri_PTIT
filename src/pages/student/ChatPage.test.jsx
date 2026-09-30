@@ -104,7 +104,10 @@ describe('local chatbot UI', () => {
       {
         id: 'sub1',
         name: 'Triết học Mác - Lênin',
-        classes: [{ id: 'c1', classCode: 'TH01', groupNumber: 1 }],
+        classes: [
+          { id: 'c1', classCode: 'TH01', groupNumber: 1 },
+          { id: 'c1-alt', classCode: 'TH02', groupNumber: 2 },
+        ],
       },
       {
         id: 'sub2',
@@ -175,6 +178,15 @@ describe('local chatbot UI', () => {
     expect(
       within(sourcesPanel).getByText('Vật chất tồn tại độc lập với cảm giác.'),
     ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Lớp tín chỉ'), { target: { value: 'c1-alt' } })
+    expect(screen.queryByText('Vật chất được định nghĩa thế nào?')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vật chất là thực tại khách quan.')).not.toBeInTheDocument()
+    expect(within(sourcesPanel).queryByText('triet-hoc.pdf')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Lớp tín chỉ'), { target: { value: 'c1' } })
+    expect(screen.getByText('Vật chất được định nghĩa thế nào?')).toBeInTheDocument()
+    expect(screen.getByText('thực tại khách quan', { selector: 'strong' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Học phần đang hỏi'), { target: { value: 'sub2' } })
     expect(

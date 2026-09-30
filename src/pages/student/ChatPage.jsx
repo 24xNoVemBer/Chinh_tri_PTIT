@@ -10,7 +10,7 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../features/auth/useAuth'
 import useAsyncData from '../../hooks/useAsyncData'
@@ -101,40 +101,35 @@ export default function ChatPage() {
     : availableClasses[0]?.id || ''
   const suggestions =
     chatStatus?.mode === 'mba' ? (MBA_SUGGESTIONS[effectiveSubjectId] ?? []) : SUGGESTIONS
-  const visibleMessages = useMemo(
-    () =>
-      messages.filter(
-        (message) => message.id === 'welcome' || message.subjectId === effectiveSubjectId,
-      ),
-    [messages, effectiveSubjectId],
+  const visibleMessages = messages.filter(
+    (message) =>
+      message.id === 'welcome' ||
+      (message.subjectId === effectiveSubjectId && message.classId === effectiveClassId),
   )
 
-  const latestSources = useMemo(() => {
-    const latest = [...messages]
-      .reverse()
-      .find(
-        (message) =>
-          message.role === 'assistant' &&
-          message.id !== 'welcome' &&
-          message.subjectId === effectiveSubjectId,
-      )
-    return latest?.citations?.length ? latest.citations : (latest?.sources ?? [])
-  }, [messages, effectiveSubjectId])
+  const latest = [...messages]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === 'assistant' &&
+        message.id !== 'welcome' &&
+        message.subjectId === effectiveSubjectId &&
+        message.classId === effectiveClassId,
+    )
+  const latestSources = latest?.citations?.length ? latest.citations : (latest?.sources ?? [])
 
-  const displayedSources = useMemo(() => {
-    const groups = new Map()
-    latestSources.forEach((source, index) => {
-      const key =
-        chatStatus?.mode === 'mba' && source.title
-          ? JSON.stringify([source.author, source.title])
-          : (source.id ?? index)
-      if (!groups.has(key)) groups.set(key, { ...source, excerpts: [] })
-      if (source.quote) {
-        groups.get(key).excerpts.push({ id: source.id ?? index, quote: source.quote })
-      }
-    })
-    return [...groups.values()]
-  }, [latestSources, chatStatus?.mode])
+  const groups = new Map()
+  latestSources.forEach((source, index) => {
+    const key =
+      chatStatus?.mode === 'mba' && source.title
+        ? JSON.stringify([source.author, source.title])
+        : (source.id ?? index)
+    if (!groups.has(key)) groups.set(key, { ...source, excerpts: [] })
+    if (source.quote) {
+      groups.get(key).excerpts.push({ id: source.id ?? index, quote: source.quote })
+    }
+  })
+  const displayedSources = [...groups.values()]
 
   useEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -142,7 +137,7 @@ export default function ChatPage() {
       top: threadRef.current.scrollHeight,
       behavior: reduceMotion ? 'auto' : 'smooth',
     })
-  }, [visibleMessages, isReplying])
+  }, [messages, isReplying, effectiveSubjectId, effectiveClassId])
 
   const selectSuggestion = (suggestion) => {
     setQuestion(suggestion)
@@ -165,11 +160,16 @@ export default function ChatPage() {
       id: `user-${messageSequence.current}`,
       role: 'user',
       subjectId: effectiveSubjectId,
+      classId: effectiveClassId,
       content: trimmedQuestion,
       citations: [],
     }
     if (!effectiveSubjectId) {
       setError('Chọn học phần trước khi gửi.')
+      return
+    }
+    if (!effectiveClassId) {
+      setError('Chọn lớp tín chỉ trước khi gửi.')
       return
     }
 
@@ -197,6 +197,7 @@ export default function ChatPage() {
             moderation: reply.moderation,
             answerMode: reply.answerMode,
             subjectId: effectiveSubjectId,
+            classId: effectiveClassId,
             subjectName: selectedSubject?.name,
           },
         ])
