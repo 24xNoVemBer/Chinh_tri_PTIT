@@ -3,9 +3,10 @@ import { basename } from 'node:path'
 import { ApiError } from '../http.js'
 
 const MAX_QUESTION_LENGTH = 8_000
+const MAX_MBA_SOURCE_CHUNKS = 8
 
 function normalizeSources(sources, sourceId) {
-  return sources.slice(0, 5).flatMap((item, index) => {
+  return sources.slice(0, MAX_MBA_SOURCE_CHUNKS).flatMap((item, index) => {
     if (!item || typeof item !== 'object' || typeof item.text !== 'string') return []
     const quote = item.text.trim().slice(0, 1_200)
     if (!quote) return []

@@ -121,6 +121,12 @@ báo cho từng đoạn trong phản hồi. Các trường này phục vụ đ�
 minh đúng phiên bản PDF hoặc trang. UI gộp các đoạn cùng PDF để tránh lặp thẻ,
 nhưng vẫn giữ từng đoạn trong phần mở rộng.
 
+Bridge chuyển tối đa 8 đoạn nguồn từ MBA_API, khớp với `FINAL_TOP_N=8` đang
+cấu hình trên server, để không làm rơi bằng chứng ở thứ hạng 6–8 trước khi tới
+panel nguồn. UI vẫn gộp chúng theo PDF và chỉ bung trích đoạn khi người dùng mở
+thẻ. Nếu thay đổi `FINAL_TOP_N` phía MBA_API, cần đồng bộ giới hạn này và chạy
+test nguồn nhiều đoạn.
+
 ## Giới hạn hiện tại
 
 - MBA_API `/chat` không nhận allow-list material version của lớp; mapping chỉ

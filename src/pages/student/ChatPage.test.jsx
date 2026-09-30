@@ -93,7 +93,7 @@ describe('local chatbot UI', () => {
     expect(screen.queryByText('Đoạn trích từ tài liệu mẫu.')).not.toBeInTheDocument()
   })
 
-  it('labels MBA references as unverified instead of approved citations', async () => {
+  it('labels MBA references as unverified and keeps all retrieved source excerpts', async () => {
     chatRepository.getStatus.mockResolvedValue({
       mode: 'mba',
       sampleData: false,
@@ -141,6 +141,16 @@ describe('local chatbot UI', () => {
           location: 'Đoạn truy xuất · chưa đối chiếu học liệu lớp',
           quote: 'Vật chất tồn tại độc lập với cảm giác.',
         },
+        ...Array.from({ length: 6 }, (_, index) => ({
+          id: `source-${index + 3}`,
+          title: 'triet-hoc.pdf',
+          author: 'Nguồn MBA_API',
+          location: 'Đoạn truy xuất · chưa đối chiếu học liệu lớp',
+          quote:
+            index === 4
+              ? 'Định nghĩa trực tiếp ở đoạn thứ bảy.'
+              : `Trích đoạn kiểm thử ${index + 3}.`,
+        })),
       ],
     })
     render(
@@ -171,12 +181,17 @@ describe('local chatbot UI', () => {
     ).toBeInTheDocument()
     const sourcesPanel = screen.getByRole('complementary', { name: 'Nguồn đang dùng' })
     expect(within(sourcesPanel).getAllByText('triet-hoc.pdf')).toHaveLength(1)
-    expect(within(sourcesPanel).getByText('Xem 2 đoạn trích')).toBeInTheDocument()
+    const excerptsToggle = within(sourcesPanel).getByText('Xem 8 đoạn trích')
+    expect(excerptsToggle).toBeInTheDocument()
+    fireEvent.click(excerptsToggle)
     expect(
       within(sourcesPanel).getByText('Vật chất là một phạm trù triết học.'),
     ).toBeInTheDocument()
     expect(
       within(sourcesPanel).getByText('Vật chất tồn tại độc lập với cảm giác.'),
+    ).toBeInTheDocument()
+    expect(
+      within(sourcesPanel).getByText('Định nghĩa trực tiếp ở đoạn thứ bảy.'),
     ).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Lớp tín chỉ'), { target: { value: 'c1-alt' } })

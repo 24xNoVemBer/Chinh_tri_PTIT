@@ -9,6 +9,7 @@ let db
 let server
 let baseUrl
 let upstreamCalls
+let upstreamSources
 const enabledSourceMap = {
   sub1: 'BAS1150',
   sub2: 'BAS1151',
@@ -18,6 +19,14 @@ const enabledSourceMap = {
 
 beforeEach(async () => {
   upstreamCalls = []
+  upstreamSources = [
+    {
+      id: 'node-1',
+      file_name: 'triet-hoc.pdf',
+      score: 0.725,
+      text: 'Đoạn tài liệu truy xuất.',
+    },
+  ]
   const upstream = vi.fn(async (url, options) => {
     upstreamCalls.push({ url, options })
     if (url.endsWith('/health')) return Response.json({ api_status: 'healthy' })
@@ -25,14 +34,7 @@ beforeEach(async () => {
       status: 'ok',
       text: {
         response: 'Vật chất là thực tại khách quan.',
-        sources: [
-          {
-            id: 'node-1',
-            file_name: 'triet-hoc.pdf',
-            score: 0.725,
-            text: 'Đoạn tài liệu truy xuất.',
-          },
-        ],
+        sources: upstreamSources,
       },
       session_id: 'mba-session',
     })
@@ -132,6 +134,37 @@ describe('MBA_API chat bridge', () => {
       mode: 'default',
     })
     expect(body.sessionId).toBeTruthy()
+  })
+
+  it('preserves the full eight-chunk MBA evidence set for the source panel', async () => {
+    upstreamSources = Array.from({ length: 8 }, (_, index) => ({
+      id: `node-${index + 1}`,
+      file_name: 'ktct.pdf',
+      score: 0.7 - index / 100,
+      text: `Đoạn trích ${index + 1}`,
+    }))
+    upstreamSources[6].text = 'Định nghĩa trực tiếp ở đoạn thứ bảy.'
+
+    const cookie = await studentCookie()
+    const response = await fetch(`${baseUrl}/api/student/chat`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subjectId: 'sub2',
+        classId: 'class2',
+        content: 'Giá trị sử dụng của hàng hóa là gì?',
+      }),
+    })
+
+    expect(response.status).toBe(201)
+    const answer = (await response.json()).data
+    expect(answer.sources).toHaveLength(8)
+    expect(answer.sources[6].quote).toBe('Định nghĩa trực tiếp ở đoạn thứ bảy.')
+    expect(answer.sources[6]).toMatchObject({
+      sourceId: 'BAS1151',
+      providerNodeId: 'node-7',
+      title: 'ktct.pdf',
+    })
   })
 
   it('blocks unmapped subjects and classes outside enrollment before contacting MBA_API', async () => {
