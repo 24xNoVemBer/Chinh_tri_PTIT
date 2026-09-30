@@ -33,6 +33,19 @@ Không dùng điểm retrieval hoặc câu trả lời trôi chảy làm tiêu c
 
 Các câu trên là bộ khởi đầu dựa trên những câu đã dùng để smoke-test. Chúng chưa được đánh dấu PASS chuyên môn; cần chạy lại trên demo và ghi nhận phản hồi/source thực tế.
 
+## Baseline từ smoke-test đã nhận
+
+Các nhận xét dưới đây chỉ dựa trên phần output đã dán trong phiên làm việc; nhiều đoạn trích đã bị rút còn 240 ký tự. Đây là đánh giá kỹ thuật sơ bộ, không phải xác nhận của giảng viên.
+
+| Source    | Quan sát từ output                                                                                                                                                                       | Baseline                                                                                                                             |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `BAS1150` | Câu trả lời nêu định nghĩa Lênin; kết quả có đoạn trích từ đúng PDF Triết học, trong đó output hiển thị trang 31 và phần mở đầu định nghĩa.                                              | Nội dung/nguồn có vẻ phù hợp. **HOLD** để đối chiếu toàn văn đoạn trích và xác nhận trang/phiên bản.                                 |
+| `BAS1151` | Câu trả lời nêu cả giá trị sử dụng và giá trị. Các đoạn trích được hiển thị rút gọn có giải thích về giá trị/lao động xã hội, nhưng chưa đủ để xác nhận đoạn nào hỗ trợ giá trị sử dụng. | **HOLD** — xem toàn bộ các đoạn trích của lượt chạy; không kết luận lỗi retrieval chỉ từ bản rút gọn.                                |
+| `BAS1152` | Câu trả lời về sứ mệnh lịch sử có đoạn trích trực tiếp từ mục 2.1.2 của đúng PDF; output hiển thị Page 24.                                                                               | Nội dung/nguồn có vẻ phù hợp. **HOLD** để đối chiếu tài liệu gốc và xác nhận trang/phiên bản.                                        |
+| `BAS1153` | Câu trả lời khớp mốc 2030/2045 trong đoạn trích từ bài giảng. Output đồng thời có các đoạn từ tài liệu Đại hội XI, không trực tiếp trả lời câu hỏi về Đại hội XIII.                      | **HOLD** — đáp án có nguồn liên quan, nhưng tập nguồn trả về lẫn ngữ cảnh cũ; cần kiểm tra toàn bộ nguồn và tập tài liệu được duyệt. |
+
+Từ ảnh giao diện đã nhận: đổi học phần từ Chủ nghĩa xã hội khoa học sang Kinh tế chính trị làm ẩn hội thoại trước đó. Chưa có ảnh xác nhận đổi giữa hai lớp thuộc cùng một học phần.
+
 ## Kiểm thử giao diện và phân tách ngữ cảnh
 
 - [ ] Câu hỏi và câu trả lời ở học phần A không xuất hiện khi chuyển sang học phần B.
