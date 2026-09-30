@@ -9,6 +9,12 @@ let db
 let server
 let baseUrl
 let upstreamCalls
+const enabledSourceMap = {
+  sub1: 'BAS1150',
+  sub2: 'BAS1151',
+  sub3: 'BAS1152',
+  sub5: 'BAS1153',
+}
 
 beforeEach(async () => {
   upstreamCalls = []
@@ -28,7 +34,7 @@ beforeEach(async () => {
   server = createApiServer({
     db,
     mbaChatClient: createMbaChatClient({ baseUrl: 'http://127.0.0.1:4558', fetchImpl: upstream }),
-    mbaChatSourceMap: { sub1: 'triet_ptit' },
+    mbaChatSourceMap: enabledSourceMap,
     allowDemoRag: false,
     logger: { error() {} },
   })
@@ -58,7 +64,7 @@ describe('MBA_API chat bridge', () => {
       createRuntimeConfig({
         MBA_CHAT_ENABLED: 'true',
         MBA_CHAT_BASE_URL: 'http://remote.example',
-        MBA_CHAT_SOURCE_MAP: '{"sub1":"triet_ptit"}',
+        MBA_CHAT_SOURCE_MAP: JSON.stringify(enabledSourceMap),
       }),
     ).toThrow('MBA_CHAT_BASE_URL')
     expect(() =>
@@ -71,9 +77,9 @@ describe('MBA_API chat bridge', () => {
       createRuntimeConfig({
         MBA_CHAT_ENABLED: 'true',
         MBA_CHAT_BASE_URL: 'http://127.0.0.1:4558',
-        MBA_CHAT_SOURCE_MAP: '{"sub1":"triet_ptit"}',
+        MBA_CHAT_SOURCE_MAP: JSON.stringify(enabledSourceMap),
       }).mbaChat.sourceMap,
-    ).toEqual({ sub1: 'triet_ptit' })
+    ).toEqual(enabledSourceMap)
   })
 
   it('sends a mapped, authenticated student question without MBA history writes', async () => {
@@ -107,7 +113,7 @@ describe('MBA_API chat bridge', () => {
     const body = JSON.parse(upstreamCalls.at(-1).options.body)
     expect(body).toMatchObject({
       userId: 'ptit:s1',
-      source: 'triet_ptit',
+      source: 'BAS1150',
       save: false,
       mode: 'default',
     })
@@ -122,8 +128,54 @@ describe('MBA_API chat bridge', () => {
         headers: { Cookie: cookie, 'Content-Type': 'application/json' },
         body: JSON.stringify({ subjectId, classId, content: 'Vật chất được định nghĩa thế nào?' }),
       })
-    expect((await send('sub2', 'class1')).status).toBe(409)
+    expect((await send('sub4', 'class1')).status).toBe(409)
+    expect((await send('sub2', 'class1')).status).toBe(403)
     expect((await send('sub1', 'not-my-class')).status).toBe(403)
     expect(upstreamCalls).toHaveLength(0)
+  })
+
+  it('routes every enabled subject to its own MBA source', async () => {
+    for (const [subjectId, classId] of [
+      ['sub3', 'mba-test-class3'],
+      ['sub5', 'mba-test-class5'],
+    ]) {
+      db.execute(
+        `INSERT INTO course_classes
+         (id, subject_id, name, lecturer_id, semester, academic_term_id,
+          group_number, class_code, status)
+         SELECT ?, ?, ?, lecturer_id, semester, academic_term_id, ?, ?, status
+         FROM course_classes WHERE id = 'class1'`,
+        [classId, subjectId, classId, subjectId === 'sub3' ? 3 : 5, classId],
+      )
+      db.execute('INSERT INTO enrollments (id, student_id, class_id) VALUES (?, ?, ?)', [
+        `mba-test-enrollment-${subjectId}`,
+        's1',
+        classId,
+      ])
+    }
+
+    const cookie = await studentCookie()
+    for (const [subjectId, classId] of [
+      ['sub1', 'class1'],
+      ['sub2', 'class2'],
+      ['sub3', 'mba-test-class3'],
+      ['sub5', 'mba-test-class5'],
+    ]) {
+      const response = await fetch(`${baseUrl}/api/student/chat`, {
+        method: 'POST',
+        headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectId,
+          classId,
+          content: 'Theo giáo trình, khái niệm này được giải thích thế nào?',
+        }),
+      })
+      expect(response.status).toBe(201)
+      expect((await response.json()).data.answerMode).toBe('mba')
+    }
+
+    expect(upstreamCalls.map(({ options }) => JSON.parse(options.body).source)).toEqual(
+      Object.values(enabledSourceMap),
+    )
   })
 })

@@ -76,8 +76,12 @@ trống và đã quyết định ghi dữ liệu. Không tự retry nếu reques
 endpoint có thể đã lưu file trước khi mất phản hồi. Chờ kiểm tra indexing xong
 trước khi chạy lệnh cho môn kế.
 
-Chỉ bật cấu hình mẫu phía dưới khi năm collection `mba_miniBAS...` có đúng
-tài liệu, truy xuất trả đúng nguồn từng môn và không trả nguồn chéo môn.
+Đã kiểm tra cả năm collection và thử `/chat` với câu hỏi từng môn. Chỉ bật bốn
+source `BAS1150`, `BAS1151`, `BAS1152`, `BAS1153` cho sinh viên trong giai đoạn
+này. Source `BAS1122` có tệp bổ sung `Giao trinh TTHCM chuyen.pdf` ghi rõ
+"Đang trong quá trình xin ý kiến góp ý để hoàn thiện. Không phổ biến"; chờ
+giảng viên cho phép sử dụng hoặc chuẩn bị source chỉ gồm tài liệu được duyệt.
+Không thêm `sub4` vào mapping cho tới khi xử lý xong.
 
 Trong môi trường chạy backend PTIT:
 
@@ -86,7 +90,7 @@ RAG_ENABLED=false
 RAG_DEMO_DATA=false
 MBA_CHAT_ENABLED=true
 MBA_CHAT_BASE_URL=http://127.0.0.1:4558
-MBA_CHAT_SOURCE_MAP={"sub1":"BAS1150","sub2":"BAS1151","sub3":"BAS1152","sub4":"BAS1122","sub5":"BAS1153"}
+MBA_CHAT_SOURCE_MAP={"sub1":"BAS1150","sub2":"BAS1151","sub3":"BAS1152","sub5":"BAS1153"}
 MBA_CHAT_TIMEOUT_MS=60000
 ```
 
@@ -98,8 +102,11 @@ Sau khi cấu hình, khởi động backend PTIT và kiểm tra:
 
 1. `GET /api/ready`: `rag: "ready"` khi MBA_API health trả `healthy`.
 2. Đăng nhập sinh viên, mở `/student/chat`: badge là “Đã kết nối MBA_API”.
-3. Chọn môn/lớp có mapping và gửi một câu hỏi. Backend gửi tới MBA_API với
+3. Chọn môn/lớp có mapping và ghi danh hợp lệ rồi gửi một câu hỏi. Nếu học kỳ
+   chưa có lớp/ghi danh cho môn đó, hoàn thiện dữ liệu lớp trước khi thử trên FE.
+   Backend gửi tới MBA_API với
    `userId` có prefix `ptit:`, `mode: default`, `save: false` và session mới.
+   `sub4` phải trả `SOURCE_NOT_MAPPED` (409), không gọi MBA_API.
 4. Các đoạn MBA trả trong `sources` được hiển thị là nguồn truy xuất chưa đối
    chiếu; không được ghi thành citation đã phê duyệt của PTIT.
 
