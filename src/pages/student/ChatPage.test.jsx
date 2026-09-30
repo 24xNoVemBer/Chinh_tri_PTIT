@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ChatPage from './ChatPage'
@@ -131,6 +131,13 @@ describe('local chatbot UI', () => {
           location: 'Đoạn truy xuất · chưa đối chiếu học liệu lớp',
           quote: 'Vật chất là một phạm trù triết học.',
         },
+        {
+          id: 'source-2',
+          title: 'triet-hoc.pdf',
+          author: 'Nguồn MBA_API',
+          location: 'Đoạn truy xuất · chưa đối chiếu học liệu lớp',
+          quote: 'Vật chất tồn tại độc lập với cảm giác.',
+        },
       ],
     })
     render(
@@ -159,7 +166,15 @@ describe('local chatbot UI', () => {
     expect(
       screen.getByText('Nguồn truy xuất MBA_API · chưa xác thực trích dẫn'),
     ).toBeInTheDocument()
-    expect(screen.getByText('Vật chất là một phạm trù triết học.')).toBeInTheDocument()
+    const sourcesPanel = screen.getByRole('complementary', { name: 'Nguồn đang dùng' })
+    expect(within(sourcesPanel).getAllByText('triet-hoc.pdf')).toHaveLength(1)
+    expect(within(sourcesPanel).getByText('Xem 2 đoạn trích')).toBeInTheDocument()
+    expect(
+      within(sourcesPanel).getByText('Vật chất là một phạm trù triết học.'),
+    ).toBeInTheDocument()
+    expect(
+      within(sourcesPanel).getByText('Vật chất tồn tại độc lập với cảm giác.'),
+    ).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Học phần đang hỏi'), { target: { value: 'sub2' } })
     expect(

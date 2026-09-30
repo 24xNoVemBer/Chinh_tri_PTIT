@@ -456,6 +456,27 @@
   font-size: var(--text-xs);
 }
 
+.chat-sources ol.chat-sources__excerpts {
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-left: var(--space-5);
+  list-style: decimal;
+}
+
+.chat-sources li.chat-sources__excerpt {
+  display: list-item;
+  padding: 0;
+  background: transparent;
+}
+
+.chat-sources__excerpt p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .chat-sources__empty {
   display: grid;
   justify-items: start;

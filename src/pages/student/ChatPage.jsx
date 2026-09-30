@@ -121,6 +121,21 @@ export default function ChatPage() {
     return latest?.citations?.length ? latest.citations : (latest?.sources ?? [])
   }, [messages, effectiveSubjectId])
 
+  const displayedSources = useMemo(() => {
+    const groups = new Map()
+    latestSources.forEach((source, index) => {
+      const key =
+        chatStatus?.mode === 'mba' && source.title
+          ? JSON.stringify([source.author, source.title])
+          : (source.id ?? index)
+      if (!groups.has(key)) groups.set(key, { ...source, excerpts: [] })
+      if (source.quote) {
+        groups.get(key).excerpts.push({ id: source.id ?? index, quote: source.quote })
+      }
+    })
+    return [...groups.values()]
+  }, [latestSources, chatStatus?.mode])
+
   useEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     threadRef.current?.scrollTo({
@@ -453,17 +468,28 @@ export default function ChatPage() {
             <h2 id="chat-sources-title">Nguồn đang dùng</h2>
           </div>
 
-          {latestSources.length ? (
+          {displayedSources.length ? (
             <ol>
-              {latestSources.map((citation) => (
+              {displayedSources.map((citation) => (
                 <li key={citation.id}>
                   <strong>{citation.title}</strong>
                   <span>{citation.author}</span>
                   <small>{citation.location}</small>
-                  {citation.quote && (
+                  {citation.excerpts.length > 0 && (
                     <details>
-                      <summary>Xem đoạn trích</summary>
-                      <p>{citation.quote}</p>
+                      <summary>
+                        Xem{' '}
+                        {citation.excerpts.length === 1
+                          ? 'đoạn trích'
+                          : `${citation.excerpts.length} đoạn trích`}
+                      </summary>
+                      <ol className="chat-sources__excerpts">
+                        {citation.excerpts.map((excerpt) => (
+                          <li className="chat-sources__excerpt" key={excerpt.id}>
+                            <p>{excerpt.quote}</p>
+                          </li>
+                        ))}
+                      </ol>
                     </details>
                   )}
                 </li>
