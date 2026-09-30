@@ -41,6 +41,10 @@ describe('local chatbot UI', () => {
         <ChatPage />
       </MemoryRouter>,
     )
+    expect(screen.getByRole('log', { name: 'Nội dung cuộc trò chuyện' })).toHaveAttribute(
+      'tabindex',
+      '0',
+    )
     expect(await screen.findByText('Local · truy xuất, chưa dùng LLM')).toBeInTheDocument()
     const input = screen.getByLabelText('Câu hỏi cho trợ giảng')
     fireEvent.change(input, { target: { value: 'Phân biệt vật chất và ý thức.' } })

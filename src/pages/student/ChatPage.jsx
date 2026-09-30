@@ -300,8 +300,10 @@ export default function ChatPage() {
             className="chat-thread"
             ref={threadRef}
             role="log"
+            aria-label="Nội dung cuộc trò chuyện"
             aria-live="polite"
             aria-busy={isReplying}
+            tabIndex={0}
           >
             {visibleMessages.map((message) => (
               <article
