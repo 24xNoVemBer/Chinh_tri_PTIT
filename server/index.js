@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { createRequestHandler } from './app.js'
 import { createRuntimeConfig } from './runtimeConfig.js'
 import { createRagClient } from './rag/client.js'
+import { createMbaChatClient } from './mba/client.js'
 import { createRuntimeDatabase } from './db/runtime.js'
 
 if (existsSync('.env')) process.loadEnvFile('.env')
@@ -12,6 +13,9 @@ if (existsSync('.env')) process.loadEnvFile('.env')
 const runtimeConfig = createRuntimeConfig()
 const port = runtimeConfig.port
 const ragClient = runtimeConfig.rag.enabled ? createRagClient(runtimeConfig.rag) : undefined
+const mbaChatClient = runtimeConfig.mbaChat.enabled
+  ? createMbaChatClient(runtimeConfig.mbaChat)
+  : undefined
 const staticRoot = resolve(fileURLToPath(new URL('../dist', import.meta.url)))
 const indexPath = resolve(staticRoot, 'index.html')
 const db = createRuntimeDatabase(runtimeConfig)
@@ -19,6 +23,8 @@ const apiHandler = createRequestHandler({
   db,
   secureCookies: runtimeConfig.nodeEnv === 'production',
   ragClient,
+  mbaChatClient,
+  mbaChatSourceMap: runtimeConfig.mbaChat.sourceMap,
   allowDemoRag: runtimeConfig.rag.demoData,
   authConfig: runtimeConfig.auth,
 })

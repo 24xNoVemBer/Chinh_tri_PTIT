@@ -111,6 +111,48 @@ export function createRuntimeConfig(env = process.env) {
     throw new Error('RAG_SERVICE_TOKEN is required when RAG_ENABLED=true.')
   }
 
+  const mbaChatEnabled = asBoolean(env.MBA_CHAT_ENABLED, false)
+  if (mbaChatEnabled && ragEnabled) {
+    throw new Error('Enable either MBA_CHAT_ENABLED or RAG_ENABLED, not both.')
+  }
+  let mbaChatBaseUrl = ''
+  let mbaChatSourceMap = {}
+  if (mbaChatEnabled) {
+    try {
+      const url = new URL(env.MBA_CHAT_BASE_URL)
+      if (
+        !['http:', 'https:'].includes(url.protocol) ||
+        (url.protocol === 'http:' && !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash
+      )
+        throw new Error('invalid URL')
+      mbaChatBaseUrl = url.toString().replace(/\/$/, '')
+    } catch {
+      throw new Error('MBA_CHAT_BASE_URL must use HTTPS or loopback HTTP without credentials.')
+    }
+    try {
+      mbaChatSourceMap = JSON.parse(env.MBA_CHAT_SOURCE_MAP ?? '')
+      if (
+        !mbaChatSourceMap ||
+        Array.isArray(mbaChatSourceMap) ||
+        typeof mbaChatSourceMap !== 'object' ||
+        !Object.keys(mbaChatSourceMap).length ||
+        Object.entries(mbaChatSourceMap).some(
+          ([subjectId, source]) =>
+            !/^[a-zA-Z0-9_-]{1,80}$/.test(subjectId) ||
+            typeof source !== 'string' ||
+            !/^[a-zA-Z0-9_-]{1,80}$/.test(source),
+        )
+      )
+        throw new Error('invalid mapping')
+    } catch {
+      throw new Error('MBA_CHAT_SOURCE_MAP must map subject IDs to MBA source IDs as JSON.')
+    }
+  }
+
   return Object.freeze({
     nodeEnv,
     host,
@@ -169,6 +211,12 @@ export function createRuntimeConfig(env = process.env) {
       timeoutMs: asInteger(env.RAG_TIMEOUT_MS, 30_000, { min: 100, max: 120_000 }),
       maxRetries: asInteger(env.RAG_MAX_RETRIES, 0, { min: 0, max: 5 }),
       retryDelayMs: asInteger(env.RAG_RETRY_DELAY_MS, 100, { min: 0, max: 10_000 }),
+    }),
+    mbaChat: Object.freeze({
+      enabled: mbaChatEnabled,
+      baseUrl: mbaChatBaseUrl,
+      sourceMap: Object.freeze(mbaChatSourceMap),
+      timeoutMs: asInteger(env.MBA_CHAT_TIMEOUT_MS, 60_000, { min: 1_000, max: 120_000 }),
     }),
   })
 }

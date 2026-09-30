@@ -18,6 +18,7 @@ import { createAdminRepository } from './adminRepository.js'
 import { ApiError, readJson, requireFields, requireRole, sendJson, serializeError } from './http.js'
 import { createAsyncRepositories } from './repositoriesAsync.js'
 import { createLiveRagRepository } from './rag/liveRepository.js'
+import { createMbaChatRepository } from './mba/chatRepository.js'
 import { writeAudit } from './db/audit.js'
 
 const decode = (value) => decodeURIComponent(value)
@@ -36,6 +37,8 @@ export function createRequestHandler({
   secureCookies = false,
   logger = console,
   ragClient,
+  mbaChatClient,
+  mbaChatSourceMap,
   allowDemoRag = true,
   authConfig = DEFAULT_AUTH_RATE_LIMIT_CONFIG,
   loginRateLimiter,
@@ -50,6 +53,9 @@ export function createRequestHandler({
         ragClient,
         questionRepository: repositories.questionRepository,
       })
+    : null
+  const mbaChatRepository = mbaChatClient
+    ? createMbaChatRepository({ db, client: mbaChatClient, sourceMap: mbaChatSourceMap })
     : null
 
   return async function handleRequest(request, response) {
@@ -80,6 +86,15 @@ export function createRequestHandler({
         if (ragClient) {
           try {
             await ragClient.readiness()
+            readiness.rag = 'ready'
+          } catch (error) {
+            readiness.status = 'degraded'
+            readiness.rag = 'unavailable'
+            logger.warn?.(error)
+          }
+        } else if (mbaChatClient) {
+          try {
+            await mbaChatClient.health()
             readiness.rag = 'ready'
           } catch (error) {
             readiness.status = 'degraded'
@@ -1145,6 +1160,15 @@ export function createRequestHandler({
           return
         }
         if (method === 'GET' && pathname === '/api/student/chat/status') {
+          if (mbaChatClient) {
+            try {
+              await mbaChatClient.health()
+              sendData(response, { mode: 'mba', sampleData: false, dataset: 'mba' })
+            } catch {
+              sendData(response, { mode: 'unavailable', sampleData: false })
+            }
+            return
+          }
           if (!ragClient) {
             sendData(response, {
               mode: allowDemoRag ? 'demo' : 'unavailable',
@@ -1168,12 +1192,14 @@ export function createRequestHandler({
         if (method === 'POST' && pathname === '/api/student/chat') {
           const input = await readJson(request)
           requireFields(input, ['subjectId', 'content'])
-          if (!liveRagRepository && !allowDemoRag) {
+          if (!liveRagRepository && !mbaChatRepository && !allowDemoRag) {
             throw new ApiError(503, 'RAG_UNAVAILABLE', 'Trợ giảng AI hiện chưa được kết nối.')
           }
           const result = liveRagRepository
             ? await liveRagRepository.createChat(input, student.id)
-            : await repositories.ragRepository.createDemoChat(input, student.id)
+            : mbaChatRepository
+              ? await mbaChatRepository.createChat(input, student.id)
+              : await repositories.ragRepository.createDemoChat(input, student.id)
           sendData(response, result, 201)
           return
         }

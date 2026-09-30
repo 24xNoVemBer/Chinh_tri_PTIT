@@ -19,7 +19,7 @@ import './ChatPage.css'
 
 const SUGGESTIONS = [
   'Mối liên hệ phổ biến được hiểu như thế nào?',
-  'Phân biệt vật chất và ý thức bằng một ví dụ.',
+  'Theo giáo trình, vật chất được định nghĩa như thế nào?',
   'Tư tưởng Hồ Chí Minh về đại đoàn kết gồm những điểm nào?',
 ]
 
@@ -50,6 +50,7 @@ export default function ChatPage() {
   const modeLabels = {
     extractive: 'Local · truy xuất, chưa dùng LLM',
     model: 'Đã cấu hình RAG · trả lời bằng model',
+    mba: 'Đã kết nối MBA_API · nguồn chưa đối chiếu',
     demo: 'Demo UI · câu trả lời mô phỏng',
     unavailable: 'Chưa kết nối được dịch vụ RAG',
   }
@@ -70,10 +71,12 @@ export default function ChatPage() {
   const availableClasses = selectedSubject?.classes ?? []
   const effectiveClassId = selectedClassId || availableClasses[0]?.id || ''
 
-  const latestCitations = useMemo(
-    () => [...messages].reverse().find((message) => message.citations?.length)?.citations ?? [],
-    [messages],
-  )
+  const latestSources = useMemo(() => {
+    const latest = [...messages]
+      .reverse()
+      .find((message) => message.role === 'assistant' && message.id !== 'welcome')
+    return latest?.citations?.length ? latest.citations : (latest?.sources ?? [])
+  }, [messages])
 
   useEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -130,6 +133,7 @@ export default function ChatPage() {
             role: 'assistant',
             content: reply.content,
             citations: reply.citations,
+            sources: reply.sources,
             reviewStatus: reply.reviewStatus,
             moderation: reply.moderation,
             answerMode: reply.answerMode,
@@ -237,7 +241,9 @@ export default function ChatPage() {
                   ? 'DỮ LIỆU THỬ KỸ THUẬT · Chưa được thẩm định. Hãy hỏi từng câu đầy đủ.'
                   : chatStatus?.dataset === 'private'
                     ? 'GIÁO TRÌNH PILOT RIÊNG · Chưa được giảng viên thẩm định. Luôn kiểm tra trang trích dẫn.'
-                    : 'Kiểm tra trích dẫn và trạng thái duyệt trước khi sử dụng câu trả lời.'}
+                    : chatStatus?.mode === 'mba'
+                      ? 'MBA_API · Mỗi câu hỏi độc lập. Nguồn truy xuất chưa được đối chiếu với học liệu lớp.'
+                      : 'Kiểm tra trích dẫn và trạng thái duyệt trước khi sử dụng câu trả lời.'}
               </p>
             </div>
             <Clock3 aria-hidden="true" size={20} />
@@ -276,6 +282,12 @@ export default function ChatPage() {
                   </span>
                 )}
 
+                {message.reviewStatus === 'unverified' && (
+                  <span className="chat-message__review-status">
+                    AI tạo · Nguồn MBA_API chưa được đối chiếu học liệu lớp
+                  </span>
+                )}
+
                 {message.citations?.length > 0 && (
                   <>
                     <div className="chat-message__citation">
@@ -308,6 +320,12 @@ export default function ChatPage() {
                       </button>
                     </div>
                   </>
+                )}
+                {message.sources?.length > 0 && (
+                  <div className="chat-message__citation">
+                    <FileText aria-hidden="true" size={16} />
+                    <span>Nguồn truy xuất MBA_API · chưa xác thực trích dẫn</span>
+                  </div>
                 )}
               </article>
             ))}
@@ -380,9 +398,9 @@ export default function ChatPage() {
             <h2 id="chat-sources-title">Nguồn đang dùng</h2>
           </div>
 
-          {latestCitations.length ? (
+          {latestSources.length ? (
             <ol>
-              {latestCitations.map((citation) => (
+              {latestSources.map((citation) => (
                 <li key={citation.id}>
                   <strong>{citation.title}</strong>
                   <span>{citation.author}</span>

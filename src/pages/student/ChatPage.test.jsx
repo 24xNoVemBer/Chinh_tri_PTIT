@@ -88,4 +88,41 @@ describe('local chatbot UI', () => {
     await waitFor(() => expect(input).toHaveValue('Phân biệt vật chất và ý thức.'))
     expect(screen.queryByText('Đoạn trích từ tài liệu mẫu.')).not.toBeInTheDocument()
   })
+
+  it('labels MBA references as unverified instead of approved citations', async () => {
+    chatRepository.getStatus.mockResolvedValue({ mode: 'mba', sampleData: false, dataset: 'mba' })
+    chatRepository.createMessage.mockResolvedValue({
+      responseId: 'mba-1',
+      content: 'Vật chất là thực tại khách quan.',
+      reviewStatus: 'unverified',
+      answerMode: 'mba',
+      citations: [],
+      sources: [
+        {
+          id: 'source-1',
+          title: 'triet-hoc.pdf',
+          author: 'Nguồn MBA_API',
+          location: 'Đoạn truy xuất · chưa đối chiếu học liệu lớp',
+          quote: 'Vật chất là một phạm trù triết học.',
+        },
+      ],
+    })
+    render(
+      <MemoryRouter>
+        <ChatPage />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Đã kết nối MBA_API · nguồn chưa đối chiếu')).toBeInTheDocument()
+    const input = screen.getByLabelText('Câu hỏi cho trợ giảng')
+    fireEvent.change(input, { target: { value: 'Vật chất được định nghĩa thế nào?' } })
+    fireEvent.submit(input.closest('form'))
+    expect(await screen.findByText('Vật chất là thực tại khách quan.')).toBeInTheDocument()
+    expect(
+      screen.getByText('AI tạo · Nguồn MBA_API chưa được đối chiếu học liệu lớp'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Nguồn truy xuất MBA_API · chưa xác thực trích dẫn'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Vật chất là một phạm trù triết học.')).toBeInTheDocument()
+  })
 })
