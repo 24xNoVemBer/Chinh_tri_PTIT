@@ -79,7 +79,8 @@ async function audit(root) {
       name: course.name,
       targetSourceId: course.courseCode,
       primary: null,
-      otherDocuments: [],
+      uploadDocuments: [],
+      excludedDocuments: [],
       ready: false,
     }
     if (folderMatches.length !== 1) {
@@ -98,19 +99,23 @@ async function audit(root) {
     for (const file of files) {
       const relativePath = join(folder, file.name)
       const isPrimary = primaries.length === 1 && file.name === primaries[0].name
-      const details = await inspectPdf(join(root, relativePath), isPrimary)
-      const record = { path: relativePath, ...details }
+      const details = await inspectPdf(join(root, relativePath), true)
+      const record = {
+        path: relativePath,
+        role: isPrimary ? 'primary' : 'supplementary',
+        ...details,
+      }
+      if (details.validPdf) item.uploadDocuments.push(record)
+      else item.excludedDocuments.push(record)
       if (isPrimary) {
         item.primary = record
         item.ready = details.validPdf
-      } else {
-        item.otherDocuments.push(record)
       }
     }
     courses.push(item)
   }
   const invalidExtras = courses.flatMap((course) =>
-    course.otherDocuments.filter((document) => !document.validPdf).map((document) => document.path),
+    course.excludedDocuments.map((document) => document.path),
   )
   return {
     result: courses.every((course) => course.ready) ? 'PASS' : 'FAIL',

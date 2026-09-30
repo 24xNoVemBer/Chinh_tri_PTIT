@@ -35,13 +35,15 @@ toàn bộ collection của `source`; `metadata.subject_name` không lọc theo 
 
 Chạy `npm run mba:corpus:audit -- --root "D:\Backup_GT_CHINH_TRI"` trên máy
 local, hoặc truyền đường dẫn tới bản backup đã chép lên server. Script chỉ đọc,
-kiểm tra chữ ký PDF và SHA-256 của năm tài liệu chính, đồng thời liệt kê các
-tài liệu bổ sung. Kiểm tra chữ ký chưa thay thế bước thử parser/OCR khi nạp.
-Giữ các PDF trong kho private; script không sao chép chúng vào repo.
+kiểm tra chữ ký PDF và SHA-256 cho mọi PDF trong năm thư mục môn. `uploadDocuments`
+liệt kê mọi PDF hợp lệ để nạp vào source tương ứng; `excludedDocuments` liệt kê
+file lỗi. Kiểm tra chữ ký chưa thay thế bước thử parser/OCR khi nạp. Giữ các PDF
+trong kho private; script không sao chép chúng vào repo.
 Hai file mang tên giáo trình Triết và Chủ nghĩa xã hội
 khoa học trong bản backup hiện tại thực chất là JSON lỗi 118/139 byte báo file
 không tồn tại trong source `BAS1150`/`BAS1152`; không nạp chúng. Bài giảng
-tương ứng là PDF hợp lệ. Các tài liệu bổ sung chưa được chọn để nạp tự động.
+tương ứng là PDF hợp lệ. Các file hợp lệ khác cùng thư mục được đưa vào source
+của môn đó dưới vai trò tài liệu bổ sung.
 
 Chỉ bật cấu hình mẫu phía dưới khi năm collection `mba_miniBAS...` có đúng
 tài liệu, truy xuất trả đúng nguồn từng môn và không trả nguồn chéo môn.
