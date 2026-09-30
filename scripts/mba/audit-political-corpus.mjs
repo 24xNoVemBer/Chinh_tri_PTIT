@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { open, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
-const COURSES = [
+export const COURSES = [
   {
     subjectId: 'sub1',
     courseCode: 'BAS1150',
@@ -64,7 +65,7 @@ async function inspectPdf(path, includeHash = false) {
   return result
 }
 
-async function audit(root) {
+export async function audit(root) {
   const folders = (await readdir(root, { withFileTypes: true })).filter((entry) =>
     entry.isDirectory(),
   )
@@ -128,17 +129,19 @@ async function audit(root) {
   }
 }
 
-const rootArgument = process.argv.indexOf('--root')
-if (rootArgument < 0 || !process.argv[rootArgument + 1]) {
-  console.error('Usage: npm run mba:corpus:audit -- --root <path-to-Backup_GT_CHINH_TRI>')
-  process.exitCode = 2
-} else {
-  try {
-    const report = await audit(process.argv[rootArgument + 1])
-    console.log(JSON.stringify(report, null, 2))
-    if (!report.readyForUpload) process.exitCode = 1
-  } catch (error) {
-    console.error(`Corpus audit failed: ${error.message}`)
-    process.exitCode = 1
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const rootArgument = process.argv.indexOf('--root')
+  if (rootArgument < 0 || !process.argv[rootArgument + 1]) {
+    console.error('Usage: npm run mba:corpus:audit -- --root <path-to-Backup_GT_CHINH_TRI>')
+    process.exitCode = 2
+  } else {
+    try {
+      const report = await audit(process.argv[rootArgument + 1])
+      console.log(JSON.stringify(report, null, 2))
+      if (!report.readyForUpload) process.exitCode = 1
+    } catch (error) {
+      console.error(`Corpus audit failed: ${error.message}`)
+      process.exitCode = 1
+    }
   }
 }

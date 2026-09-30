@@ -64,6 +64,18 @@ handler này không đợi hoàn tất. Không xem HTTP 200 là xác nhận RAG 
 Sau mỗi source cần đợi/log hoặc kiểm tra index rồi chạy truy vấn thử có citation
 đúng môn trước khi bật mapping cho sinh viên.
 
+Trên máy có bản backup, mở SSH tunnel loopback đến MBA_API rồi chạy dry-run:
+
+```powershell
+npm run mba:corpus:upload -- --root "D:\Backup_GT_CHINH_TRI" --source BAS1150
+```
+
+Mặc định lệnh chỉ audit/in danh sách, không gọi mạng; mỗi lần chỉ chọn một source.
+Chỉ thêm cả `--confirm-source-empty --confirm-upload` sau khi kiểm tra source vẫn
+trống và đã quyết định ghi dữ liệu. Không tự retry nếu request timeout/lỗi:
+endpoint có thể đã lưu file trước khi mất phản hồi. Chờ kiểm tra indexing xong
+trước khi chạy lệnh cho môn kế.
+
 Chỉ bật cấu hình mẫu phía dưới khi năm collection `mba_miniBAS...` có đúng
 tài liệu, truy xuất trả đúng nguồn từng môn và không trả nguồn chéo môn.
 
