@@ -87,7 +87,11 @@ describe('MBA_API chat bridge', () => {
     const status = await fetch(`${baseUrl}/api/student/chat/status`, {
       headers: { Cookie: cookie },
     })
-    expect((await status.json()).data).toMatchObject({ mode: 'mba', sampleData: false })
+    expect((await status.json()).data).toMatchObject({
+      mode: 'mba',
+      sampleData: false,
+      enabledSubjectIds: Object.keys(enabledSourceMap),
+    })
 
     const response = await fetch(`${baseUrl}/api/student/chat`, {
       method: 'POST',

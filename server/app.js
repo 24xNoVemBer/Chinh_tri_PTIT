@@ -1163,7 +1163,12 @@ export function createRequestHandler({
           if (mbaChatClient) {
             try {
               await mbaChatClient.health()
-              sendData(response, { mode: 'mba', sampleData: false, dataset: 'mba' })
+              sendData(response, {
+                mode: 'mba',
+                sampleData: false,
+                dataset: 'mba',
+                enabledSubjectIds: Object.keys(mbaChatSourceMap),
+              })
             } catch {
               sendData(response, { mode: 'unavailable', sampleData: false })
             }

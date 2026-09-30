@@ -90,10 +90,32 @@ describe('local chatbot UI', () => {
   })
 
   it('labels MBA references as unverified instead of approved citations', async () => {
-    chatRepository.getStatus.mockResolvedValue({ mode: 'mba', sampleData: false, dataset: 'mba' })
+    chatRepository.getStatus.mockResolvedValue({
+      mode: 'mba',
+      sampleData: false,
+      dataset: 'mba',
+      enabledSubjectIds: ['sub1', 'sub2', 'sub3', 'sub5'],
+    })
+    learningRepository.listSubjectProgress.mockResolvedValue([
+      {
+        id: 'sub1',
+        name: 'Triết học Mác - Lênin',
+        classes: [{ id: 'c1', classCode: 'TH01', groupNumber: 1 }],
+      },
+      {
+        id: 'sub2',
+        name: 'Kinh tế chính trị Mác - Lênin',
+        classes: [{ id: 'c2', classCode: 'KT01', groupNumber: 1 }],
+      },
+      {
+        id: 'sub4',
+        name: 'Tư tưởng Hồ Chí Minh',
+        classes: [{ id: 'c4', classCode: 'HCM01', groupNumber: 1 }],
+      },
+    ])
     chatRepository.createMessage.mockResolvedValue({
       responseId: 'mba-1',
-      content: 'Vật chất là thực tại khách quan.',
+      content: 'Vật chất là **thực tại khách quan**.',
       reviewStatus: 'unverified',
       answerMode: 'mba',
       citations: [],
@@ -113,10 +135,20 @@ describe('local chatbot UI', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByText('Đã kết nối MBA_API · nguồn chưa đối chiếu')).toBeInTheDocument()
+    await screen.findByRole('option', { name: 'Triết học Mác - Lênin' })
+    expect(screen.queryByRole('option', { name: 'Tư tưởng Hồ Chí Minh' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Trình bày định nghĩa vật chất của V.I. Lênin.' }),
+    ).toBeInTheDocument()
     const input = screen.getByLabelText('Câu hỏi cho trợ giảng')
     fireEvent.change(input, { target: { value: 'Vật chất được định nghĩa thế nào?' } })
     fireEvent.submit(input.closest('form'))
-    expect(await screen.findByText('Vật chất là thực tại khách quan.')).toBeInTheDocument()
+    const emphasizedAnswer = await screen.findByText('thực tại khách quan', {
+      selector: 'strong',
+    })
+    expect(emphasizedAnswer.closest('article')).toHaveTextContent(
+      'Vật chất là thực tại khách quan.',
+    )
     expect(
       screen.getByText('AI tạo · Nguồn MBA_API chưa được đối chiếu học liệu lớp'),
     ).toBeInTheDocument()
@@ -124,5 +156,13 @@ describe('local chatbot UI', () => {
       screen.getByText('Nguồn truy xuất MBA_API · chưa xác thực trích dẫn'),
     ).toBeInTheDocument()
     expect(screen.getByText('Vật chất là một phạm trù triết học.')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Học phần đang hỏi'), { target: { value: 'sub2' } })
+    expect(
+      screen.getByRole('button', {
+        name: 'Theo giáo trình, hàng hóa có những thuộc tính cơ bản nào?',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Vật chất là một phạm trù triết học.')).not.toBeInTheDocument()
   })
 })

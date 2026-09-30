@@ -23,6 +23,13 @@ const SUGGESTIONS = [
   'Tư tưởng Hồ Chí Minh về đại đoàn kết gồm những điểm nào?',
 ]
 
+const MBA_SUGGESTIONS = {
+  sub1: ['Trình bày định nghĩa vật chất của V.I. Lênin.'],
+  sub2: ['Theo giáo trình, hàng hóa có những thuộc tính cơ bản nào?'],
+  sub3: ['Theo giáo trình, sứ mệnh lịch sử của giai cấp công nhân là gì?'],
+  sub5: ['Đại hội XIII xác định mục tiêu đến năm 2030 và tầm nhìn 2045 như thế nào?'],
+}
+
 const INITIAL_MESSAGES = [
   {
     id: 'welcome',
@@ -32,6 +39,18 @@ const INITIAL_MESSAGES = [
     citations: [],
   },
 ]
+
+function renderAssistantText(content) {
+  return String(content)
+    .split(/(\*\*[^\n]+?\*\*)/g)
+    .map((part, index) =>
+      part.startsWith('**') && part.endsWith('**') ? (
+        <strong key={index}>{part.slice(2, -2)}</strong>
+      ) : (
+        part
+      ),
+    )
+}
 
 export default function ChatPage() {
   const { user } = useAuth()
@@ -66,17 +85,34 @@ export default function ChatPage() {
     loading: subjectsLoading,
     error: subjectsError,
   } = useAsyncData(subjectLoader)
-  const effectiveSubjectId = selectedSubjectId || subjects?.[0]?.id || ''
-  const selectedSubject = subjects?.find((subject) => subject.id === effectiveSubjectId)
+  const selectableSubjects =
+    chatStatus?.mode === 'mba'
+      ? subjects?.filter((subject) => chatStatus.enabledSubjectIds?.includes(subject.id))
+      : subjects
+  const effectiveSubjectId = selectableSubjects?.some((subject) => subject.id === selectedSubjectId)
+    ? selectedSubjectId
+    : selectableSubjects?.[0]?.id || ''
+  const selectedSubject = selectableSubjects?.find((subject) => subject.id === effectiveSubjectId)
   const availableClasses = selectedSubject?.classes ?? []
-  const effectiveClassId = selectedClassId || availableClasses[0]?.id || ''
+  const effectiveClassId = availableClasses.some(
+    (courseClass) => courseClass.id === selectedClassId,
+  )
+    ? selectedClassId
+    : availableClasses[0]?.id || ''
+  const suggestions =
+    chatStatus?.mode === 'mba' ? (MBA_SUGGESTIONS[effectiveSubjectId] ?? []) : SUGGESTIONS
 
   const latestSources = useMemo(() => {
     const latest = [...messages]
       .reverse()
-      .find((message) => message.role === 'assistant' && message.id !== 'welcome')
+      .find(
+        (message) =>
+          message.role === 'assistant' &&
+          message.id !== 'welcome' &&
+          message.subjectId === effectiveSubjectId,
+      )
     return latest?.citations?.length ? latest.citations : (latest?.sources ?? [])
-  }, [messages])
+  }, [messages, effectiveSubjectId])
 
   useEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -137,6 +173,7 @@ export default function ChatPage() {
             reviewStatus: reply.reviewStatus,
             moderation: reply.moderation,
             answerMode: reply.answerMode,
+            subjectId: effectiveSubjectId,
             subjectName: selectedSubject?.name,
           },
         ])
@@ -183,7 +220,7 @@ export default function ChatPage() {
             <span>Học phần đang hỏi</span>
             <select
               value={effectiveSubjectId}
-              disabled={isReplying || subjectsLoading || !subjects?.length}
+              disabled={isReplying || subjectsLoading || !selectableSubjects?.length}
               onChange={(event) => {
                 setSelectedSubjectId(event.target.value)
                 setSelectedClassId('')
@@ -191,8 +228,10 @@ export default function ChatPage() {
               }}
             >
               {subjectsLoading && <option value="">Đang tải học phần…</option>}
-              {!subjectsLoading && !subjects?.length && <option value="">Chưa có học phần</option>}
-              {subjects?.map((subject) => (
+              {!subjectsLoading && !selectableSubjects?.length && (
+                <option value="">Chưa có học phần được kết nối</option>
+              )}
+              {selectableSubjects?.map((subject) => (
                 <option key={subject.id} value={subject.id}>
                   {subject.name}
                 </option>
@@ -270,7 +309,11 @@ export default function ChatPage() {
                   )}
                   <strong>{message.role === 'assistant' ? 'Trợ giảng' : 'Bạn'}</strong>
                 </div>
-                <p>{message.content}</p>
+                <p>
+                  {message.role === 'assistant'
+                    ? renderAssistantText(message.content)
+                    : message.content}
+                </p>
 
                 {message.reviewStatus === 'pending_review' && (
                   <span className="chat-message__review-status">
@@ -343,13 +386,15 @@ export default function ChatPage() {
             )}
           </div>
 
-          <div className="chat-suggestions" aria-label="Câu hỏi gợi ý">
-            {SUGGESTIONS.map((suggestion) => (
-              <button type="button" key={suggestion} onClick={() => selectSuggestion(suggestion)}>
-                {suggestion}
-              </button>
-            ))}
-          </div>
+          {suggestions.length > 0 && (
+            <div className="chat-suggestions" aria-label="Câu hỏi gợi ý">
+              {suggestions.map((suggestion) => (
+                <button type="button" key={suggestion} onClick={() => selectSuggestion(suggestion)}>
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
 
           <form className="chat-composer" onSubmit={handleSubmit}>
             <label className="sr-only" htmlFor="chat-question">

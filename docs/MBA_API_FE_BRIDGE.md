@@ -102,6 +102,8 @@ Sau khi cấu hình, khởi động backend PTIT và kiểm tra:
 
 1. `GET /api/ready`: `rag: "ready"` khi MBA_API health trả `healthy`.
 2. Đăng nhập sinh viên, mở `/student/chat`: badge là “Đã kết nối MBA_API”.
+   Status API trả `enabledSubjectIds` để FE chỉ hiển thị các học phần đã map;
+   gợi ý câu hỏi và bảng nguồn đổi theo học phần đang chọn.
 3. Chọn môn/lớp có mapping và ghi danh hợp lệ rồi gửi một câu hỏi. Nếu học kỳ
    chưa có lớp/ghi danh cho môn đó, hoàn thiện dữ liệu lớp trước khi thử trên FE.
    Backend gửi tới MBA_API với
