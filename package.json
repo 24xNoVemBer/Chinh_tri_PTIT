@@ -24,6 +24,7 @@
     "local:rag:preflight": "node --no-warnings scripts/local-rag/preflight.mjs",
     "local:rag:probe": "node --no-warnings scripts/local-rag/provider-probe.mjs",
     "local:rag:smoke": "node --no-warnings scripts/local-rag/smoke.mjs",
+    "mba:corpus:audit": "node --no-warnings scripts/mba/audit-political-corpus.mjs",
     "db:baseline": "node scripts/db-baseline.mjs",
     "db:backup:sqlite": "node --no-warnings scripts/db-backup-sqlite.mjs",
     "db:migrate": "node --no-warnings scripts/db-migrate.mjs",

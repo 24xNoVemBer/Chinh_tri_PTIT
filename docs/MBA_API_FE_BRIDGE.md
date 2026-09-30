@@ -12,8 +12,39 @@ URL mà **backend PTIT** gọi được bằng `GET <base-url>/health`. Nếu g�
 có prefix `/mba_mini`, đưa prefix đó vào base URL; nếu gọi trực tiếp Uvicorn,
 thử URL không có prefix. Không đoán mã `source` từ tên môn: đối chiếu với
 collection/source đã nạp trên MBA_API.
-`GET <base-url>/files` có thể liệt kê các `source_id` hiện có; chỉ chọn source
-chứa giáo trình đúng môn và đúng phạm vi lớp. Không cần gọi endpoint upload.
+`GET <base-url>/files` có thể liệt kê `source_id` nhưng đã timeout trên server
+có nhiều collection. Kiểm tra collection/source cụ thể bằng API hoặc metadata
+của MBA_API. Nếu source chưa có, nạp tài liệu qua luồng upload hiện có của MBA_API
+sau khi xác nhận contract; không cần sửa code repo MBA_API.
+
+### Năm học phần chính trị
+
+Mã học phần dưới đây theo [phụ lục chương trình đào tạo PTIT](https://ptit.edu.vn/wp-content/uploads/2024/10/1.-Bieu-mau-17-Phu-luc-DH19.KTDL_.pdf).
+`sub1`–`sub5` là ID nội bộ trong app. MBA_API dùng `source` để chọn collection
+`COLLECTION_PREFIX + source`; mã PTIT là giá trị source dự kiến cho năm môn.
+Chọn một source riêng cho từng môn vì cả LangGraph lẫn luồng legacy đều truy xuất
+toàn bộ collection của `source`; `metadata.subject_name` không lọc theo môn.
+
+| App                                  | Mã PTIT / source dự kiến | Tài liệu chính trong `Backup_GT_CHINH_TRI`                                                 |
+| ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------ |
+| `sub1` Triết học Mác - Lênin         | `BAS1150`                | `Triết học/20260729_075440_BAI GIANG TRIET HOC MAC-LENIN.pdf`                              |
+| `sub2` Kinh tế chính trị Mác - Lênin | `BAS1151`                | `Kinh tế chính trị/20260727_045942_BAI GIANG KTCT 2021.pdf`                                |
+| `sub3` Chủ nghĩa xã hội khoa học     | `BAS1152`                | `Chủ nghĩa xã  hội/20260730_013242_BAI GIANG CNXHKH - HOAN CHINH NHAT - IN 10-12-2021.pdf` |
+| `sub4` Tư tưởng Hồ Chí Minh          | `BAS1122`                | `Tư tưởng hồ chí minh/20260718_105355_Giao trinh TTHCM khong chuyen.pdf`                   |
+| `sub5` Lịch sử Đảng CSVN             | `BAS1153`                | `Lịch sử đảng/20260724_032101_Giáo trình Lịch sử Đảng.2021.pdf`                            |
+
+Chạy `npm run mba:corpus:audit -- --root "D:\Backup_GT_CHINH_TRI"` trên máy
+local, hoặc truyền đường dẫn tới bản backup đã chép lên server. Script chỉ đọc,
+kiểm tra chữ ký PDF và SHA-256 của năm tài liệu chính, đồng thời liệt kê các
+tài liệu bổ sung. Kiểm tra chữ ký chưa thay thế bước thử parser/OCR khi nạp.
+Giữ các PDF trong kho private; script không sao chép chúng vào repo.
+Hai file mang tên giáo trình Triết và Chủ nghĩa xã hội
+khoa học trong bản backup hiện tại thực chất là JSON lỗi 118/139 byte báo file
+không tồn tại trong source `BAS1150`/`BAS1152`; không nạp chúng. Bài giảng
+tương ứng là PDF hợp lệ. Các tài liệu bổ sung chưa được chọn để nạp tự động.
+
+Chỉ bật cấu hình mẫu phía dưới khi năm collection `mba_miniBAS...` có đúng
+tài liệu, truy xuất trả đúng nguồn từng môn và không trả nguồn chéo môn.
 
 Trong môi trường chạy backend PTIT:
 
@@ -22,7 +53,7 @@ RAG_ENABLED=false
 RAG_DEMO_DATA=false
 MBA_CHAT_ENABLED=true
 MBA_CHAT_BASE_URL=http://127.0.0.1:4558
-MBA_CHAT_SOURCE_MAP={"sub1":"<source-thuc-te-trong-MBA>"}
+MBA_CHAT_SOURCE_MAP={"sub1":"BAS1150","sub2":"BAS1151","sub3":"BAS1152","sub4":"BAS1122","sub5":"BAS1153"}
 MBA_CHAT_TIMEOUT_MS=60000
 ```
 

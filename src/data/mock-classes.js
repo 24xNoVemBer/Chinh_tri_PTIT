@@ -1,5 +1,5 @@
 export const subjects = [
-  { id: 'sub1', name: 'Triết học Mác-Lênin', credits: 4 },
+  { id: 'sub1', name: 'Triết học Mác-Lênin', credits: 3 },
   { id: 'sub2', name: 'Kinh tế Chính trị Mác-Lênin', credits: 2 },
   { id: 'sub3', name: 'Chủ nghĩa Xã hội Khoa học', credits: 2 },
   { id: 'sub4', name: 'Tư tưởng Hồ Chí Minh', credits: 2 },
