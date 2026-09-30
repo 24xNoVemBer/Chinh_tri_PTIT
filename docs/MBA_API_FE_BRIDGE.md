@@ -114,6 +114,12 @@ Sau khi cấu hình, khởi động backend PTIT và kiểm tra:
 4. Các đoạn MBA trả trong `sources` được hiển thị là nguồn truy xuất chưa đối
    chiếu; không được ghi thành citation đã phê duyệt của PTIT.
 
+Bridge giữ lại `sourceId` đã map, `providerNodeId` và `retrievalScore` do MBA_API
+báo cho từng đoạn trong phản hồi. Các trường này phục vụ đối chiếu kỹ thuật;
+`retrievalScore` không phải độ tin cậy của câu trả lời, và ID node không chứng
+minh đúng phiên bản PDF hoặc trang. UI gộp các đoạn cùng PDF để tránh lặp thẻ,
+nhưng vẫn giữ từng đoạn trong phần mở rộng.
+
 ## Giới hạn hiện tại
 
 - MBA_API `/chat` không nhận allow-list material version của lớp; mapping chỉ

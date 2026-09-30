@@ -25,7 +25,14 @@ beforeEach(async () => {
       status: 'ok',
       text: {
         response: 'Vật chất là thực tại khách quan.',
-        sources: [{ id: 'node-1', file_name: 'triet-hoc.pdf', text: 'Đoạn tài liệu truy xuất.' }],
+        sources: [
+          {
+            id: 'node-1',
+            file_name: 'triet-hoc.pdf',
+            score: 0.725,
+            text: 'Đoạn tài liệu truy xuất.',
+          },
+        ],
       },
       session_id: 'mba-session',
     })
@@ -111,6 +118,9 @@ describe('MBA_API chat bridge', () => {
       citations: [],
     })
     expect(answer.sources[0]).toMatchObject({
+      sourceId: 'BAS1150',
+      providerNodeId: 'node-1',
+      retrievalScore: 0.725,
       title: 'triet-hoc.pdf',
       quote: 'Đoạn tài liệu truy xuất.',
     })

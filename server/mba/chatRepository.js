@@ -4,7 +4,7 @@ import { ApiError } from '../http.js'
 
 const MAX_QUESTION_LENGTH = 8_000
 
-function normalizeSources(sources) {
+function normalizeSources(sources, sourceId) {
   return sources.slice(0, 5).flatMap((item, index) => {
     if (!item || typeof item !== 'object' || typeof item.text !== 'string') return []
     const quote = item.text.trim().slice(0, 1_200)
@@ -13,6 +13,10 @@ function normalizeSources(sources) {
     return [
       {
         id: `mba-source-${index}`,
+        sourceId,
+        providerNodeId: typeof item.id === 'string' ? item.id.trim() || null : null,
+        retrievalScore:
+          typeof item.score === 'number' && Number.isFinite(item.score) ? item.score : null,
         title: basename(fileName.replaceAll('\\', '/')) || 'Tài liệu MBA_API',
         author: 'Nguồn MBA_API',
         location: 'Đoạn truy xuất · chưa đối chiếu học liệu lớp',
@@ -91,7 +95,7 @@ export function createMbaChatRepository({ db, client, sourceMap }) {
         moderation: { requiresReview: true },
         isDemo: false,
         citations: [],
-        sources: normalizeSources(answer.sources),
+        sources: normalizeSources(answer.sources, source),
       }
     },
   }
