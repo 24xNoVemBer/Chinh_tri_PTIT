@@ -164,5 +164,13 @@ describe('local chatbot UI', () => {
       }),
     ).toBeInTheDocument()
     expect(screen.queryByText('Vật chất là một phạm trù triết học.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vật chất được định nghĩa thế nào?')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('thực tại khách quan', { selector: 'strong' }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Học phần đang hỏi'), { target: { value: 'sub1' } })
+    expect(screen.getByText('Vật chất được định nghĩa thế nào?')).toBeInTheDocument()
+    expect(screen.getByText('Vật chất là một phạm trù triết học.')).toBeInTheDocument()
   })
 })

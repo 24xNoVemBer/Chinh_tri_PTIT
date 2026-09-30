@@ -101,6 +101,13 @@ export default function ChatPage() {
     : availableClasses[0]?.id || ''
   const suggestions =
     chatStatus?.mode === 'mba' ? (MBA_SUGGESTIONS[effectiveSubjectId] ?? []) : SUGGESTIONS
+  const visibleMessages = useMemo(
+    () =>
+      messages.filter(
+        (message) => message.id === 'welcome' || message.subjectId === effectiveSubjectId,
+      ),
+    [messages, effectiveSubjectId],
+  )
 
   const latestSources = useMemo(() => {
     const latest = [...messages]
@@ -120,7 +127,7 @@ export default function ChatPage() {
       top: threadRef.current.scrollHeight,
       behavior: reduceMotion ? 'auto' : 'smooth',
     })
-  }, [messages, isReplying])
+  }, [visibleMessages, isReplying])
 
   const selectSuggestion = (suggestion) => {
     setQuestion(suggestion)
@@ -142,6 +149,7 @@ export default function ChatPage() {
     const userMessage = {
       id: `user-${messageSequence.current}`,
       role: 'user',
+      subjectId: effectiveSubjectId,
       content: trimmedQuestion,
       citations: [],
     }
@@ -295,7 +303,7 @@ export default function ChatPage() {
             aria-live="polite"
             aria-busy={isReplying}
           >
-            {messages.map((message) => (
+            {visibleMessages.map((message) => (
               <article
                 className={`chat-message chat-message--${message.role}`}
                 key={message.id}
