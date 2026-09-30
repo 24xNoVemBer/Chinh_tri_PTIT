@@ -519,6 +519,10 @@
     grid-template-columns: minmax(11rem, 0.34fr) minmax(0, 1fr);
   }
 
+  .chat-panel {
+    height: clamp(40rem, 78dvh, 52rem);
+  }
+
   .chat-sources {
     grid-column: 1 / -1;
   }
