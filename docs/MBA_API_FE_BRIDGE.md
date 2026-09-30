@@ -45,6 +45,25 @@ không tồn tại trong source `BAS1150`/`BAS1152`; không nạp chúng. Bài g
 tương ứng là PDF hợp lệ. Các file hợp lệ khác cùng thư mục được đưa vào source
 của môn đó dưới vai trò tài liệu bổ sung.
 
+### Upload MBA_API (đã xác nhận từ OpenAPI và handler trên server)
+
+`POST /upload` nhận multipart với `file_id` (form field) và `files` (một hoặc
+nhiều tệp). `file_id` là source ID; handler lưu vào `mba_source_dir(file_id)`,
+ghi metadata theo kiểu append rồi chạy `process_vectors_sync` ở thread nền.
+Với `COLLECTION_PREFIX=mba_mini`, source `BAS1150` được index vào
+`mba_miniBAS1150`.
+
+`create_or_update_node` gọi `insert_nodes` nếu collection đã tồn tại, không xóa
+hay thay collection. Filename lưu có timestamp, metadata cũng append; endpoint
+không có idempotency key. Vì vậy không gửi lại request upload khi chưa xác minh
+kết quả lần trước, và trước lần nạp đầu phải kiểm tra riêng cả thư mục dữ liệu
+lẫn collection của năm source đích.
+
+API trả `status: uploaded` ngay sau khi lưu tệp; vector hóa/index chạy nền và
+handler này không đợi hoàn tất. Không xem HTTP 200 là xác nhận RAG đã sẵn sàng.
+Sau mỗi source cần đợi/log hoặc kiểm tra index rồi chạy truy vấn thử có citation
+đúng môn trước khi bật mapping cho sinh viên.
+
 Chỉ bật cấu hình mẫu phía dưới khi năm collection `mba_miniBAS...` có đúng
 tài liệu, truy xuất trả đúng nguồn từng môn và không trả nguồn chéo môn.
 
