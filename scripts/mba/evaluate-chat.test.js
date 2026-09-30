@@ -38,6 +38,24 @@ describe('MBA chat evaluation runner', () => {
     log.mockRestore()
   })
 
+  it('supports a custom diagnostic question without sending it by default', async () => {
+    const fetchImpl = vi.fn()
+    const log = vi.spyOn(globalThis.console, 'log').mockImplementation(() => {})
+    const question = 'Theo giáo trình, giá trị sử dụng của hàng hóa là gì?'
+
+    await expect(
+      runCli(['--source', 'BAS1151', '--question', question], {}, fetchImpl),
+    ).resolves.toBe(0)
+
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
+      mode: 'dry-run',
+      question,
+      request: { text: question, source: 'BAS1151' },
+    })
+    log.mockRestore()
+  })
+
   it('requires explicit opt-in before a live request', async () => {
     await expect(runCli(['--source', 'BAS1151', '--run'], {}, vi.fn())).rejects.toThrow(
       /--confirm-chat-request/u,

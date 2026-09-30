@@ -95,10 +95,11 @@ function parseArgs(args) {
     if (arg === '--run') options.run = true
     else if (arg === '--confirm-chat-request') options.confirmation = true
     else if (arg === '--help' || arg === '-h') options.help = true
-    else if (arg === '--source' || arg === '--api') {
+    else if (arg === '--source' || arg === '--api' || arg === '--question') {
       const value = args[index + 1]
       if (!value || value.startsWith('--')) throw new Error(`${arg} cần một giá trị.`)
-      options[arg === '--source' ? 'source' : 'api'] = value
+      const key = { '--source': 'source', '--api': 'api', '--question': 'question' }[arg]
+      options[key] = value
       index += 1
     } else {
       throw new Error(`Tham số không được hỗ trợ: ${arg}`)
@@ -111,6 +112,7 @@ function printHelp() {
   console.log(`Dùng:
   npm run mba:chat:eval -- --source BAS1151
   npm run mba:chat:eval -- --source BAS1151 --run --confirm-chat-request
+  npm run mba:chat:eval -- --source BAS1151 --question "Giá trị sử dụng của hàng hóa là gì?"
 
 Mặc định chỉ in dry-run. Chạy thật gửi đúng một request tới POST /chat,
 có thể tiêu thụ quota model và MBA_API có thể vẫn lưu hội thoại dù save=false.
@@ -135,9 +137,16 @@ export async function runCli(args, env = process.env, fetchImpl = fetch) {
 
   const base = validateApiBase(options.api ?? env.MBA_CHAT_EVAL_API_URL ?? 'http://127.0.0.1:4558')
   const testCase = EVALUATION_CASES[options.source]
+  const question = options.question?.trim() ?? testCase.question
+  if (question.length < 5 || question.length > 2000) {
+    throw new Error('Câu hỏi phải có từ 5 đến 2.000 ký tự.')
+  }
+  const expectedChecks = options.question
+    ? ['Câu hỏi chẩn đoán tùy chỉnh; cần người đánh giá đối chiếu thủ công.']
+    : testCase.expectedChecks
   const requestBody = {
     userId: 'ptit:acceptance-eval',
-    text: testCase.question,
+    text: question,
     source: options.source,
     save: false,
     mode: 'default',
@@ -152,8 +161,8 @@ export async function runCli(args, env = process.env, fetchImpl = fetch) {
           api: new URL('chat', base).toString(),
           source: options.source,
           course: testCase.course,
-          question: testCase.question,
-          expectedChecks: testCase.expectedChecks,
+          question,
+          expectedChecks,
           request: requestBody,
           note: 'No network request was made. Review the case before opting in to a live request.',
         },
@@ -182,8 +191,8 @@ export async function runCli(args, env = process.env, fetchImpl = fetch) {
         mode: 'result',
         source: options.source,
         course: testCase.course,
-        question: testCase.question,
-        expectedChecks: testCase.expectedChecks,
+        question,
+        expectedChecks,
         ...extractChatResult(payload),
         manualReviewRequired: true,
       },
