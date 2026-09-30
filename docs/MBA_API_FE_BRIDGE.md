@@ -132,3 +132,12 @@ nhưng vẫn giữ từng đoạn trong phần mở rộng.
   nhiều lượt và duyệt chính thức cần contract nội bộ có scope/provenance đầy đủ.
 - MBA_API `/chat` là non-stream. UI chờ câu trả lời hoàn chỉnh; timeout có thể
   chỉnh bằng `MBA_CHAT_TIMEOUT_MS` (tối đa 120 giây).
+
+## Đánh giá chất lượng và nguồn
+
+Bộ câu hỏi chuẩn, baseline smoke-test và tiêu chí rà soát nguồn nằm trong
+[`MBA_CHAT_EVALUATION.md`](./MBA_CHAT_EVALUATION.md). Để in đầy đủ câu trả lời và
+các đoạn trích của một source, dùng `npm run mba:chat:eval -- --source BAS1151`;
+lệnh mặc định chỉ dry-run. Request thật cần cả `--run` và
+`--confirm-chat-request`, có thể tiêu thụ quota model và không bảo đảm `save:false`
+ngăn MBA_API lưu hội thoại.

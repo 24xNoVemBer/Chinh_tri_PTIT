@@ -33,6 +33,17 @@ Không dùng điểm retrieval hoặc câu trả lời trôi chảy làm tiêu c
 
 Các câu trên là bộ khởi đầu dựa trên những câu đã dùng để smoke-test. Chúng chưa được đánh dấu PASS chuyên môn; cần chạy lại trên demo và ghi nhận phản hồi/source thực tế.
 
+### Lấy output đầy đủ cho từng source
+
+Runner chỉ xử lý một source mỗi lần và mặc định là dry-run. Chạy ở máy có thể truy cập MBA_API trực tiếp hoặc qua SSH tunnel:
+
+```bash
+npm run mba:chat:eval -- --source BAS1151
+npm run mba:chat:eval -- --source BAS1151 --run --confirm-chat-request
+```
+
+Đổi `BAS1151` thành một source khác trong bộ kiểm thử. Request thật có thể tiêu thụ quota model; dù payload đặt `save: false`, không coi đó là bảo đảm MBA_API không persist cho đến khi xác minh handler. Runner chỉ nhận URL loopback (mặc định `http://127.0.0.1:4558`), in toàn bộ nội dung các đoạn trích và không tự chấm PASS/FAIL. Chỉ chạy với cả hai cờ opt-in sau khi xem dry-run.
+
 ## Baseline từ smoke-test đã nhận
 
 Các nhận xét dưới đây chỉ dựa trên phần output đã dán trong phiên làm việc; nhiều đoạn trích đã bị rút còn 240 ký tự. Đây là đánh giá kỹ thuật sơ bộ, không phải xác nhận của giảng viên.
